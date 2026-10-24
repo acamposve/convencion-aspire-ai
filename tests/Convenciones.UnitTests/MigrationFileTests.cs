@@ -12,7 +12,7 @@ namespace Convenciones.UnitTests;
 /// <remarks>
 /// This is an infrastructure invariant, not a business rule. It earns a test because the ordering
 /// of the migration files *is* the deployment order: a mis-named file silently applies a schema
-/// change before its dependency and fails only on a from-scratch build â€” exactly the class of
+/// change before its dependency and fails only on a from-scratch build — exactly the class of
 /// defect that surfaced during Phase 4 validation.
 /// </remarks>
 public sealed class MigrationFileTests
@@ -30,6 +30,8 @@ public sealed class MigrationFileTests
         "20260101000800_app_publishing.sql",
         "20260101000900_grants.sql",
         "20260101001000_rls_policies.sql",
+        "20260102000000_align_product_decisions.sql",
+        "20260102000100_document_processing.sql",
     ];
 
     [Fact]

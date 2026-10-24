@@ -354,3 +354,39 @@ the API's responsibility and should be asserted by an integration test.
 7. **Enum evolution** requires `ALTER TYPE ... ADD VALUE`, which cannot run inside a transaction
    block before PostgreSQL 12. On 17 it can, but adding a value is still a migration and should be
    treated as a state-machine change.
+---
+
+## 12. Amendments applied after this document was written
+
+Two forward migrations were added for the first vertical slice. This section is the authoritative
+delta; the tables above describe migration set 20260101000000–20260101001000 and are otherwise
+unchanged.
+
+**20260102000000_align_product_decisions.sql — the Task 6 decisions**
+
+| Change | Decision |
+|---|---|
+| 
+umber_suffix dropped from greement_clause, statute_article, union_petition, employer_offer, meeting_agreement; unique and ordering indexes rebuilt on (parent, number_int) | Q-2 |
+| pp.negotiation_case_state replaced by Open, InProgress, Pending, Agreed, Closed; the two consistency CHECKs rebuilt; the promotion guard retargeted to promoted_agreement_id | Q-4 |
+| greement.title and greement.number dropped; identity remains UNIQUE (company_id, valid_from) and the display title is composed on read | Q-1 |
+
+**20260102000100_document_processing.sql — document isolation and processing**
+
+| Change | Purpose |
+|---|---|
+| platform.document.company_id + FK + partial index | Tenant ownership (§B.1) |
+| extraction_attempts, extraction_started_at, extraction_completed_at, extraction_error + three CHECKs | Auditable processing and bounded retries (§B.2) |
+| platform.document_text (1:1, char_count constrained to length(content)) | Normalised extracted text kept off the listing path (§B.3) |
+| platform.current_company_id(), platform.can_access_company(uuid) | Tenant predicates, SECURITY DEFINER with a pinned search_path |
+| platform.document read/insert/update/delete policies replaced with company-scoped ones; document_text policies added | Cross-tenant denial |
+
+**Measured after these migrations:** 32 tables, **163** RLS policies (was 160), 23 capabilities, 5 roles, 0 users.
+
+**Careful note on the unlocking capability.** company.read is granted to every role and means
+"read the company catalogue"; using it as the cross-company unlock made the tenant predicate always
+true. Cross-company access is therefore gated on the new company.read_all, held only by SuperAdmin
+and Admin.
+
+**Seed data changed:** nalyst was removed (Q-9 names five roles) and superadmin + 	ranscriptor
+were added, with 	ranscriptor deliberately holding no *.publish grant.
