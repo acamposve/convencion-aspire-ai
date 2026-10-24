@@ -87,12 +87,14 @@ public static class Extensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
+        // Probes are anonymous on purpose: an orchestrator has no token, and a probe that requires
+        // one cannot tell "unhealthy" from "unauthorised". The endpoints disclose health only.
         app.MapHealthChecks(LivenessPath, new HealthCheckOptions
         {
             Predicate = _ => false,
-        });
+        }).AllowAnonymous();
 
-        app.MapHealthChecks(ReadinessPath);
+        app.MapHealthChecks(ReadinessPath).AllowAnonymous();
 
         return app;
     }

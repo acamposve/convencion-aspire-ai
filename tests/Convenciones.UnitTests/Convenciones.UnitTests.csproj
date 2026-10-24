@@ -3,13 +3,22 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <RootNamespace>Convenciones.UnitTests</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Convenciones.Identity\Convenciones.Identity.csproj" />
   </ItemGroup>
 
 </Project>
