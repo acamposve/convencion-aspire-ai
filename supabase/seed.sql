@@ -24,6 +24,7 @@ select v.key, v.description
 from (values
     ('company.read',        'Read companies and their classification'),
     ('company.write',       'Create and modify companies'),
+    ('company.read_all',    'Read data belonging to ANY company (cross-company access)'),
     ('agreement.read',      'Read collective agreements and their clauses'),
     ('agreement.write',     'Create and modify collective agreements, clauses and annexes'),
     ('agreement.publish',   'Publish or unpublish a collective agreement'),
@@ -50,15 +51,21 @@ where not exists (
 );
 
 -- -------------------------------------------------------------------------------------
--- Roles. Four work-based roles, replacing the legacy six which mixed work functions with feature
--- bundles and contradicted their own names (BR-19, approval item A-36).
+-- Roles. Five work-based roles per decision Q-9: SuperAdmin, Admin, Editor, Transcriptor,
+-- Negotiator. They replace the legacy six, which mixed work functions with feature bundles and
+-- contradicted their own names (BR-19).
+--
+-- SuperAdmin is the only role holding system.superadmin, and it is granted ONLY to the bootstrap
+-- account at first run. This seed creates no user (constitution Art. VI.6), so it also assigns no
+-- one to SuperAdmin.
 -- -------------------------------------------------------------------------------------
 insert into platform.role (key, name, description, is_system)
 select v.key, v.name, v.description, v.is_system
 from (values
-    ('administrator', 'Administrator', 'Manages users, roles and all business data', true),
+    ('superadmin',    'SuperAdmin',    'Unrestricted access; held only by the bootstrap account', true),
+    ('administrator', 'Admin',         'Manages users, roles and all business data', false),
     ('editor',        'Editor',        'Authors, classifies and publishes agreements and statutes', false),
-    ('analyst',       'Analyst',       'Reads agreements, statutes and comparisons', false),
+    ('transcriptor',  'Transcriptor',  'Transcribes and classifies clause text; cannot publish', false),
     ('negotiator',    'Negotiator',    'Runs negotiation cases and promotes them to agreements', false)
 ) as v(key, name, description, is_system)
 where not exists (
@@ -71,8 +78,31 @@ where not exists (
 insert into platform.role_capability (role_id, capability_id)
 select r.id, c.id
 from (values
+    -- SuperAdmin: every capability, including system.superadmin. Assigned to the bootstrap account
+    -- only; this seed grants the role's capabilities but attaches nobody to it (Art. VI.6).
+    ('superadmin', 'company.read'), ('superadmin', 'company.write'), ('superadmin', 'company.read_all'),
+    ('superadmin', 'agreement.read'), ('superadmin', 'agreement.write'), ('superadmin', 'agreement.publish'),
+    ('superadmin', 'negotiation.read'), ('superadmin', 'negotiation.write'), ('superadmin', 'negotiation.promote'),
+    ('superadmin', 'comparison.read'),
+    ('superadmin', 'statute.read'), ('superadmin', 'statute.write'),
+    ('superadmin', 'news.read'), ('superadmin', 'news.write'), ('superadmin', 'news.publish'),
+    ('superadmin', 'catalog.read'), ('superadmin', 'catalog.write'),
+    ('superadmin', 'document.read'), ('superadmin', 'document.write'),
+    ('superadmin', 'user.manage'), ('superadmin', 'role.manage'), ('superadmin', 'audit.read'),
+    ('superadmin', 'system.superadmin'),
+
+    -- Transcriptor: transcribes and classifies clause text. Deliberately has no *.publish and no
+    -- user/role management — the legacy "Transcriptor" held 45 grants including delete on companies
+    -- and statutes, which contradicted the role's own name (BR-19).
+    ('transcriptor', 'company.read'),
+    ('transcriptor', 'agreement.read'), ('transcriptor', 'agreement.write'),
+    ('transcriptor', 'comparison.read'),
+    ('transcriptor', 'statute.read'), ('transcriptor', 'statute.write'),
+    ('transcriptor', 'catalog.read'),
+    ('transcriptor', 'document.read'), ('transcriptor', 'document.write'),
+
     -- Administrator: everything except system.superadmin, which is granted only at bootstrap
-    ('administrator', 'company.read'), ('administrator', 'company.write'),
+    ('administrator', 'company.read'), ('administrator', 'company.write'), ('administrator', 'company.read_all'),
     ('administrator', 'agreement.read'), ('administrator', 'agreement.write'), ('administrator', 'agreement.publish'),
     ('administrator', 'negotiation.read'), ('administrator', 'negotiation.write'), ('administrator', 'negotiation.promote'),
     ('administrator', 'comparison.read'),
@@ -92,15 +122,6 @@ from (values
     ('editor', 'document.read'), ('editor', 'document.write'),
 
     -- Analyst: read-only, including the audit trail
-    ('analyst', 'company.read'),
-    ('analyst', 'agreement.read'),
-    ('analyst', 'negotiation.read'),
-    ('analyst', 'comparison.read'),
-    ('analyst', 'statute.read'),
-    ('analyst', 'news.read'),
-    ('analyst', 'catalog.read'),
-    ('analyst', 'document.read'),
-    ('analyst', 'audit.read'),
 
     -- Negotiator: runs cases, reads what cases need
     ('negotiator', 'company.read'),
