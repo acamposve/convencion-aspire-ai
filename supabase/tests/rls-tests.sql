@@ -66,7 +66,7 @@ begin;
 insert into platform.user_account (id, email, display_name, is_blocked, expires_on) values
     ('20000000-0000-0000-0000-000000000001', 'admin@example.test',    'Admin',    false, null),
     ('20000000-0000-0000-0000-000000000002', 'editor@example.test',   'Editor',   false, null),
-    ('20000000-0000-0000-0000-000000000003', 'analyst@example.test',  'Analyst',  false, null),
+    ('20000000-0000-0000-0000-000000000003', 'reader@example.test',  'Reader (negotiator role)',  false, null),
     ('20000000-0000-0000-0000-000000000004', 'negotiator@example.test','Negotiator',false, null),
     ('20000000-0000-0000-0000-000000000005', 'blocked@example.test',  'Blocked',  true,  null),
     ('20000000-0000-0000-0000-000000000006', 'expired@example.test',  'Expired',  false, current_date - 1);
@@ -75,7 +75,7 @@ insert into platform.user_role (user_id, role_id)
 select u.id, r.id from (values
     ('20000000-0000-0000-0000-000000000001'::uuid, 'administrator'),
     ('20000000-0000-0000-0000-000000000002'::uuid, 'editor'),
-    ('20000000-0000-0000-0000-000000000003'::uuid, 'analyst'),
+    ('20000000-0000-0000-0000-000000000003'::uuid, 'negotiator'),
     ('20000000-0000-0000-0000-000000000004'::uuid, 'negotiator'),
     ('20000000-0000-0000-0000-000000000005'::uuid, 'administrator'),
     ('20000000-0000-0000-0000-000000000006'::uuid, 'administrator')
@@ -92,13 +92,13 @@ select '40000000-0000-0000-0000-000000000001', g.id, 'RLS Fixture Heading'
 from app.comparison_heading_group g where lower(g.name) = 'generales';
 
 -- One draft, one published. publication_consistency requires actor+timestamp for published.
-insert into app.agreement (id, company_id, title, valid_from, valid_to, scope, state)
+insert into app.agreement (id, company_id, valid_from, valid_to, scope, state)
 values ('50000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001',
-        'Draft Agreement', '2026-01-01', '2027-12-31', 'Nacional', 'Draft');
+        '2026-01-01', '2027-12-31', 'Nacional', 'Draft');
 
-insert into app.agreement (id, company_id, title, valid_from, valid_to, scope, state, published_at, published_by)
+insert into app.agreement (id, company_id, valid_from, valid_to, scope, state, published_at, published_by)
 values ('50000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001',
-        'Published Agreement', '2025-01-01', '2026-12-31', 'Nacional', 'Published', now(),
+        '2025-01-01', '2026-12-31', 'Nacional', 'Published', now(),
         '20000000-0000-0000-0000-000000000001');
 
 insert into app.agreement_clause (agreement_id, number_int, title, body, heading_id) values
@@ -192,9 +192,9 @@ begin
     select count(*) into n from app.agreement;
     execute 'reset role';
     if n = 2 then
-        raise notice 'PASS: R7 an active analyst sees both agreements including the draft';
+        raise notice 'PASS: R7 an active negotiator sees both agreements including the draft';
     else
-        raise notice 'FAIL: R7 active analyst saw % agreements, expected 2', n;
+        raise notice 'FAIL: R7 active negotiator saw % agreements, expected 2', n;
     end if;
 end $$;
 
@@ -249,8 +249,8 @@ begin
         '{"sub":"20000000-0000-0000-0000-000000000003"}', true);
     execute 'set local role authenticated';
     begin
-        insert into app.agreement (company_id, title, valid_from, scope)
-        values ('30000000-0000-0000-0000-000000000001', 'Direct Insert', '2024-01-01', 'Nacional');
+        insert into app.agreement (company_id, valid_from, scope)
+        values ('30000000-0000-0000-0000-000000000001', '2024-01-01', 'Nacional');
         raise notice 'FAIL: R11 the authenticated role was able to write directly';
     exception when insufficient_privilege then
         raise notice 'PASS: R11 the authenticated role has SELECT only; every write must go through the API';
@@ -266,10 +266,10 @@ begin
         '{"sub":"20000000-0000-0000-0000-000000000003"}', true);
     execute 'set local role app_api';
     begin
-        insert into app.company (name) values ('Analyst Company');
-        raise notice 'FAIL: R12 an analyst created a company through the API role';
+        insert into app.company (name) values ('Unauthorised Company');
+        raise notice 'FAIL: R12 a negotiator created a company through the API role';
     exception when insufficient_privilege then
-        raise notice 'PASS: R12 an analyst without company.write is refused by RLS';
+        raise notice 'PASS: R12 a negotiator without company.write is refused by RLS';
     end;
     execute 'reset role';
 end $$;
@@ -311,9 +311,9 @@ begin
     get diagnostics n = row_count;
     execute 'reset role';
     if n = 0 then
-        raise notice 'PASS: R14 an analyst without agreement.write affects 0 rows (RLS filters silently)';
+        raise notice 'PASS: R14 a negotiator without agreement.write affects 0 rows (RLS filters silently)';
     else
-        raise notice 'FAIL: R14 an analyst updated % row(s)', n;
+        raise notice 'FAIL: R14 a negotiator updated % row(s)', n;
     end if;
 end $$;
 
@@ -357,8 +357,7 @@ begin
     perform set_config('request.jwt.claims',
         '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
     execute 'set local role app_api';
-    update app.negotiation_case set state = 'Promoted',
-           promoted_agreement_id = '50000000-0000-0000-0000-000000000002'
+    update app.negotiation_case set promoted_agreement_id = '50000000-0000-0000-0000-000000000002'
      where id = '60000000-0000-0000-0000-000000000001';
     get diagnostics n = row_count;
     execute 'reset role';
@@ -375,7 +374,7 @@ begin
         '{"sub":"20000000-0000-0000-0000-000000000004"}', true);
     execute 'set local role app_api';
     begin
-        update app.negotiation_case set state = 'Promoted', promoted_agreement_id = '50000000-0000-0000-0000-000000000002'
+        update app.negotiation_case set promoted_agreement_id = '50000000-0000-0000-0000-000000000002'
          where id = '60000000-0000-0000-0000-000000000001';
         raise notice 'PASS: R17 a negotiator WITH negotiation.promote can promote a closed case';
     exception when others then
@@ -395,7 +394,7 @@ begin
     if n = 0 then
         raise notice 'PASS: R18 the audit trail is invisible without audit.read (0 rows, not an error)';
     else
-        raise notice 'FAIL: R18 an analyst saw % audit rows', n;
+        raise notice 'FAIL: R18 a negotiator saw % audit rows', n;
     end if;
 end $$;
 
@@ -425,6 +424,167 @@ begin
         raise notice 'PASS: R20 a non-manager reads only their own account (1 of 6)';
     else
         raise notice 'FAIL: R20 non-manager saw % accounts, expected 1', n;
+    end if;
+end $$;
+
+
+\echo '--- Tenant isolation: documents (Step 2 requirement) ---'
+
+-- Second company, two company-scoped users plus a user with no company at all.
+insert into app.company (id, name, country_id)
+values ('30000000-0000-0000-0000-000000000002', 'RLS Second Company',
+        (select id from app.country where code = 'VE'));
+
+insert into platform.user_account (id, email, display_name, is_blocked, expires_on) values
+    ('20000000-0000-0000-0000-000000000008', 'editor.b@example.test',       'Editor B',        false, null),
+    ('20000000-0000-0000-0000-000000000009', 'transcriptor@example.test',   'No Company',      false, null);
+
+insert into platform.user_role (user_id, role_id)
+select u.id, r.id from (values
+    ('20000000-0000-0000-0000-000000000008'::uuid, 'editor'),
+    ('20000000-0000-0000-0000-000000000009'::uuid, 'transcriptor')
+) as v(user_id, role_key)
+join platform.user_account u on u.id = v.user_id
+join platform.role r on r.key = v.role_key;
+
+-- Company A: editor and reader. Company B: editor B. The transcriptor deliberately has no company.
+insert into platform.user_profile (user_id, company_id) values
+    ('20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001'),
+    ('20000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001'),
+    ('20000000-0000-0000-0000-000000000008', '30000000-0000-0000-0000-000000000002');
+
+-- One document per company, plus one with no company (must be visible to nobody).
+insert into platform.document (id, storage_path, file_name, content_type, size_bytes, uploaded_by, company_id) values
+    ('40000000-0000-0000-0000-00000000000a', 'tenancy/doc-a.pdf',    'doc-a.pdf',    'application/pdf', 1024, '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001'),
+    ('40000000-0000-0000-0000-00000000000b', 'tenancy/doc-b.pdf',    'doc-b.pdf',    'application/pdf', 1024, '20000000-0000-0000-0000-000000000008', '30000000-0000-0000-0000-000000000002'),
+    ('40000000-0000-0000-0000-00000000000c', 'tenancy/doc-none.pdf', 'doc-none.pdf', 'application/pdf', 1024, '20000000-0000-0000-0000-000000000002', null);
+
+insert into platform.document_text (document_id, content, char_count) values
+    ('40000000-0000-0000-0000-00000000000a', 'Texto del documento A', length('Texto del documento A')),
+    ('40000000-0000-0000-0000-00000000000b', 'Texto del documento B', length('Texto del documento B'));
+
+-- R21 � a company user sees only their own company's document
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from platform.document;
+    execute 'reset role';
+    if n = 1 then
+        raise notice 'PASS: R21 company A editor sees exactly 1 document (its own)';
+    else
+        raise notice 'FAIL: R21 company A editor saw % documents, expected 1', n;
+    end if;
+end $$;
+
+-- R22 � extracted text inherits document visibility
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from platform.document_text;
+    execute 'reset role';
+    if n = 1 then
+        raise notice 'PASS: R22 company A editor reads text only of its own document';
+    else
+        raise notice 'FAIL: R22 company A editor saw % document_text rows, expected 1', n;
+    end if;
+end $$;
+
+-- R23 � the other company sees only its own
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000008"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from platform.document;
+    execute 'reset role';
+    if n = 1 then
+        raise notice 'PASS: R23 company B editor sees exactly 1 document (its own)';
+    else
+        raise notice 'FAIL: R23 company B editor saw % documents, expected 1', n;
+    end if;
+end $$;
+
+-- R24 � company.read unlocks cross-company, but not an unattached document
+do $$
+declare n int; m int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000001"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from platform.document;
+    select count(*) into m from platform.document where id = '40000000-0000-0000-0000-00000000000c';
+    execute 'reset role';
+    if n = 2 and m = 0 then
+        raise notice 'PASS: R24 company.read holder sees both company documents and NOT the unattached one';
+    else
+        raise notice 'FAIL: R24 admin saw % documents (expected 2) and % unattached (expected 0)', n, m;
+    end if;
+end $$;
+
+-- R25 � cross-company write is filtered, not merely rejected
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    update platform.document set file_name = 'tampered.pdf'
+     where id = '40000000-0000-0000-0000-00000000000b';
+    get diagnostics n = row_count;
+    execute 'reset role';
+    if n = 0 then
+        raise notice 'PASS: R25 company A editor updating company B document affects 0 rows';
+    else
+        raise notice 'FAIL: R25 company A editor modified % row(s) of company B document', n;
+    end if;
+end $$;
+
+-- R26 � same for delete
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    delete from platform.document where id = '40000000-0000-0000-0000-00000000000b';
+    get diagnostics n = row_count;
+    execute 'reset role';
+    if n = 0 then
+        raise notice 'PASS: R26 company A editor deleting company B document affects 0 rows';
+    else
+        raise notice 'FAIL: R26 company A editor deleted % row(s) of company B document', n;
+    end if;
+end $$;
+
+-- R27 � cannot create a document owned by another company
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    begin
+        insert into platform.document (storage_path, file_name, content_type, size_bytes, uploaded_by, company_id)
+        values ('tenancy/injected.pdf', 'injected.pdf', 'application/pdf', 512,
+                '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002');
+        raise notice 'FAIL: R27 company A editor created a company B document';
+    exception when insufficient_privilege then
+        raise notice 'PASS: R27 creating a document for another company is refused by RLS';
+    end;
+    execute 'reset role';
+end $$;
+
+-- R28 � a user with no company sees nothing
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000009"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from platform.document;
+    execute 'reset role';
+    if n = 0 then
+        raise notice 'PASS: R28 a user with no company sees 0 documents';
+    else
+        raise notice 'FAIL: R28 a user with no company saw % documents', n;
     end if;
 end $$;
 
