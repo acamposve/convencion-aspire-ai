@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Convenciones.Api/Convenciones.Api.csproj" />
+    <Project Path="src/Convenciones.AppHost/Convenciones.AppHost.csproj" />
+    <Project Path="src/Convenciones.Migrator/Convenciones.Migrator.csproj" />
+    <Project Path="src/Convenciones.ServiceDefaults/Convenciones.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Convenciones.IntegrationTests/Convenciones.IntegrationTests.csproj" />
+    <Project Path="tests/Convenciones.UnitTests/Convenciones.UnitTests.csproj" />
+  </Folder>
+</Solution>

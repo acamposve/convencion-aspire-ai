@@ -1,0 +1,28 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.4">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Convenciones.AppHost</RootNamespace>
+    <UserSecretsId>convenciones-apphost</UserSecretsId>
+    <!--
+      Required by Aspire 13: without the CLI bundle the AppHost only orchestrates container
+      resources and never launches `project.v0` resources (the migrator and the API). With it, a
+      bare `dotnet run` starts the whole stack. Verified empirically: with this false, DCP logged
+      only the postgres/pgadmin containers.
+    -->
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+    <!-- The Aspire SDK emits generated project-metadata types; warnings there are not actionable. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Convenciones.Api\Convenciones.Api.csproj" />
+    <ProjectReference Include="..\Convenciones.Migrator\Convenciones.Migrator.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,21 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Clean Architecture guarantee (constitution Art. IV.2): projects whose name ends in
+    `.Domain` must never reference a framework, EF Core, or the Supabase SDK. That is enforced
+    by the project file, not by review: the Domain projects reference nothing but the base
+    class library and Convenciones.SharedKernel.
+  -->
+
+</Project>
