@@ -1,36 +1,96 @@
-# Legacy Sistema — Referencia histórica
+# Convenciones
 
-Este directorio contiene el SaaS PHP original (~20 años, ~100 libras de código).
+A **contract intelligence platform** for collective bargaining agreements (*convenciones
+colectivas*): authoring agreement clauses, comparing them across agreements and against labour
+legislation, tracking the negotiation that produced them, and publishing the results.
 
-**Propósito:** Referencia funcional y arquetipo de datos — NO se porta código de acá.
-
-**Según constitución.md Art. IX:**
-- Legible solo para entender lo que el sistema hacía
-- Datos históricos (dump SQL, PDFs reales) pueden usarse como dataset de prueba/validación
-- Derechos de reutilización pendiente confirmación (Art. XI.2)
-- Estructura de carpetas y módulos adaptadas al nuevo sistema, pero NO se copian métodos/funciones
-
-**Contenido:**
-- `index.html` — Portal web histórico
-- `admin/` — Interfaz de administración (deprecated)
-- `lib/` — Librerías PHP (NO reutilizar directamente)
-- `db/` — Scripts SQL legados (datos de referencia)
-- `Scripts/`, `SpryAssets/`, `css/` — Frontend antiguo (reemplazado por React)
-- `local/config*.php` — Configuración histórica (ignorar)
-- `xyiznwsk/` — Carpeta sin identificar (posible basura)
-
-**Cómo usar este código:**
-1. ✅ Ver cómo se estructuraban las tablas y relaciones
-2. ✅ Extraer SQL de esquema legado para validar migración
-3. ✅ Usar datos de prueba (empresas, convenciones clasificadas)
-4. ❌ NO copiar funciones PHP
-5. ❌ NO reutilizar lógica de negocio directamente
-6. ❌ NO importar estilos o scripts JS
-
-Si necesitas información sobre cómo algo funcionaba en el legado, revisa acá — pero reescribelo
-en la arquitectura nueva (Art. V: .NET, Python, React).
+> **Status: pre-alpha — rebuild in progress.** No application code exists yet. The current
+> deliverables are project governance and analysis. Nothing in this repository is runnable.
 
 ---
 
-**Arquivos legados marcados en git con `@legacy` tag si es necesario referenciarlos desde
-la arquitectura nueva.**
+## Read this first
+
+[docs/constitution.md](docs/constitution.md) is the **authoritative** engineering rulebook —
+mandated stack, architecture rules, data policy, security, testing, and Git workflow. Any
+practice that conflicts with it is a defect, not a preference.
+
+## Target architecture
+
+| Concern | Choice |
+|---|---|
+| Backend | C# / ASP.NET Core on .NET |
+| Orchestration & observability | .NET Aspire |
+| Database | PostgreSQL on Supabase |
+| Data access | Entity Framework Core + Npgsql |
+| Frontend | React + Vite + Material UI (MUI) |
+| Styling | MUI only — **no Tailwind CSS** |
+| Identity & storage | Supabase Auth, Storage, and Row Level Security |
+| CI | GitHub Actions |
+
+Architecture: a **modular monolith** with Clean Architecture and feature-oriented slices —
+no microservices for the MVP (constitution Art. IV).
+
+## Repository layout
+
+```
+docs/                     Governance and analysis
+  constitution.md         Authoritative engineering rules — start here
+  legacy/README.md        Archived description of the legacy tree
+admin/ lib/ plantillas/   Legacy PHP application — READ ONLY
+  css/ img/ Scripts/ ...
+index.html                Legacy public portal — READ ONLY
+presenci_cccol.sql        Legacy MySQL dump — analysis only, never migrated
+```
+
+The legacy PHP application and the dump are **evidence, not a codebase**. They are never
+modified, and **no PHP code is ported** (constitution Art. IX). The legacy tree is expected to be
+removed from the repository once the functional analysis is complete; until then it stays
+untouched at the root.
+
+## Product scope (MVP)
+
+| Capability | Status |
+|---|---|
+| Collective agreements — clauses, annexes, publication state | In scope |
+| Negotiation workflow — petitions → offers → meetings → agreements | In scope |
+| Legal library — labour law and statutes at article level | In scope, **starts empty** (no legacy content) |
+| Clause comparison across agreements and against legislation | In scope |
+| Public portal — published agreements and news | In scope |
+| Administration — master data, users, roles, permissions | In scope |
+
+Out of scope: data migration from MySQL, microservices, mobile apps, offline mode.
+
+## Key product decisions
+
+- **A single SuperAdmin is provisioned at first run.** This is the only account created outside
+  the application. **Every other user, administrator, role, and permission is created inside the
+  application** by an authorised administrator (constitution Art. VI.6).
+- **Reference catalogs are seeded** from curated, hand-reviewed data — countries, states,
+  municipalities, comparison headings. This is reference data authored for the new system, never
+  business records and never a MySQL migration (constitution Art. V.3).
+- **User-facing copy is Spanish**; all code, schema, and documentation are in English
+  (constitution Art. X).
+
+## Prerequisites
+
+Not yet installable — these are the platforms the stack will target:
+
+- .NET SDK **10**
+- Node.js **22+**
+- Docker (local PostgreSQL via Aspire)
+
+Setup instructions will be added with the solution skeleton. They are deliberately omitted rather
+than guessed.
+
+## Working in this repository
+
+- Never commit directly to `main`. One task = one branch = one pull request
+  (constitution Art. VIII).
+- Test reports must reflect tests actually executed (constitution Art. VII.1).
+- Uncertainties are logged, not resolved silently (constitution Art. XIII).
+
+## Legacy reference
+
+See [docs/legacy/README.md](docs/legacy/README.md) for what the legacy tree contains and why it is
+retained. Credentials in `local/` are excluded from version control and must never be reused.
