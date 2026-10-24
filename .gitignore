@@ -18,6 +18,26 @@ dwsync.xml
 *.tmp
 
 # =============================================================================
+# Nuevo stack (.NET + React) — no versionar artefactos de compilación
+# =============================================================================
+
+# Salida de compilación .NET (cualquier profundidad)
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+.vs/
+
+# Node / Vite (la SPA llega en una tarea posterior)
+node_modules/
+dist/
+.vite/
+
+# Aspire local
+.aspire/
+
+# =============================================================================
 # Notas
 # =============================================================================
 # `presenci_cccol.sql` (48 MB, dump de datos reales) y los PDFs de contratos en
