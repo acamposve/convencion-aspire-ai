@@ -1,0 +1,21 @@
+# Normalizar únicamente texto; no tocar los binarios (PDFs, imágenes, dump SQL).
+* text=auto
+
+*.php   text
+*.js    text
+*.css   text
+*.html  text
+*.md    text
+
+# Dump de datos reales: byte-exacto, sin normalización de fin de línea.
+presenci_cccol.sql binary
+
+*.pdf   binary
+*.pps   binary
+*.doc   binary
+*.jpg   binary
+*.jpeg  binary
+*.png   binary
+*.gif   binary
+*.woff  binary
+*.woff2 binary
