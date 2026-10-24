@@ -1,0 +1,74 @@
+# Convenciones — Supabase local development configuration
+#
+# Target CLI: 2.122.0 (current release on the npm registry at time of writing).
+# The Supabase CLI is NOT installed in the authoring environment, so `supabase start` was not
+# executed. Schema validation was performed against a disposable PostgreSQL 17.11 container
+# instead — see docs/database/validation-report.md. The migration files are plain, standard SQL
+# and are applied by the CLI exactly as they were applied there.
+#
+# Deliberate configuration choices, each tied to an approved decision:
+#   [api] enabled = false        — the SPA never queries PostgREST; all data access goes through
+#                                  the ASP.NET Core API (architecture §2, security §1). Exposing
+#                                  PostgREST would create a second, unmedalled write path.
+#   [auth] enable_signup = false — A-35: no out-of-band accounts beyond the bootstrap SuperAdmin.
+#   no secrets in this file      — every value is a local default; nothing here is a credential.
+
+project_id = "convenciones"
+
+[api]
+enabled = false
+port = 54321
+schemas = ["app", "platform"]
+extra_search_path = ["app", "platform", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+enabled = true
+# Essential reference data only: capabilities, roles, the comparison heading taxonomy seed and
+# one country. No legacy records are imported (constitution Art. V.2). See docs/database/target-schema.md §9.
+sql_paths = ["./seed.sql"]
+
+[db.network_restrictions]
+enabled = false
+
+[realtime]
+enabled = false
+
+[studio]
+enabled = false
+
+[inbucket]
+enabled = false
+
+[storage]
+enabled = true
+# 20 MiB — matches the API upload limit (approval item A-28) and the CHECK on platform.document.
+file_size_limit = "20MiB"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173"]
+jwt_expiry = 3600
+enable_signup = false
+# Email confirmations are off locally so the bootstrap SuperAdmin can sign in immediately.
+# This is a LOCAL development setting only; production must enable confirmations.
+
+[auth.email]
+enable_signup = false
+enable_confirmations = false
+
+[analytics]
+enabled = false
