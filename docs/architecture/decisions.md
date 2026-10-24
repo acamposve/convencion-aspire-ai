@@ -1,21 +1,47 @@
 # Decisions — Convenciones
 
-**Status: proposed for approval.** Section 2 is the list I need you to sign off; everything in
-section 3 is recorded with rationale so it can be challenged rather than rediscovered.
+**Status: partly decided.** Section 1 records the ten decisions the Product Owner has now taken;
+section 2 lists what is still outstanding.
 
 Documents: [mvp-scope.md](mvp-scope.md) · [solution-architecture.md](solution-architecture.md) ·
 [domain-model.md](domain-model.md) · [api-contracts.md](api-contracts.md) · [security-model.md](security-model.md)
 
 ---
 
+## 0. Decided by the Product Owner — Task 6
+
+Ten questions answered. Each answer is binding and is reflected in the constitution where it is a
+standing rule.
+
+| Q | Question | Decision | Effect |
+|---|---|---|---|
+| **Q-1** | Agreement identity | **Title is auto-composed from company + period** | `agreement.title` and `agreement.number` are **removed**; identity is company + validity period, enforced by `UNIQUE (company_id, valid_from)`. Display name is derived on read |
+| **Q-2** | Clause numbering | **Integer** | `number_suffix` is **removed** from all five clause-bearing tables; `ClauseNumber` becomes a single positive integer; uniqueness becomes `(parent_id, number_int)` |
+| **Q-3** | Economic comparison | **Free text** | Confirms A-18: `economic_comparison_note` stays `text`; no amount, currency or unit is modelled |
+| **Q-4** | Negotiation stages | **`Open`, `InProgress`, `Pending`, `Agreed`, `Closed`** | Replaces `Draft/Open/Closed/Promoted`. `Promoted` disappears as a state; promotion is recorded by `promoted_agreement_id` while the case sits in `Closed` |
+| **Q-5** | Petition outcomes | **Agreed with the recommendation** | `Open`, `Agreed`, `Rejected`, `Withdrawn` — already implemented |
+| **Q-6** | Comparison semantics | **Agreed with the recommendation** | Confirms ADR-009: adjacency in the MVP; alignment deferred to R2-01 and explicitly **not** in scope |
+| **Q-7** | Publication governance | **Agreed with the recommendation** | Confirms A-41/ADR-013: `published_at` + `published_by`, no approval workflow, post-publication edits audited |
+| **Q-8** | Permission model | **Agreed with the recommendation** | Confirms ADR-010: capability keys (`agreement.publish`), not screen names |
+| **Q-9** | Roles | **SuperAdmin, Admin, Editor, Transcriptor, Negotiator** | Five roles, not four. `superadmin` holds `system.superadmin`; `transcriptor` is restored as a first-class role (transcribes clause text, does not publish) |
+| **Q-10** | Account expiry | **Agreed with the recommendation** | Confirms A-38: `expires_on` enforced on every request, no renewal flow |
+
+**Standing rules resulting (constitution v1.2.0):** Domain-Driven Design is mandatory where
+invariants span aggregates (Art. IV.3); CQRS is mandatory in code (Art. IV.4); `main` protection is
+an enforcement obligation (Art. VIII.1).
+
+**Schema deltas required by Q-1, Q-2, Q-4 and Q-9 are listed in §7.** They are *not* applied in this
+task.
+
+---
+
 ## 1. How to read this
 
-- **Section 2 — decisions requiring approval.** Marked `[A-nn]` throughout the design documents.
-  Each has my recommendation and what changes if you reject it.
-- **Section 3 — accepted decisions (ADRs).** Choices I judged determined by the approved evidence.
-  Recorded so they are reviewable, not so they are hidden.
-- **Section 4 — resolutions of the Phase 1 open questions.** Traceability: every question either got
-  an answer, became an approval item, or was explicitly deferred.
+- **Section 2 — decisions still requiring approval.** Marked `[A-nn]`. Items answered above are
+  struck from this list.
+- **Section 3 — accepted decisions (ADRs).** Choices judged determined by the evidence, recorded so
+  they are reviewable.
+- **Section 4 — resolutions of the Phase 1 open questions**, now updated with the decisions above.
 
 ---
 
@@ -117,13 +143,21 @@ cross-module entity access.
 **Consequences:** boundaries depend on discipline. **Revisit trigger:** two modules querying each
 other's tables more than once per release.
 
-### ADR-004 — No CQRS, no mediator, no broker, no generic repository, no domain events
+### ADR-004 — ~~No CQRS~~; no mediator, no broker, no generic repository, no domain events
+**CQRS half superseded by ADR-022 (Task 6).**
+
 **Context:** Phase 3 instruction; every screen is a straightforward use case.
-**Decision:** endpoints call application services directly; `DbContext` is the unit of work; specific
+**Original decision:** endpoints call application services directly; `DbContext` is the unit of work; specific
 repositories only for the `CollectiveAgreement` aggregate (needed to enforce publish/clause-number
-invariants); no dispatcher, no outbox.
-**Consequences:** the codebase is smaller and debuggable. Trade-off accepted: no cross-cutting pipeline;
-ASP.NET Core filters cover the few cross-cutting needs (correlation, capability, error mapping).
+invariants); no dispatcher, no outbox; **no CQRS**.
+**Status:** the CQRS half is **withdrawn** — the Product Owner mandated CQRS, now constitution
+Art. IV.4. The remaining prohibitions stand and are *not* reopened by that mandate: no mediator, no
+command bus, no message broker, no generic repository, no domain events, no separate read store.
+Those were rejected on merit and were not requested.
+**Consequences:** commands and queries are separate handler types (ADR-022), still invoked directly
+by endpoints and still on one `DbContext`. No cross-cutting pipeline; ASP.NET Core filters cover
+correlation, capability and error mapping. The codebase grows by the query/command split, which is
+the cost the Product Owner accepted.
 
 ### ADR-005 — `Result<T>` for expected failures, exceptions for bugs
 **Decision:** application services return `Result<T>` with a typed error (`NotFound`, `Conflict`,
@@ -212,34 +246,90 @@ written inside the use case's transaction, no update/delete handlers.
 **Decision:** generation in the build; no hand-maintained DTO types in the SPA.
 **Consequences:** contract drift becomes a build failure rather than a runtime surprise.
 
+### ADR-021 — Domain-Driven Design is mandatory where invariants span aggregates *(Task 6)*
+**Context:** the Product Owner mandated DDD. The Phase 3 design already used it for the three
+aggregates with cross-row invariants, but treated it as a judgement rather than a rule.
+**Decision:** constitution Art. IV.3 makes it a rule with a boundary: aggregates are used **where an
+invariant spans their parts**, and plain entities where CRUD genuinely suffices. The three
+aggregates stand — `CollectiveAgreement` (publish requires ≥ 1 clause; clause numbers unique within
+the agreement), `NegotiationCase` (cannot close without an agreement; an agreed petition is locked),
+`Statute` (article numbers unique within a statute).
+**Explicitly not changed:** reference data (countries, catalogues, comparison headings), news,
+companies and roles stay plain entities with application services. Wrapping them in aggregates,
+repositories and domain events would add ceremony with no invariant to protect, which Art. IV.7
+still forbids.
+**Consequences:** invariants live in the model and are also asserted by database constraints. Adding
+a fourth aggregate now requires naming the invariant it protects.
+
+### ADR-022 — CQRS is mandatory in code; infrastructure-level CQRS is not *(Task 6)*
+**Context:** the Product Owner mandated CQRS, reversing the earlier rejection in ADR-004.
+**Decision:**
+- **Commands** (`CreateAgreement`, `AddClause`, `PublishAgreement`, `PromoteCaseToAgreement`) change
+  state, load the aggregate, enforce its invariants, and write through it.
+- **Queries** (`GetAgreement`, `ListAgreements`, `GetComparison`, `ListPublishedAgreements`) never
+  load aggregates and never mutate; they project straight into read models with `AsNoTracking()`.
+- Separate handler types in separate namespaces (`…Commands`, `…Queries`); a command handler never
+  returns a read model and a query handler never touches a repository.
+- Endpoints invoke handlers **directly** — no mediator, no command bus, no pipeline (ADR-004's
+  remaining prohibitions stand).
+**Why not full infrastructure CQRS:** one database, one `DbContext`, no scaling asymmetry between
+reads and writes. A separate read store would need synchronisation, eventual consistency, and a
+projection mechanism — three problems with no requirement behind them yet. Constitution Art. IV.4
+requires an amendment before adding any of it.
+**Consequences:** the application layer roughly doubles in type count (request + handler +
+response per use case) and stays trivially debuggable. The comparison workspace is the query that
+justifies CQRS at all: it is a multi-table projection that would be actively harmed by
+aggregate-loading.
+
 ---
 
 ## 4. Resolutions of the Phase 1 open questions
 
-| Question | Resolution |
-|---|---|
-| **Q-1** Agreement identity | → **A-15**: title + optional number + per-company/validity uniqueness |
-| **Q-2** Clause numbering | → **A-14**: integer + optional letter suffix + derived order key |
-| **Q-3** Economic comparison | → **A-18**: free text in MVP; structuring is an open product decision, flagged as possibly the highest-value feature |
-| **Q-4** Negotiation states | → **A-13** / **A-03**: four states proposed; no data validates them |
-| **Q-5** Petition outcomes | → **A-13**: four states proposed; legacy could express only two |
-| **Q-6** Comparison semantics | → **ADR-009**: adjacency in MVP; alignment deferred to R2-01. **Largest product risk — still needs your confirmation** |
-| **Q-7** Publication governance | → **A-41** / ADR-013: recorded act, no approval workflow |
-| **Q-8** Permission model | → ADR-010 / **A-36**: capability-based |
-| **Q-9** Real roles | → **A-36**: four work-based roles; the legacy six cannot be translated |
-| **Q-10** Account expiry | → **A-38**: kept, enforced per request, semantics unproven |
-| **Q-11** Reference delete policy | → RESTRICT for business-referenced catalogues, CASCADE only country→state→municipality. Recorded in ADR-016 context |
-| **Q-12** Ordering of headings | → **A-22**: explicit `SortOrder` |
-| **Q-13** Validation requirements | → §3 of api-contracts: typed value objects; no legacy rules survived, so requirements are **new** and need your input |
-| **Q-14** Portal placement | → same SPA, public routes, no SSR. If SEO matters this reverses |
-| **Q-15** "No Compara" | → **A-16**: `ComparisonHeading.IsExcluded`. **Answered by Phase 2 data** (853 clauses) |
-| **Q-16** Links of interest | → deferred, not in MVP (FUT-05). No requirement exists |
-| **Q-17** Promotion semantics | → ADR-014 / **A-21**: atomic, idempotent, terminal |
-| **Q-18** Legacy company code | → **A-42**: `LegacyCode` attribute, never a key |
-| **Q-19** Clause exclusion | → **A-17**: `IsExcludedFromCompilation` + note. Reason still unknown |
+| Question | Resolution | Decided |
+|---|---|---|
+| **Q-1** Agreement identity | **Title auto-composed from company + period.** `title` and `number` are dropped as stored columns; identity is `UNIQUE (company_id, valid_from)` | **Task 6** |
+| **Q-2** Clause numbering | **Integer.** No suffix. `ClauseNumber` is one positive integer; uniqueness is `(parent_id, number_int)` | **Task 6** |
+| **Q-3** Economic comparison | **Free text.** No amount, currency or unit is modelled | **Task 6** |
+| **Q-4** Negotiation stages | **`Open`, `InProgress`, `Pending`, `Agreed`, `Closed`.** `Promoted` is no longer a state; promotion is recorded by `promoted_agreement_id` while the case is `Closed` | **Task 6** |
+| **Q-5** Petition outcomes | `Open`, `Agreed`, `Rejected`, `Withdrawn` — as recommended | **Task 6** |
+| **Q-6** Comparison semantics | Adjacency in the MVP (ADR-009); alignment deferred to R2-01 | **Task 6** |
+| **Q-7** Publication governance | Recorded act with actor and timestamp; no approval workflow (ADR-013) | **Task 6** |
+| **Q-8** Permission model | Capability-based (ADR-010) | **Task 6** |
+| **Q-9** Real roles | **SuperAdmin, Admin, Editor, Transcriptor, Negotiator** — five, not four | **Task 6** |
+| **Q-10** Account expiry | Kept, enforced on every request, no renewal flow (A-38) | **Task 6** |
+| **Q-11** Reference delete policy | RESTRICT for business-referenced catalogues, CASCADE only country→state→municipality (ADR-016 context) | assumed |
+| **Q-12** Ordering of headings | **A-22**: explicit `SortOrder` | assumed |
+| **Q-13** Validation requirements | §3 of api-contracts: typed value objects. No legacy rules survived, so requirements are **new** | **open** |
+| **Q-14** Portal placement | Same SPA, public routes, no SSR. Reverses if SEO matters | assumed |
+| **Q-15** "No Compara" | **A-16**: `ComparisonHeading.IsExcluded`. Answered by Phase 2 data (853 clauses) | assumed |
+| **Q-16** Links of interest | Deferred, not in MVP (FUT-05). No requirement exists | assumed |
+| **Q-17** Promotion semantics | ADR-014: atomic, idempotent, terminal | assumed |
+| **Q-18** Legacy company code | **A-42**: `LegacyCode` attribute, never a key. **Still a business fact only you know** | **open** |
+| **Q-19** Clause exclusion | **A-17**: `IsExcludedFromCompilation` + note. Reason still unknown | assumed |
 
-**Q-6 and Q-18 are the two answers I still cannot give.** Q-6 is a product decision with a large scope
-consequence. Q-18 is a business fact only you know.
+**Q-13 and Q-18 remain open.** Q-13 (which fields are genuinely mandatory) is a requirements
+question; Q-18 (whether the legacy company code is a value the business cites) is a business fact.
+Everything else is decided or safely assumed and reversible.
+
+---
+
+## 7. Schema deltas required by the Task 6 decisions
+
+**Not applied in Task 6.** These are implementation changes to the schema merged in PR #5 and must
+land as a forward migration, not by editing applied migration files (constitution Art. VIII.6).
+
+| Delta | Cause | Work |
+|---|---|---|
+| Drop `number_suffix` from `agreement_clause`, `statute_article`, `union_petition`, `employer_offer`, `meeting_agreement` | Q-2 integer numbering | Drop 5 columns; rewrite 5 unique indexes to `(parent_id, number_int)`; drop `*_suffix_format` CHECKs; update the clause/statute ordering indexes |
+| Replace enum `app.negotiation_case_state` | Q-4 five stages | New type `('Open','InProgress','Pending','Agreed','Closed')`, swap the column, drop the old type. No data to migrate — the table has never held a row |
+| Rewrite `negotiation_case_closed_consistency` and `negotiation_case_promoted_consistency` | Q-4 removes `Promoted` | `closed_at` not null iff `state = 'Closed'`; `promoted_agreement_id` not null implies `state = 'Closed'` |
+| Retarget `app.guard_case_promotion()` | Q-4 removes `Promoted` | Fire on `UPDATE OF promoted_agreement_id` instead of `UPDATE OF state`, still requiring `negotiation.promote` |
+| Drop `agreement.title` and `agreement.number` | Q-1 auto-composed title | Drop 2 columns; keep `UNIQUE (company_id, valid_from)`; compose the display name on read. `agreement_title_not_blank` CHECK goes with the column |
+| Replace the four seeded roles with five | Q-9 | `seed.sql`: add `superadmin` and `transcriptor`, keep `administrator`, `editor`, `negotiator`; rebuild the grant matrix (transcriptor: clause transcription without publish) |
+| Update the test suites | consequences of the above | Constraint tests B5/B7/B8 (suffix) removed; add cover for integer numbering, the five states, promotion on `promoted_agreement_id`; RLS tests re-run against the new role set |
+| Update `target-schema.md` and `legacy-to-target-mapping.md` | documentation drift | Reflect the dropped columns, the new enum and the five roles |
+
+**Not affected:** Q-3, Q-5, Q-6, Q-7, Q-8 and Q-10 confirm what is already built.
 
 ---
 
