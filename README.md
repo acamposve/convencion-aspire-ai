@@ -36,17 +36,23 @@ no microservices for the MVP (constitution Art. IV).
 ```
 docs/                     Governance and analysis
   constitution.md         Authoritative engineering rules — start here
+  tasks/                  One record per implementation task
   legacy/README.md        Archived description of the legacy tree
 admin/ lib/ plantillas/   Legacy PHP application — READ ONLY
-  css/ img/ Scripts/ ...
+  css/ img/ new_img/ ...
 index.html                Legacy public portal — READ ONLY
-presenci_cccol.sql        Legacy MySQL dump — analysis only, never migrated
+presenci_ccol.sql         Legacy MySQL dump — analysis only, never migrated
 ```
 
 The legacy PHP application and the dump are **evidence, not a codebase**. They are never
 modified, and **no PHP code is ported** (constitution Art. IX). The legacy tree is expected to be
 removed from the repository once the functional analysis is complete; until then it stays
 untouched at the root.
+
+**T16 is in progress.** The dead vendor assets (`SpryAssets/`, `Scripts/`) were removed: nothing in the
+new stack referenced them, and `SpryAssets/` contained a stale nested copy of itself. Twelve legacy PHP
+pages still reference those assets, so those pages no longer render as they once did — they remain
+readable as code, which is all the analysis needs from them.
 
 ## Product scope (MVP)
 
