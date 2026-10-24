@@ -1,0 +1,26 @@
+# =============================================================================
+# Convenciones — legacy PHP reference tree
+# =============================================================================
+
+# Historial: configuración con credenciales (MySQL/ODBC passwords).
+# NUNCA se versiona. Ver README.md § local/config*.php
+local/
+
+# Basura de sistema operativo / Dreamweaver
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+dwsync.xml
+
+# Logs y temporales
+*.log
+*.tmp
+
+# =============================================================================
+# Notas
+# =============================================================================
+# `presenci_cccol.sql` (48 MB, dump de datos reales) y los PDFs de contratos en
+# `admin/modulos/contratos/contratos/documentos/` SÍ se versionan en este repo
+# PRIVADO por su valor como dataset de referencia/migración (README.md).
+# Si el repo se hiciera público, excluirlos antes de cualquier push.
