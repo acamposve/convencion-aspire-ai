@@ -1,38 +1,106 @@
-# Task records
+# Task records and the path to a complete MVP
 
-One Markdown file per task, so the state of the work is visible without reading a pull request
-thread or asking.
+One Markdown file per task. Created **before** implementation, updated as it proceeds, committed in the
+same pull request as the task.
+
+## The rule
+
+**No result is written before it was executed.** "Expected to pass" is not a result. If a check was not
+run, the file says so.
 
 ## Convention
 
 | Rule | Detail |
 |---|---|
-| File name | `task-NN-<slug>.md`, where `NN` is the task number from the implementation plan (T1, T2, …) |
-| Created | **Before** implementation starts, with objective, scope, planned files and risks |
-| Updated | As the task proceeds — every check that was actually run is recorded with its real result |
-| Committed | In the same pull request as the task, so the record and the code arrive together |
-| Never | A result is written before it was executed. "Expected to pass" is not a result |
+| File name | `task-NN-<slug>.md`, matching the task number below |
+| Created | Before code, with objective, scope, planned files and risks |
+| Updated | Every check actually run, with its real output — including the failures |
+| Committed | In the same pull request as the task |
+| Sections | Objective · Scope · Deliverables · Acceptance criteria · Risks · Status · Left undone |
 
-## Required sections
+---
 
-1. **Objective** — what this task must achieve.
-2. **Scope** — what is in, and what is deliberately out.
-3. **Files touched** — every file added or modified, and why.
-4. **Risks** — what could go wrong, before starting.
-5. **Checks executed** — commands run and their actual output, including failures.
-6. **Status** — done / partial / blocked, with the evidence.
-7. **Left undone** — explicitly, so nothing is assumed complete.
+## The plan
 
-## Why
+18 tasks. The MVP is complete when T1–T14 are done and T15–T18 have made it operable, safe and
+deployable.
 
-A pull request shows the final diff; it does not show what was attempted, what failed first, or
-which claims are verified. These files do. They are the difference between "tests pass" and
-"these tests ran against this tree and here is the output".
+### Phase A — Security foundation *(nothing ships before this)*
 
-## Index
-
-| Task | File | PR | Status |
+| # | Task | Depends on | Status |
 |---|---|---|---|
-| T0 | baseline revalidation | — | done (in audit) |
-| T1 | [task-01-document-isolation.md](task-01-document-isolation.md) | #9 | verified, awaiting merge |
-| T2 | authentication (next) | — | not started |
+| T1 | [Document tenant isolation and Task 6 decisions](task-01-document-isolation.md) | — | **merged** (#9) |
+| T2 | [Identity and authorization](task-02-identity-authorization.md) | T1 | planned |
+| T3 | [Tenant scoping and persistence concerns](task-03-tenant-scoping.md) | T2 | planned |
+
+### Phase B — The document workflow *(the demonstrable spine)*
+
+| # | Task | Depends on | Status |
+|---|---|---|---|
+| T4 | [Document upload and private storage](task-04-document-upload.md) | T3 | planned |
+| T5 | [Document processing and extraction](task-05-document-processing.md) | T4 | planned |
+| T6 | [Document retrieval API](task-06-document-retrieval.md) | T5 | planned |
+| T7 | [Web: authentication and document workflow](task-07-web-documents.md) | T6 | planned |
+
+### Phase C — The business domain *(F-01 … F-16)*
+
+| # | Task | Depends on | Status |
+|---|---|---|---|
+| T8 | [Agreements and clauses](task-08-agreements-clauses.md) | T3 | planned |
+| T9 | [Comparison](task-09-comparison.md) | T8 | planned |
+| T10 | [Legal library](task-10-legal-library.md) | T3 | planned |
+| T11 | [Negotiation workflow](task-11-negotiation.md) | T8 | planned |
+| T12 | [Publishing and public portal](task-12-publishing-portal.md) | T9, T10 | planned |
+| T13 | [Administration and audit](task-13-administration-audit.md) | T2 | planned |
+| T14 | [Web: core domain, admin and portal](task-14-web-core.md) | T9, T11, T12, T13 | planned |
+
+### Phase D — Operable and releasable
+
+| # | Task | Depends on | Status |
+|---|---|---|---|
+| T15 | [CI pipeline](task-15-ci.md) | T2 | planned |
+| T16 | [Legacy removal and credential rotation](task-16-legacy-removal.md) | — · **needs approval** | planned |
+| T17 | [Aspire investigation](task-17-aspire-investigation.md) | — | planned |
+| T18 | [Production readiness](task-18-production-readiness.md) | T14, T15 · **needs approval** | planned |
+
+---
+
+## Critical path
+
+```
+T1 (done) → T2 → T3 → T4 → T5 → T6 → T7    ← first usable product
+                 └→ T8 → T9 ──┐
+                 └→ T10 ──────┴→ T12 ─┐
+                 └→ T11 ──────────────┴→ T14 → T18
+```
+
+T15, T16 and T17 are independent and can run in parallel with any of it. **T16 should not wait** — the
+credentials are exposed today.
+
+## Definition of done for the MVP
+
+1. A new developer clones, runs one documented command, and gets a working stack.
+2. A user signs in, uploads a contract, sees honest processing status, and reads the extracted text.
+3. A user authors an agreement with numbered clauses, classifies them, publishes it, and compares it
+   against another.
+4. A negotiation case runs from `Open` to a promoted agreement.
+5. An anonymous visitor reads published agreements and news, and nothing else.
+6. A user of one company cannot read or write another company's data — proven over HTTP, not only in SQL.
+7. CI runs build and tests on every pull request.
+8. The repository contains no credential, and the exposed ones have been rotated.
+
+## Open decisions blocking specific tasks
+
+| Decision | Blocks | Question |
+|---|---|---|
+| **Q-4 interpretation** | T11 | Is `Agreed` the terminal state before promotion, or does promotion happen from `Closed`? The schema currently enforces "promotion implies `Closed`" |
+| **Supabase project** | T18, and the production storage adapter in T4 | Provision it now, or keep the local adapter until production readiness? |
+| **Legacy removal** | T16 | Remove the tree and dump, or keep them out of the build only? Removing is irreversible for the dump |
+| **CI enforcement** | T15 | Branch protection is unavailable on a private repo on the Free plan (HTTP 403). Upgrade, or accept the local hook as the only gate |
+
+## History
+
+| Task | Record | Outcome |
+|---|---|---|
+| T0 | audit of `92dfa3d` | `NOT RELEASABLE` — 8 blocking, 5 high findings ([report](../operations/release-readiness-audit.md)) |
+| T1 | [task-01](task-01-document-isolation.md) | Two migrations, 32 + 30 assertions green, tenant rule corrected to `company.read_all` |
