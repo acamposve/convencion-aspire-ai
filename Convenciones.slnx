@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Convenciones.Api/Convenciones.Api.csproj" />
     <Project Path="src/Convenciones.AppHost/Convenciones.AppHost.csproj" />
+    <Project Path="src/Convenciones.Identity/Convenciones.Identity.csproj" />
     <Project Path="src/Convenciones.Migrator/Convenciones.Migrator.csproj" />
     <Project Path="src/Convenciones.ServiceDefaults/Convenciones.ServiceDefaults.csproj" />
   </Folder>
