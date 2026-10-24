@@ -1,0 +1,54 @@
+#!/bin/sh
+#
+# pre-push hook ??? refuses direct pushes to protected branches.
+#
+# Why this exists: constitution Art. VIII.1 requires `main` to be protected and every change to
+# arrive through a pull request. GitHub branch protection and repository rulesets are NOT available
+# for private repositories on the Free plan (the API answers HTTP 403 "Upgrade to GitHub Pro"), so
+# the rule is enforced here instead. See docs/operations/repository-settings.md.
+#
+# Install with:  powershell -File ./tools/install-git-hooks.ps1
+#
+# This guard runs on the developer machine. It is a control, not a proof: anyone can bypass it with
+# `git push --no-verify` or by unsetting core.hooksPath. The hosting-level ruleset remains the real
+# enforcement once the repository is on a plan that supports it.
+#
+# Emergency override, for the Product Owner only:
+#   CONVENCIONES_ALLOW_MAIN_PUSH=1 git push origin main
+
+protected_branches="main"
+
+if [ "${CONVENCIONES_ALLOW_MAIN_PUSH}" = "1" ]; then
+    echo "WARNING: CONVENCIONES_ALLOW_MAIN_PUSH=1 ??? protected-branch guard bypassed by override."
+    exit 0
+fi
+
+status=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Deletions send a zero object id; treat a delete of a protected branch as forbidden too.
+    for branch in $protected_branches; do
+        if [ "$remote_ref" = "refs/heads/$branch" ]; then
+            echo ""
+            echo "==============================================================="
+            echo " PUSH REFUSED: direct push to '$branch' is not allowed."
+            echo "==============================================================="
+            echo ""
+            echo " Constitution Art. VIII.1: every change reaches '$branch' through a"
+            echo " pull request, and only the Product Owner merges."
+            echo ""
+            echo " Do this instead:"
+            echo "   git checkout -b task/<n>-<short-slug>"
+            echo "   git add -A && git commit -m \"...\""
+            echo "   git push -u origin HEAD          # pushes the branch, not $branch"
+            echo "   gh pr create --base $branch ..."
+            echo ""
+            echo " Product Owner override (bypasses this guard):"
+            echo "   CONVENCIONES_ALLOW_MAIN_PUSH=1 git push origin $branch"
+            echo ""
+            status=1
+        fi
+    done
+done
+
+exit $status

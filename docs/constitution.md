@@ -1,10 +1,13 @@
 # Constitution — Convenciones
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Status:** Ratified
 **Ratified:** Task 1 (`task/1-project-constitution`)
 **Amended:** 1.1.0 — Task 1, second review. Resolved D-1 (reference catalog seed) and D-2 (root
-README); added Art. V.3 and Art. VI.6. See the [amendment log](#amendment-log).
+README); added Art. V.3 and Art. VI.6.
+**Amended:** 1.2.0 — Task 6. Domain-Driven Design and CQRS are now **mandatory** (Art. IV.3, Art.
+IV.4), reversing the earlier rejection of CQRS; `main` protection is now an enforcement obligation
+with a stated fallback (Art. VIII.1). See the [amendment log](#amendment-log).
 **Supersedes:** the legacy `constitucion.md` referenced by the historical README, which does not exist in this repository and is treated as withdrawn.
 
 This document is the highest authority for engineering decisions in this project. Any
@@ -65,9 +68,19 @@ it (Art. XII.1).
 
 1. **Modular monolith.** A single deployable backend. No microservices for the MVP.
 2. **Clean Architecture.** Dependencies point inward: Domain ← Application ← Infrastructure/API. The Domain layer references no framework, no EF Core types, and no Supabase SDK.
-3. **Feature orientation.** Code is organised by business capability, not by technical layer alone. A feature owns its slice end to end.
-4. **Explicit boundaries.** Modules communicate through application interfaces, never by reaching into another module's persistence or internal types.
-5. **Complexity must be earned.** A pattern is adopted only when it removes a concrete, named pain. Speculative abstraction is a defect.
+3. **Domain-Driven Design is mandatory, applied where it earns its place.** Business capabilities are modelled as bounded contexts with aggregates, entities, value objects, invariants, and domain services.
+   - An **aggregate** is used wherever an invariant spans several rows. An "aggregate" with no invariant spanning its parts is a defect, not a pattern.
+   - Plain entities and application services are used where CRUD genuinely suffices. Wrapping reference data in aggregates, repositories, and domain events is prohibited.
+   - Invariants are enforced in the domain model **and** asserted by database constraints. Neither layer may be the only guard.
+4. **CQRS is mandatory.** Reads and writes are separated in code, as distinct handler types that never share a model.
+   - **Commands** change state, load aggregates, enforce their invariants, and write through the aggregate.
+   - **Queries** never load aggregates and never mutate. They project directly into read models.
+   - Each use case is exactly one command handler or one query handler, owning its request and response types.
+   - CQRS is applied **in code, not at the infrastructure level.** The MVP uses one database and one `DbContext`. A separate read store, materialised read models, or event sourcing requires an amendment (Art. XIV): no requirement justifies it yet, and the cost is real.
+   - **No mediator library and no command bus are implied.** An endpoint calls the handler directly. Adding a dispatcher must remove a named, concrete pain — dispatch variability, never aesthetics.
+5. **Feature orientation.** Code is organised by business capability, not by technical layer alone. A feature owns its slice end to end.
+6. **Explicit boundaries.** Modules communicate through application interfaces, never by reaching into another module's persistence or internal types.
+7. **Complexity must be earned.** Any pattern **beyond** those mandated in IV.3 and IV.4 is adopted only when it removes a concrete, named pain. Speculative abstraction is a defect.
 
 ## Art. V — Data, schema & migrations
 
@@ -101,12 +114,16 @@ it (Art. XII.1).
 
 ## Art. VIII — Git & collaboration workflow
 
-1. **`main` is protected by process.** No direct work on `main`.
+1. **`main` is protected, and the protection is enforced, not merely intended.**
+   - **Required settings on `main`:** a pull request is required before merging; force pushes are refused; branch deletion is refused; required approvals are `0` only because this repository has a single human reviewer, who cannot approve their own PR.
+   - **The Product Owner is the only account permitted to override a blocked merge.** No automation, agent, or third party may bypass, force-push, or merge on their behalf.
+   - **Where the hosting plan cannot enforce these settings, the equivalent guard is installed locally** as a committed `pre-push` hook, and the gap is recorded in [operations/repository-settings.md](operations/repository-settings.md). A hosting limitation changes *where* the rule is enforced; it never relaxes the rule.
+   - **Every change reaches `main` through a pull request**, including documentation, configuration, and one-line fixes. There is no exception for "trivial" work.
 2. **One task, one branch.** Every task begins by branching from `main` and ends with a pull request. Suggested prefix: `task/<n>-<slug>`.
-3. **One task, one review.** A task is complete only when its PR is open and described. Merge is performed by the Product Owner; the next task does not begin until merge.
+3. **One task, one review.** A task is complete only when its PR is open and described. **Merge is performed by the Product Owner and by nobody else**; the next task does not begin until merge. An agent never merges its own pull request, and never merges any pull request.
 4. **Nothing is merged, pushed to a protected branch, or deployed without explicit authorization.**
 5. **Commits are scoped and legible.** A commit message states what changed and why. Unrelated changes do not share a commit.
-6. **History is not rewritten** on shared branches.
+6. **History is not rewritten** on shared branches. Force-pushing `main` is blocked, not merely discouraged.
 
 ## Art. IX — The legacy codebase (reference only)
 
@@ -173,6 +190,9 @@ No open decisions at this time.
 | Branch per task, PR per task, never work on `main` | Art. VIII.1, Art. VIII.2 |
 | Never claim a test passed unless actually executed | Art. VII.1 |
 | Modular monolith, Clean Architecture, feature-oriented | Art. IV |
+| **Use Domain-Driven Design** | **Art. IV.3** |
+| **Use CQRS** | **Art. IV.4** |
+| **`main` is protected; every change arrives through a pull request; the Product Owner is the only account that may override or merge** | **Art. VIII.1, Art. VIII.3** |
 | English naming, translated domain terms | Art. X |
 | No Tailwind CSS | Art. III |
 
@@ -185,4 +205,7 @@ No open decisions at this time.
 | 1.0.0 | Ratified | — | Product Owner |
 | 1.1.0 | Resolved D-1: reference catalogs may be seeded from curated data | Art. V.2, **Art. V.3 (new)**, Art. XIII | Product Owner |
 | 1.1.0 | Resolved D-2: root README rewritten, legacy description archived | Art. XIII | Product Owner |
+| 1.2.0 | **Domain-Driven Design made mandatory** where invariants span aggregates | **Art. IV.3 (new)** | Product Owner |
+| 1.2.0 | **CQRS made mandatory** in code (commands and queries as separate handlers); infrastructure-level CQRS still requires an amendment | **Art. IV.4 (new)**, Art. IV.7 | Product Owner |
+| 1.2.0 | `main` protection defined as an enforced rule with a local-hook fallback when the hosting plan cannot enforce it; Product Owner is the sole merge/override authority | **Art. VIII.1**, Art. VIII.3, Art. VIII.6 | Product Owner |
 | 1.1.0 | Added SuperAdmin first-run bootstrap; all other accounts in-app | Art. II.6–7, **Art. VI.6 (new)** | Product Owner |
