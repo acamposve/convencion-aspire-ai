@@ -12,10 +12,16 @@
   </PropertyGroup>
 
   <!--
-    Clean Architecture guarantee (constitution Art. IV.2): projects whose name ends in
-    `.Domain` must never reference a framework, EF Core, or the Supabase SDK. That is enforced
-    by the project file, not by review: the Domain projects reference nothing but the base
-    class library and Convenciones.SharedKernel.
+    Clean Architecture (constitution Art. IV.2) — status of enforcement, stated accurately:
+
+    The TARGET is that a `.Domain` project references no framework, no EF Core and no Supabase SDK.
+    As of the first vertical slice there are NO Domain projects and NO architecture tests, so
+    nothing enforces it yet: the rule is a convention in the documentation, not a build guard.
+
+    It becomes a guarantee when the first domain module lands, by pairing "(a) a project that
+    references only the base class library" with "(b) a NetArchTest architecture test". Until then
+    this comment must not claim enforcement it does not have — a false guarantee in a build file is
+    worse than none, because reviewers stop checking.
   -->
 
 </Project>
