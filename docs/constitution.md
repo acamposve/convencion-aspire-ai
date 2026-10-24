@@ -1,8 +1,10 @@
 # Constitution — Convenciones
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Status:** Ratified
 **Ratified:** Task 1 (`task/1-project-constitution`)
+**Amended:** 1.1.0 — Task 1, second review. Resolved D-1 (reference catalog seed) and D-2 (root
+README); added Art. V.3 and Art. VI.6. See the [amendment log](#amendment-log).
 **Supersedes:** the legacy `constitucion.md` referenced by the historical README, which does not exist in this repository and is treated as withdrawn.
 
 This document is the highest authority for engineering decisions in this project. Any
@@ -34,8 +36,8 @@ In scope, confirmed by the Product Owner:
 3. **Legal library** — labour law and other statutes with article-level records. *In scope as a feature, but starting empty:* no legacy statute content, PDFs, or articles are carried over.
 4. **Clause comparison** — the intelligence core: linking equivalent clauses across agreements and to legal articles by a shared comparison heading.
 5. **Public portal** — published agreements and news.
-6. **Administration** — master data, users, roles, permissions.
-7. **Authentication & authorization** — via Supabase Auth, with PostgreSQL RLS as the row-level enforcement layer.
+6. **Administration** — master data, users, roles, permissions, all managed inside the application.
+7. **Authentication & authorization** — via Supabase Auth, with PostgreSQL RLS as the row-level enforcement layer. Exactly one **SuperAdmin** is provisioned at first run; every other account is created in-app (Art. VI.6).
 
 Out of scope for the MVP: any data migration from MySQL, microservices, mobile applications,
 offline operation, third-party integration without a named requirement.
@@ -70,11 +72,12 @@ it (Art. XII.1).
 ## Art. V — Data, schema & migrations
 
 1. **Design, do not translate.** The PostgreSQL schema is designed from requirements. A table-for-table translation of the MySQL schema is prohibited.
-2. **No data migration.** Legacy MySQL rows are never migrated. There is no ETL, no backfill, no import job. *(See Art. XIII, Open Decision D-1, for the one open question on reference catalogs.)*
-3. **Constraints belong in the database.** Referential integrity, uniqueness, nullability, and state validity are declared as real constraints (`FK`, `CHECK`, `UNIQUE`, `NOT NULL`). The legacy reliance on implicit, application-only relationships is explicitly rejected.
-4. **Types are honest.** Temporal values use `date`/`timestamptz`, never text. States use typed enumerations, never free strings. Legacy sentinels such as `'0000-00-00'` or numeric state codes stored as `char(3)` must not reappear.
-5. **Migrations are code.** Every schema change is a committed EF Core migration. Destructive migrations require explicit review approval.
-6. **Auditability is designed in.** Created/updated timestamps and an audit trail where a requirement calls for it. The legacy system had none; auditability is a new requirement, not a preserved behavior.
+2. **No data migration.** Legacy MySQL business records are never migrated. There is no ETL, no backfill, no import job. Reference catalogs are the single, bounded exception defined in Art. V.3.
+3. **Reference catalogs may be seeded.** Countries, states, municipalities, comparison headings, and similar reference data ship as a **curated, hand-authored dataset** that is reviewed as source code and committed with the migrations. This is reference data authored for the new system — never a MySQL export, never business records, never personal data. Any seeded catalog must be individually justifiable; seeding is a convenience for an empty database, not a migration in disguise.
+4. **Constraints belong in the database.** Referential integrity, uniqueness, nullability, and state validity are declared as real constraints (`FK`, `CHECK`, `UNIQUE`, `NOT NULL`). The legacy reliance on implicit, application-only relationships is explicitly rejected.
+5. **Types are honest.** Temporal values use `date`/`timestamptz`, never text. States use typed enumerations, never free strings. Legacy sentinels such as `'0000-00-00'` or numeric state codes stored as `char(3)` must not reappear.
+6. **Migrations are code.** Every schema change is a committed EF Core migration. Destructive migrations require explicit review approval.
+7. **Auditability is designed in.** Created/updated timestamps and an audit trail where a requirement calls for it. The legacy system had none; auditability is a new requirement, not a preserved behavior.
 
 ## Art. VI — Security & identity
 
@@ -83,6 +86,11 @@ it (Art. XII.1).
 3. **Secrets never enter Git.** Connection strings, keys, and tokens live in user-secrets or environment configuration. The legacy `local/configuracion.php` credentials are compromised-by-history and must never be reused.
 4. **No remote mutation without approval.** Nothing is executed against remote Supabase — no migration, no schema change, no data write — without explicit Product Owner approval. Local environments are the default target.
 5. **Personal data.** Legacy records contain identifiable individuals (representatives, contract holders). Such data is never committed to this repository and never seeded into development environments.
+6. **Bootstrap once, then delegate.** A fresh deployment provisions **exactly one SuperAdmin** at first run; this is the only account created outside the application. Requirements:
+   - No default, hard-coded, or committed credential. The bootstrap credential is supplied at setup time (environment/user-secret) or through a one-time claim flow, and is never printed to logs or stored in the repository.
+   - The bootstrap path is **idempotent**: re-running it must not create a second SuperAdmin or overwrite an existing one.
+   - The bootstrap mechanism is **disabled or inert once a SuperAdmin exists**, so it cannot be replayed as an escalation path.
+   - Every other user, administrator, role, and permission is created **inside the application** by an authorised administrator. There are no further out-of-band accounts, and no seeded users of any kind.
 
 ## Art. VII — Testing & CI
 
@@ -134,8 +142,10 @@ Unresolved items that could affect the product. They block nothing until the pha
 
 | ID | Decision | Status |
 |---|---|---|
-| D-1 | Whether a **curated, hand-reviewed seed** of reference catalogs (countries, states, municipalities, comparison headings) may ship, given Art. V.2 forbids data migration. The app is unusable without them. | **Open** — awaiting Product Owner |
-| D-2 | Whether the legacy root `README.md` (which describes the legacy tree) is rewritten as the new project README, or left untouched as historical reference. | **Open** — awaiting Product Owner |
+| D-1 | Whether a **curated, hand-reviewed seed** of reference catalogs (countries, states, municipalities, comparison headings) may ship, given Art. V.2 forbids data migration. The app is unusable without them. | **Resolved 1.1.0** — permitted, bounded by Art. V.3 |
+| D-2 | Whether the legacy root `README.md` (which describes the legacy tree) is rewritten as the new project README, or left untouched as historical reference. | **Resolved 1.1.0** — `README.md` rewritten as the project README; original content archived at [legacy/README.md](legacy/README.md) with corrections and no content lost |
+
+No open decisions at this time.
 
 ## Art. XIV — Amendment
 
@@ -165,3 +175,14 @@ Unresolved items that could affect the product. They block nothing until the pha
 | Modular monolith, Clean Architecture, feature-oriented | Art. IV |
 | English naming, translated domain terms | Art. X |
 | No Tailwind CSS | Art. III |
+
+---
+
+## Amendment log
+
+| Version | Change | Articles touched | Authority |
+|---|---|---|---|
+| 1.0.0 | Ratified | — | Product Owner |
+| 1.1.0 | Resolved D-1: reference catalogs may be seeded from curated data | Art. V.2, **Art. V.3 (new)**, Art. XIII | Product Owner |
+| 1.1.0 | Resolved D-2: root README rewritten, legacy description archived | Art. XIII | Product Owner |
+| 1.1.0 | Added SuperAdmin first-run bootstrap; all other accounts in-app | Art. II.6–7, **Art. VI.6 (new)** | Product Owner |
