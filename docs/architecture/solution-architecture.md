@@ -334,16 +334,39 @@ Each abstraction the instruction warns about, with the decision and the reason:
 
 | Abstraction | Decision | Justification |
 |---|---|---|
-| **CQRS** | **Not used** | No screen has different read/write models for the same aggregate. Comparison is a read-only projection but is a distinct feature, not the query half of an agreement command |
-| **Mediator (MediatR)** | **Not used** | Endpoints call application services directly. A mediator adds a layer between endpoint and service with exactly one handler each — indirection with no dispatch variability. If the team later wants a pipeline for logging/validation, ASP.NET Core filters already provide it |
+| **CQRS** | **Required** (constitution Art. IV.4; ADR-022, Task 6) | Commands load aggregates and enforce invariants; queries project directly into read models. Applied **in code only** — one database, one `DbContext`, no separate read store. The comparison workspace is the query that earns it: a three-table projection that aggregate-loading would actively harm |
+| **Mediator (MediatR)** | **Not used** | Endpoints invoke command and query handlers directly. A mediator would add a layer with exactly one handler behind it and no dispatch variability. If a cross-cutting pipeline is later needed, ASP.NET Core filters already provide it |
 | **Message broker** | **Not used** | §7 — no asynchronous workload exists |
 | **Generic repository** | **Not used** | §5.2.1 — EF Core is already the Unit of Work; the comparison projection needs real query capability |
 | **Domain events** | **Not used in MVP** | The only cross-aggregate side effect is audit, which an EF interceptor handles uniformly. A dispatcher would add a transactional-outbox question we do not need to answer yet |
-| **Unit of Work** | **Not used as an abstraction** | `DbContext.SaveChangesAsync()` in the use case *is* the unit of work |
+| **Unit of Work** | **Not used as an abstraction** | `DbContext.SaveChangesAsync()` in the command handler *is* the unit of work |
 | **Specification pattern** | **Not used** | Filtering is per-endpoint and explicit; there is no reused composable query |
-| **Result/Either type** | **Used, narrowly** | `Result<T>` for application services to express expected failures (not found, conflict, validation) without exceptions. Justified because the API must map failures to distinct HTTP statuses and the alternative is exception-type-to-status tables |
+| **Result/Either type** | **Used, narrowly** | `Result<T>` for command handlers to express expected failures (not found, conflict, validation) without exceptions. Justified because the API must map failures to distinct HTTP statuses and the alternative is exception-type-to-status tables |
 | **Modular monolith** | **Used** | Mandated; justified by §3 boundaries |
-| **Repository (specific)** | **Used for one aggregate** | `IAgreementRepository` loads the agreement aggregate with its clauses. Justified because the invariant "publish requires ≥1 clause" spans the aggregate and must be enforced on a fully loaded instance |
+| **Repository (specific)** | **Used for one aggregate** | `IAgreementRepository` loads the agreement aggregate with its clauses. Justified because the invariant "publish requires ≥1 clause" spans the aggregate and must be enforced on a fully loaded instance. Query handlers never use it |
+
+### 8.1 Command and query handlers
+
+CQRS is applied as a **code-level split**, not as infrastructure.
+
+| Concern | Command | Query |
+|---|---|---|
+| Purpose | change state | return data |
+| Loads an aggregate | yes | **never** |
+| Enforces domain invariants | yes | n/a |
+| Writes | through the aggregate | **never** |
+| Returns | `Result<T>` where `T` is an id or a small confirmation | a read model |
+| EF Core | tracked entities, `SaveChangesAsync` | `AsNoTracking()`, projection to DTO |
+| Location | `<Module>/Application/Commands/` | `<Module>/Application/Queries/` |
+| Example | `AddClauseCommand` → `AddClauseHandler` | `GetComparisonQuery` → `GetComparisonHandler` |
+
+A command handler never returns a read model; a query handler never touches a repository. The split
+is enforced by an architecture test, in the same way the module dependency rules are (§11).
+
+**What was explicitly rejected:** a separate read database, materialised read models, event sourcing,
+and any command bus. Each requires an amendment (constitution Art. XIV). None has a requirement
+behind it, and full infrastructure CQRS would introduce synchronisation and eventual-consistency
+problems the product does not have.
 
 ---
 
