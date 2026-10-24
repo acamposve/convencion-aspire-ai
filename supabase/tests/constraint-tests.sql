@@ -40,13 +40,13 @@ values ('77777777-7777-7777-7777-777777777777', 'Fixture Company',
         '11111111-1111-1111-1111-111111111111',
         '55555555-5555-5555-5555-555555555555');
 
-insert into app.agreement (id, company_id, title, valid_from, valid_to, scope)
+insert into app.agreement (id, company_id, valid_from, valid_to, scope)
 values ('88888888-8888-8888-8888-888888888888', '77777777-7777-7777-7777-777777777777',
-        'Fixture Agreement', '2026-01-01', '2028-12-31', 'Nacional');
+        '2026-01-01', '2028-12-31', 'Nacional');
 
-insert into app.agreement (id, company_id, title, valid_from, valid_to, scope)
+insert into app.agreement (id, company_id, valid_from, valid_to, scope)
 values ('99999999-9999-9999-9999-999999999999', '77777777-7777-7777-7777-777777777777',
-        'Second Agreement', '2029-01-01', '2031-12-31', 'Nacional');
+        '2029-01-01', '2031-12-31', 'Nacional');
 
 insert into app.comparison_heading (id, group_id, name)
 select 'aaaaaaaa-0000-0000-0000-000000000001', g.id, 'Fixture Heading'
@@ -61,8 +61,8 @@ values ('88888888-8888-8888-8888-888888888888', 1, 'Clause One', 'Body one',
 do $$
 begin
     begin
-        insert into app.agreement (company_id, title, valid_from, valid_to, scope)
-        values ('77777777-7777-7777-7777-777777777777', 'Bad Validity', '2028-01-01', '2026-01-01', 'Nacional');
+        insert into app.agreement (company_id, valid_from, valid_to, scope)
+        values ('77777777-7777-7777-7777-777777777777', '2028-01-01', '2026-01-01', 'Nacional');
         raise notice 'FAIL: A1 invalid date range accepted';
     exception when check_violation then
         raise notice 'PASS: A1 agreement_validity_order rejects valid_to < valid_from';
@@ -72,8 +72,8 @@ end $$;
 do $$
 begin
     begin
-        insert into app.agreement (company_id, title, valid_from, scope, state, published_at, published_by)
-        values ('77777777-7777-7777-7777-777777777777', 'Published Without Actor', '2026-01-01', 'Nacional', 'Published', now(), null);
+        insert into app.agreement (company_id, valid_from, scope, state, published_at, published_by)
+        values ('77777777-7777-7777-7777-777777777777', '2026-01-01', 'Nacional', 'Published', now(), null);
         raise notice 'FAIL: A2 published agreement without published_by accepted';
     exception when check_violation then
         raise notice 'PASS: A2 agreement_publication_consistency rejects Published without actor/timestamp';
@@ -83,8 +83,8 @@ end $$;
 do $$
 begin
     begin
-        insert into app.agreement (company_id, title, valid_from, valid_to, scope)
-        values ('77777777-7777-7777-7777-777777777777', 'Duplicate Start', '2026-01-01', '2027-01-01', 'Nacional');
+        insert into app.agreement (company_id, valid_from, valid_to, scope)
+        values ('77777777-7777-7777-7777-777777777777', '2026-01-01', '2027-01-01', 'Nacional');
         raise notice 'FAIL: A3 duplicate (company, valid_from) accepted';
     exception when unique_violation then
         raise notice 'PASS: A3 one agreement per company per start date';
@@ -141,17 +141,6 @@ end $$;
 do $$
 begin
     begin
-        insert into app.agreement_clause (agreement_id, number_int, number_suffix, title, body, heading_id)
-        values ('88888888-8888-8888-8888-888888888888', 2, 'aa', 'Bad Suffix', 'Body', 'aaaaaaaa-0000-0000-0000-000000000001');
-        raise notice 'FAIL: B5 lowercase suffix accepted';
-    exception when check_violation then
-        raise notice 'PASS: B5 clause suffix must match ^[A-Z]{1,2}$';
-    end;
-end $$;
-
-do $$
-begin
-    begin
         insert into app.agreement_clause (agreement_id, number_int, title, body, heading_id)
         values ('88888888-8888-8888-8888-888888888888', 3, 'Blank Body', '   ', 'aaaaaaaa-0000-0000-0000-000000000001');
         raise notice 'FAIL: B6 blank clause body accepted';
@@ -160,23 +149,28 @@ begin
     end;
 end $$;
 
+-- Decision Q-2: clause numbers are integers. A distinct number in the same agreement is accepted,
+-- which proves the unique index is on the number and not on the row.
 do $$
 begin
-    insert into app.agreement_clause (agreement_id, number_int, number_suffix, title, body, heading_id)
-    values ('88888888-8888-8888-8888-888888888888', 2, 'A', 'Suffixed', 'Body', 'aaaaaaaa-0000-0000-0000-000000000001');
-    raise notice 'PASS: B7 suffixed clause number 2-A accepted alongside 2';
+    insert into app.agreement_clause (agreement_id, number_int, title, body, heading_id)
+    values ('88888888-8888-8888-8888-888888888888', 2, 'Second Clause', 'Body', 'aaaaaaaa-0000-0000-0000-000000000001');
+    raise notice 'PASS: B7 a distinct integer clause number is accepted in the same agreement';
 exception when others then
-    raise notice 'FAIL: B7 suffixed clause rejected: %', sqlerrm;
+    raise notice 'FAIL: B7 distinct clause number rejected: %', sqlerrm;
 end $$;
 
+-- The suffix column was dropped by decision Q-2; referencing it must now be a statement error.
 do $$
+declare
+    v_sql text := $q$insert into app.agreement_clause (agreement_id, number_int, number_suffix, title, body, heading_id)
+        values ('88888888-8888-8888-8888-888888888888', 9, 'A', 'Suffix', 'Body', 'aaaaaaaa-0000-0000-0000-000000000001')$q$;
 begin
     begin
-        insert into app.agreement_clause (agreement_id, number_int, number_suffix, title, body, heading_id)
-        values ('88888888-8888-8888-8888-888888888888', 2, 'A', 'Duplicate Suffix', 'Body', 'aaaaaaaa-0000-0000-0000-000000000001');
-        raise notice 'FAIL: B8 duplicate 2-A accepted';
-    exception when unique_violation then
-        raise notice 'PASS: B8 duplicate suffixed number rejected (unique on number+suffix)';
+        execute v_sql;
+        raise notice 'FAIL: B8 a number_suffix column still exists';
+    exception when undefined_column then
+        raise notice 'PASS: B8 number_suffix no longer exists (decision Q-2 applied)';
     end;
 end $$;
 
@@ -290,11 +284,26 @@ end $$;
 do $$
 begin
     begin
-        insert into app.negotiation_case (company_id, started_on, state, closed_at)
-        values ('77777777-7777-7777-7777-777777777777', '2026-05-01', 'Promoted', now());
-        raise notice 'FAIL: D5 Promoted without an agreement accepted';
+        -- Decision Q-4 removed the "Promoted" state: promotion is now recorded by
+        -- promoted_agreement_id while the case rests in Closed. An Open case cannot carry one.
+        insert into app.negotiation_case (company_id, started_on, state, closed_at, promoted_agreement_id)
+        values ('77777777-7777-7777-7777-777777777777', '2026-05-01', 'Open', null,
+                '88888888-8888-8888-8888-888888888888');
+        raise notice 'FAIL: D5 an Open case was allowed to carry a promoted agreement';
     exception when check_violation then
-        raise notice 'PASS: D5 Promoted requires promoted_agreement_id';
+        raise notice 'PASS: D5 promoted_agreement_id requires state = Closed';
+    end;
+end $$;
+
+-- Decision Q-4: 'Promoted' must no longer be an accepted state value at all.
+do $$
+begin
+    begin
+        insert into app.negotiation_case (company_id, started_on, state)
+        values ('77777777-7777-7777-7777-777777777777', '2026-06-01', 'Promoted');
+        raise notice 'FAIL: D7 the removed Promoted state was accepted';
+    exception when invalid_text_representation then
+        raise notice 'PASS: D7 Promoted is no longer a valid negotiation state (decision Q-4 applied)';
     end;
 end $$;
 

@@ -44,3 +44,6 @@ dist/
 # `admin/modulos/contratos/contratos/documentos/` SÍ se versionan en este repo
 # PRIVADO por su valor como dataset de referencia/migración (README.md).
 # Si el repo se hiciera público, excluirlos antes de cualquier push.
+
+# Per-developer launch profile: contains machine-specific ports
+**/Properties/launchSettings.json
