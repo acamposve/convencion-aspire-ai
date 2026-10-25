@@ -330,12 +330,13 @@ begin
     begin
         -- Decision Q-4 removed the "Promoted" state: promotion is now recorded by
         -- promoted_agreement_id while the case rests in Closed. An Open case cannot carry one.
+        -- Since T11 the guard (not the CHECK) refuses it first, with invalid_parameter_value.
         insert into app.negotiation_case (company_id, started_on, state, closed_at, promoted_agreement_id)
         values ('77777777-7777-7777-7777-777777777777', '2026-05-01', 'Open', null,
                 '88888888-8888-8888-8888-888888888888');
         raise notice 'FAIL: D5 an Open case was allowed to carry a promoted agreement';
-    exception when check_violation then
-        raise notice 'PASS: D5 promoted_agreement_id requires state = Closed';
+    exception when invalid_parameter_value then
+        raise notice 'PASS: D5 a case that is not Closed cannot carry a promoted agreement (T11 guard)';
     end;
 end $$;
 
@@ -348,6 +349,19 @@ begin
         raise notice 'FAIL: D7 the removed Promoted state was accepted';
     exception when invalid_text_representation then
         raise notice 'PASS: D7 Promoted is no longer a valid negotiation state (decision Q-4 applied)';
+    end;
+end $$;
+
+-- T11: a case cannot be created already promoted, and the terminal rules hold at the database.
+do $$
+begin
+    begin
+        insert into app.negotiation_case (company_id, started_on, state, closed_at, promoted_agreement_id)
+        values ('30000000-0000-0000-0000-000000000001', '2026-01-01', 'Closed', now(),
+                '50000000-0000-0000-0000-000000000001');
+        raise notice 'FAIL: D8 a case was inserted already promoted';
+    exception when invalid_parameter_value then
+        raise notice 'PASS: D8 a case cannot be created already promoted (T11 guard)';
     end;
 end $$;
 

@@ -20,6 +20,11 @@ public sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEntr
         builder.Property(entry => entry.EntityId).HasColumnName("entity_id").IsRequired();
         builder.Property(entry => entry.Action).HasColumnName("action").IsRequired();
         builder.Property(entry => entry.Changes).HasColumnName("changes").HasColumnType("jsonb");
+
+        // State transitions are recorded in their own columns: the security model asks for
+        // "actor, from -> to" on open/close/reopen/promote and on petition outcome changes.
+        builder.Property(entry => entry.FromState).HasColumnName("from_state");
+        builder.Property(entry => entry.ToState).HasColumnName("to_state");
         builder.Property(entry => entry.CorrelationId).HasColumnName("correlation_id");
 
         // The table defaults occurred_at to now(); letting the database keep ownership of the clock

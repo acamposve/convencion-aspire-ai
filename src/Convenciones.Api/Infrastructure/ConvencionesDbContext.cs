@@ -2,6 +2,7 @@ using Convenciones.Agreements;
 using Convenciones.Catalog;
 using Convenciones.Documents;
 using Convenciones.Legal;
+using Convenciones.Negotiation;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Infrastructure;
@@ -43,6 +44,19 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<StatuteArticle> StatuteArticles => Set<StatuteArticle>();
 
+    // Negotiation. Company-scoped by the case's company_id.
+    public DbSet<NegotiationCase> NegotiationCases => Set<NegotiationCase>();
+
+    public DbSet<NegotiationParty> NegotiationParties => Set<NegotiationParty>();
+
+    public DbSet<UnionPetition> UnionPetitions => Set<UnionPetition>();
+
+    public DbSet<EmployerOffer> EmployerOffers => Set<EmployerOffer>();
+
+    public DbSet<NegotiationMeeting> NegotiationMeetings => Set<NegotiationMeeting>();
+
+    public DbSet<MeetingAgreement> MeetingAgreements => Set<MeetingAgreement>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -66,6 +80,14 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         // Legal owns app.statute and app.statute_article.
         modelBuilder.ApplyConfiguration(new StatuteConfiguration());
         modelBuilder.ApplyConfiguration(new StatuteArticleConfiguration());
+
+        // Negotiation owns app.negotiation_case, its children and the meeting/offer tables.
+        modelBuilder.ApplyConfiguration(new NegotiationCaseConfiguration());
+        modelBuilder.ApplyConfiguration(new NegotiationPartyConfiguration());
+        modelBuilder.ApplyConfiguration(new UnionPetitionConfiguration());
+        modelBuilder.ApplyConfiguration(new EmployerOfferConfiguration());
+        modelBuilder.ApplyConfiguration(new NegotiationMeetingConfiguration());
+        modelBuilder.ApplyConfiguration(new MeetingAgreementConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

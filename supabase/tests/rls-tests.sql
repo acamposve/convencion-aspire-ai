@@ -133,6 +133,24 @@ values ('20000000-0000-0000-0000-000000000007', 'writer@example.test', 'Writer')
 insert into platform.user_role (user_id, role_id)
 values ('20000000-0000-0000-0000-000000000007', '70000000-0000-0000-0000-000000000001');
 
+-- A negotiator who may write a case but not promote it: no seeded role has that split, and the
+-- promotion guard needs the shape to prove the capability check (T11 R36).
+insert into platform.role (id, key, name)
+values ('70000000-0000-0000-0000-000000000002', 'negotiator_no_promote', 'Negotiator Without Promotion');
+
+insert into platform.role_capability (role_id, capability_id)
+select '70000000-0000-0000-0000-000000000002', id
+from platform.capability where key in ('negotiation.read', 'negotiation.write');
+
+insert into platform.user_account (id, email, display_name)
+values ('20000000-0000-0000-0000-000000000010', 'negotiator.np@example.test', 'Negotiator Without Promotion');
+
+insert into platform.user_role (user_id, role_id)
+values ('20000000-0000-0000-0000-000000000010', '70000000-0000-0000-0000-000000000002');
+
+insert into platform.user_profile (user_id, company_id)
+values ('20000000-0000-0000-0000-000000000010', '30000000-0000-0000-0000-000000000001');
+
 -- The writer needs a company too, or the tenant policy would filter the agreement out before the
 -- publication guard trigger got a chance to refuse it.
 insert into platform.user_profile (user_id, company_id)
@@ -722,6 +740,107 @@ begin
         raise notice 'PASS: R35 a company B editor updating company A''s agreement affects 0 rows';
     else
         raise notice 'FAIL: R35 a company B editor updated % row(s)', n;
+    end if;
+end $$;
+
+
+\echo '--- Negotiation: promotion guard and tenant scope (T11) ---'
+
+-- Fixtures created as the owner so RLS does not interfere with setup.
+insert into app.negotiation_case (id, company_id, started_on, state, closed_at) values
+    ('80000000-0000-0000-0000-000000000101', '30000000-0000-0000-0000-000000000001', '2026-01-01', 'Closed', now()),
+    ('80000000-0000-0000-0000-000000000102', '30000000-0000-0000-0000-000000000001', '2026-01-01', 'Open', null),
+    ('80000000-0000-0000-0000-000000000103', '30000000-0000-0000-0000-000000000001', '2026-01-01', 'Open', null),
+    ('80000000-0000-0000-0000-000000000104', '30000000-0000-0000-0000-000000000001', '2026-01-01', 'Closed', now());
+
+insert into app.agreement (id, company_id, valid_from, scope, state) values
+    ('80000000-0000-0000-0000-000000000201', '30000000-0000-0000-0000-000000000001', '2027-01-01', 'Nacional', 'Draft'),
+    ('80000000-0000-0000-0000-000000000202', '30000000-0000-0000-0000-000000000001', '2027-02-01', 'Nacional', 'Draft');
+
+-- R36 — the promotion capability is required for the link, at the database.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000010"}', true);
+    execute 'set local role app_api';
+    begin
+        update app.negotiation_case
+        set promoted_agreement_id = '80000000-0000-0000-0000-000000000201'
+        where id = '80000000-0000-0000-0000-000000000104';
+        raise notice 'FAIL: R36 a writer without negotiation.promote promoted a case';
+    exception when insufficient_privilege then
+        raise notice 'PASS: R36 promotion requires negotiation.promote at the database';
+    end;
+    execute 'reset role';
+end $$;
+
+-- R37 — promotion only from an already-closed case.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000003"}', true);
+    execute 'set local role app_api';
+    begin
+        update app.negotiation_case
+        set state = 'Closed', closed_at = now(),
+            promoted_agreement_id = '80000000-0000-0000-0000-000000000201'
+        where id = '80000000-0000-0000-0000-000000000102';
+        raise notice 'FAIL: R37 a case was closed and promoted in one statement';
+    exception when invalid_parameter_value then
+        raise notice 'PASS: R37 a case can only be promoted from an already-closed state';
+    end;
+    execute 'reset role';
+end $$;
+
+-- R38 — a second promotion is refused; the case is not silently re-pointed.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000003"}', true);
+    execute 'set local role app_api';
+    begin
+        update app.negotiation_case
+        set promoted_agreement_id = '80000000-0000-0000-0000-000000000201'
+        where id = '80000000-0000-0000-0000-000000000101';
+        update app.negotiation_case
+        set promoted_agreement_id = '80000000-0000-0000-0000-000000000202'
+        where id = '80000000-0000-0000-0000-000000000101';
+        raise notice 'FAIL: R38 a promoted case was re-pointed at a second agreement';
+    exception when unique_violation then
+        raise notice 'PASS: R38 a case is promoted once; re-pointing is refused';
+    end;
+    execute 'reset role';
+end $$;
+
+-- R39 — a promoted case is terminal: the link cannot be cleared.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000003"}', true);
+    execute 'set local role app_api';
+    begin
+        update app.negotiation_case
+        set promoted_agreement_id = '80000000-0000-0000-0000-000000000201'
+        where id = '80000000-0000-0000-0000-000000000104';
+        update app.negotiation_case
+        set state = 'InProgress', closed_at = null, promoted_agreement_id = null
+        where id = '80000000-0000-0000-0000-000000000104';
+        raise notice 'FAIL: R39 a promoted case was reopened';
+    exception when invalid_parameter_value then
+        raise notice 'PASS: R39 a promoted case is terminal (A-21)';
+    end;
+    execute 'reset role';
+end $$;
+
+-- R40 — a company B user sees none of company A's negotiation cases.
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000008"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from app.negotiation_case
+     where company_id = '30000000-0000-0000-0000-000000000001';
+    execute 'reset role';
+    if n = 0 then
+        raise notice 'PASS: R40 a company B user sees no negotiation cases of company A';
+    else
+        raise notice 'FAIL: R40 a company B user saw % case(s) of company A', n;
     end if;
 end $$;
 

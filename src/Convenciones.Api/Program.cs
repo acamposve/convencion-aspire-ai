@@ -4,6 +4,7 @@ using Convenciones.Api.Infrastructure;
 using Convenciones.Documents;
 using Convenciones.Identity;
 using Convenciones.Legal;
+using Convenciones.Negotiation;
 using Convenciones.ServiceDefaults;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
@@ -51,7 +52,10 @@ builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) 
     .UseNpgsql(connectionString, npgsql => npgsql
         .MapEnum<ExtractionStatus>("extraction_status", "platform", ExactNameTranslator.Instance)
         .MapEnum<PublicationState>("publication_state", "app", ExactNameTranslator.Instance)
-        .MapEnum<StatuteKind>("statute_kind", "app", ExactNameTranslator.Instance))
+        .MapEnum<StatuteKind>("statute_kind", "app", ExactNameTranslator.Instance)
+        .MapEnum<CaseState>("negotiation_case_state", "app", ExactNameTranslator.Instance)
+        .MapEnum<PetitionState>("petition_state", "app", ExactNameTranslator.Instance)
+        .MapEnum<PartyRole>("party_role", "app", ExactNameTranslator.Instance))
     .AddInterceptors(
         serviceProvider.GetRequiredService<AuditInterceptor>(),
         serviceProvider.GetRequiredService<DatabaseSessionInterceptor>()));
@@ -102,6 +106,29 @@ builder.Services.AddScoped<GetStatuteHandler>();
 builder.Services.AddScoped<ListStatuteArticlesHandler>();
 builder.Services.AddScoped<GetStatuteArticleHandler>();
 builder.Services.AddScoped<GetStatuteArticlesForHeadingHandler>();
+
+// ---- Negotiation ---------------------------------------------------------------------------------
+// Cases are company-scoped; promotion creates the agreement through IPromotedAgreementFactory so both
+// writes share one DbContext and one transaction (T11 AC 3).
+builder.Services.AddScoped<INegotiationStore, NegotiationStore>();
+builder.Services.AddScoped<IPromotedAgreementFactory, PromotedAgreementFactory>();
+builder.Services.AddScoped<CreateCaseHandler>();
+builder.Services.AddScoped<AddPartyHandler>();
+builder.Services.AddScoped<RemovePartyHandler>();
+builder.Services.AddScoped<AddPetitionHandler>();
+builder.Services.AddScoped<UpdatePetitionHandler>();
+builder.Services.AddScoped<DeletePetitionHandler>();
+builder.Services.AddScoped<ChangePetitionStateHandler>();
+builder.Services.AddScoped<AddOfferHandler>();
+builder.Services.AddScoped<DeleteOfferHandler>();
+builder.Services.AddScoped<AddMeetingHandler>();
+builder.Services.AddScoped<DeleteMeetingHandler>();
+builder.Services.AddScoped<AddMeetingAgreementHandler>();
+builder.Services.AddScoped<DeleteMeetingAgreementHandler>();
+builder.Services.AddScoped<TransitionCaseHandler>();
+builder.Services.AddScoped<PromoteCaseHandler>();
+builder.Services.AddScoped<ListCasesHandler>();
+builder.Services.AddScoped<GetCaseHandler>();
 
 // ---- CORS ---------------------------------------------------------------------------------------
 // No wildcard and no default origin: the browser client is served from a known host, and a policy of
@@ -173,6 +200,7 @@ app.MapAgreementEndpoints();
 app.MapComparisonHeadingEndpoints();
 app.MapComparisonEndpoints();
 app.MapStatuteEndpoints();
+app.MapNegotiationEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is
