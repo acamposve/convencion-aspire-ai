@@ -1,7 +1,7 @@
 # T6 — Document retrieval API
 
-**Status: implemented and verified.** Branch `task/19-document-retrieval`. Executed results are in
-[§9](#9-implementation-record).
+**Status: implemented and verified — PR #19.** Branch `task/19-document-retrieval`. Executed results
+are in [§9](#9-implementation-record).
 
 ## 1. Objective
 
