@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Convenciones.Catalog\Convenciones.Catalog.csproj" />
     <ProjectReference Include="..\Convenciones.Identity\Convenciones.Identity.csproj" />
     <ProjectReference Include="..\Convenciones.ServiceDefaults\Convenciones.ServiceDefaults.csproj" />
   </ItemGroup>
