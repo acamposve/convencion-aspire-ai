@@ -32,20 +32,38 @@ public sealed class IdentityFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// One active account with a company, one blocked, one expired. A fourth subject is used by the
-    /// tests but deliberately never created, so "valid token, no account" can be exercised.
+    /// Two companies and the accounts the tests need: an administrator who may cross companies, two
+    /// editors who may not, a blocked account, an expired one, and a subject deliberately left without
+    /// an account so "valid token, no profile" can be exercised.
     /// </summary>
     private async Task SeedAccountsAsync()
     {
         const string sql = """
-            insert into app.company (id, name, country_id)
-            values ('a2000000-0000-0000-0000-000000000001', 'Identity Test Company',
-                    (select id from app.country where code = 'VE'));
+            insert into app.company (id, name, country_id) values
+                ('a2000000-0000-0000-0000-000000000001', 'Identity Test Company',
+                 (select id from app.country where code = 'VE')),
+                ('a2000000-0000-0000-0000-000000000002', 'Other Tenant Company',
+                 (select id from app.country where code = 'VE'));
 
             insert into platform.user_account (id, email, display_name, is_blocked, expires_on) values
-                ('a1000000-0000-0000-0000-000000000001', 'active@example.test',  'Active User',  false, null),
-                ('a1000000-0000-0000-0000-000000000002', 'blocked@example.test', 'Blocked User', true,  null),
-                ('a1000000-0000-0000-0000-000000000003', 'expired@example.test', 'Expired User', false, current_date - 1);
+                ('a1000000-0000-0000-0000-000000000001', 'active@example.test',   'Active User',  false, null),
+                ('a1000000-0000-0000-0000-000000000002', 'blocked@example.test',  'Blocked User', true,  null),
+                ('a1000000-0000-0000-0000-000000000003', 'expired@example.test',  'Expired User', false, current_date - 1),
+                ('a1000000-0000-0000-0000-000000000005', 'editor.a@example.test', 'Editor A',     false, null),
+                ('a1000000-0000-0000-0000-000000000006', 'editor.b@example.test', 'Editor B',     false, null),
+                ('a1000000-0000-0000-0000-000000000007', 'auditor@example.test',  'Auditor',      false, null),
+                ('a1000000-0000-0000-0000-000000000008', 'negotiator@example.test', 'Negotiator', false, null);
+
+            -- A transient role that exists only so the authorization matrix can be tested: cross-company
+            -- READ without any write. No seeded role has this shape, and the matrix is incomplete without it.
+            insert into platform.role (key, name, description, is_system)
+            values ('auditor', 'Auditor', 'Reads across companies, writes nothing', false);
+
+            insert into platform.role_capability (role_id, capability_id)
+            select r.id, c.id
+            from platform.role r
+            join platform.capability c on c.key in ('company.read', 'company.read_all')
+            where r.key = 'auditor';
 
             insert into platform.user_role (user_id, role_id)
             select u.id, r.id
@@ -55,10 +73,36 @@ public sealed class IdentityFixture : IAsyncLifetime
                            'a1000000-0000-0000-0000-000000000002',
                            'a1000000-0000-0000-0000-000000000003');
 
+            -- Editors hold company.read and company.write but NOT company.read_all.
+            insert into platform.user_role (user_id, role_id)
+            select u.id, r.id
+            from platform.user_account u
+            join platform.role r on r.key = 'editor'
+            where u.id in ('a1000000-0000-0000-0000-000000000005',
+                           'a1000000-0000-0000-0000-000000000006');
+
+            -- company.read_all without company.write.
+            insert into platform.user_role (user_id, role_id)
+            select u.id, r.id
+            from platform.user_account u
+            join platform.role r on r.key = 'auditor'
+            where u.id = 'a1000000-0000-0000-0000-000000000007';
+
+            -- Neither company.write nor company.read_all.
+            insert into platform.user_role (user_id, role_id)
+            select u.id, r.id
+            from platform.user_account u
+            join platform.role r on r.key = 'negotiator'
+            where u.id = 'a1000000-0000-0000-0000-000000000008';
+
             insert into platform.user_profile (user_id, company_id) values
                 ('a1000000-0000-0000-0000-000000000001', 'a2000000-0000-0000-0000-000000000001'),
                 ('a1000000-0000-0000-0000-000000000002', 'a2000000-0000-0000-0000-000000000001'),
-                ('a1000000-0000-0000-0000-000000000003', 'a2000000-0000-0000-0000-000000000001');
+                ('a1000000-0000-0000-0000-000000000003', 'a2000000-0000-0000-0000-000000000001'),
+                ('a1000000-0000-0000-0000-000000000005', 'a2000000-0000-0000-0000-000000000001'),
+                ('a1000000-0000-0000-0000-000000000006', 'a2000000-0000-0000-0000-000000000002'),
+                ('a1000000-0000-0000-0000-000000000007', 'a2000000-0000-0000-0000-000000000001'),
+                ('a1000000-0000-0000-0000-000000000008', 'a2000000-0000-0000-0000-000000000001');
             """;
 
         await using var connection = new NpgsqlConnection(ConnectionString);

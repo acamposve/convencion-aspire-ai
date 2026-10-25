@@ -11,28 +11,62 @@ namespace Convenciones.Identity;
 public sealed class RequiresActiveSessionAttribute : Attribute;
 
 /// <summary>
-/// Declares the capability an endpoint needs.
+/// Declares the capability, or capabilities, an endpoint needs. **All** of them are required.
 /// </summary>
 /// <remarks>
-/// The capability is enforced twice, and deliberately so: here, against the session read from the
-/// database, and again by the RLS policy on the table being touched. The API check produces a clear
-/// 403; the policy is what actually protects the data if the API check were ever removed by mistake.
+/// <para>
+/// Requiring several capabilities is not the same as requiring one of them. Creating a company needs
+/// both <c>company.write</c> and <c>company.read_all</c>, because a user who could create a company
+/// without cross-company visibility would be granting themselves a new tenant — privilege escalation
+/// through a side door.
+/// </para>
+/// <para>
+/// The capability is enforced twice, deliberately: here against the session read from the database,
+/// and again by RLS on the table being touched. The API check produces a clear 403; the policy is what
+/// protects the data if the API check were ever removed by mistake.
+/// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public sealed class RequiresCapabilityAttribute(string capability) : Attribute
+public sealed class RequiresCapabilityAttribute : Attribute
 {
-    public string Capability { get; } = !string.IsNullOrWhiteSpace(capability)
-        ? capability
-        : throw new ArgumentException("A capability key is required.", nameof(capability));
+    public RequiresCapabilityAttribute(string capability, params string[] additionalCapabilities)
+    {
+        if (string.IsNullOrWhiteSpace(capability))
+        {
+            throw new ArgumentException("A capability key is required.", nameof(capability));
+        }
+
+        var all = new List<string> { capability };
+        foreach (var extra in additionalCapabilities)
+        {
+            if (!string.IsNullOrWhiteSpace(extra))
+            {
+                all.Add(extra);
+            }
+        }
+
+        Capabilities = all.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    /// <summary>Every one of these must be held.</summary>
+    public IReadOnlyList<string> Capabilities { get; }
 }
 
 public static class EndpointSecurityExtensions
 {
-    public static TBuilder RequiresCapability<TBuilder>(this TBuilder builder, string capability)
+    public static TBuilder RequiresCapability<TBuilder>(this TBuilder builder, params string[] capabilities)
         where TBuilder : IEndpointConventionBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.WithMetadata(new RequiresCapabilityAttribute(capability));
+
+        if (capabilities is null || capabilities.Length == 0)
+        {
+            throw new ArgumentException("At least one capability is required.", nameof(capabilities));
+        }
+
+        return builder.WithMetadata(new RequiresCapabilityAttribute(
+            capabilities[0],
+            capabilities.Skip(1).ToArray()));
     }
 
     public static TBuilder RequiresActiveSession<TBuilder>(this TBuilder builder)

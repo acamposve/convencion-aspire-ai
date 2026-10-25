@@ -66,13 +66,25 @@ public sealed class SessionResolutionMiddleware(RequestDelegate next, ILogger<Se
         accessor.Session = session;
 
         var required = endpoint.Metadata.GetMetadata<RequiresCapabilityAttribute>();
-        if (required is not null && !session.HasCapability(required.Capability))
+        if (required is not null)
         {
-            logger.LogInformation(
-                "User {UserId} lacks capability {Capability}.", session.UserId, required.Capability);
-            await Problem(context, "forbidden",
-                $"The capability '{required.Capability}' is required.").ConfigureAwait(false);
-            return;
+            // Every declared capability is required. Checking only the first would silently weaken
+            // any endpoint that needs two, and the weakened rule would still pass a single test.
+            var missing = required.Capabilities
+                .Where(capability => !session.HasCapability(capability))
+                .ToArray();
+
+            if (missing.Length > 0)
+            {
+                logger.LogInformation(
+                    "User {UserId} lacks capability {Capabilities}.",
+                    session.UserId,
+                    string.Join(", ", missing));
+
+                await Problem(context, ErrorCodes.Forbidden,
+                    $"The capability '{string.Join("' and '", missing)}' is required.").ConfigureAwait(false);
+                return;
+            }
         }
 
         await next(context).ConfigureAwait(false);
