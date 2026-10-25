@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Convenciones.Api.Endpoints;
@@ -241,6 +242,14 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
 
         unknownHeading.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await ReadProblemAsync(unknownHeading)).Code.ShouldBe("validation_failed");
+
+        // An empty Guid is the client failing to send null, not an unclassified article.
+        var emptyHeading = await client.PostAsJsonAsync(
+            new Uri($"/statutes/{statute.Id}/articles", UriKind.Relative),
+            ArticleRequest(3, "Artículo 3 — Clasificación vacía", headingId: Guid.Empty));
+
+        emptyHeading.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await ReadProblemAsync(emptyHeading)).Code.ShouldBe("validation_failed");
         (await fixture.ArticleCountAsync(statute.Id)).ShouldBe(1);
     }
 
@@ -310,7 +319,7 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
 
         (await negotiator.PatchAsJsonAsync(
                 new Uri($"/statutes/{statute.Id}", UriKind.Relative),
-                new UpdateStatuteRequest("Renombrada por un lector", null, null, null)))
+                PatchStatute(name: Str("Renombrada por un lector"))))
             .StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
         (await negotiator.PostAsJsonAsync(
@@ -350,7 +359,7 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
 
         var missing = await client.PatchAsJsonAsync(
             new Uri($"/statutes/{statute.Id}", UriKind.Relative),
-            new UpdateStatuteRequest("Ley Renombrada", null, null, null));
+            PatchStatute(name: Str("Ley Renombrada")));
 
         missing.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await ReadProblemAsync(missing)).Code.ShouldBe("validation_failed");
@@ -359,7 +368,7 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
             client,
             HttpMethod.Patch,
             $"/statutes/{statute.Id}",
-            new UpdateStatuteRequest("Ley Renombrada", null, null, null),
+            PatchStatute(name: Str("Ley Renombrada")),
             statute.RowVersion + 1);
 
         stale.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -370,7 +379,10 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
             client,
             HttpMethod.Patch,
             $"/statutes/{statute.Id}",
-            new UpdateStatuteRequest("Ley Renombrada", new DateOnly(2020, 1, 1), "Gaceta 1", null),
+            PatchStatute(
+                name: Str("Ley Renombrada"),
+                publishedOn: On(new DateOnly(2020, 1, 1)),
+                source: Str("Gaceta 1")),
             statute.RowVersion);
 
         current.StatusCode.ShouldBe(HttpStatusCode.OK, await current.Content.ReadAsStringAsync());
@@ -389,7 +401,7 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
             client,
             HttpMethod.Patch,
             $"/statutes/{statute.Id}",
-            new UpdateStatuteRequest("ley de actualización ii", null, null, null),
+            PatchStatute(name: Str("ley de actualización ii")),
             updated.RowVersion);
 
         collision.StatusCode.ShouldBe(HttpStatusCode.Conflict);
@@ -426,13 +438,13 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
             client,
             HttpMethod.Patch,
             $"/statutes/{statute.Id}/articles/{article.Id}",
-            new StatuteArticleRequest(
-                6,
-                "Artículo 6 — Salario",
-                "Resumen actualizado",
-                "Texto nuevo del artículo.",
-                null,
-                "Nota de comparación económica"),
+            PatchArticle(
+                number: Num(6),
+                title: Str("Artículo 6 — Salario"),
+                summary: Str("Resumen actualizado"),
+                body: Str("Texto nuevo del artículo."),
+                headingId: Id(null),
+                economicNote: Str("Nota de comparación económica")),
             fetched.RowVersion);
 
         updatedResponse.StatusCode.ShouldBe(
@@ -446,7 +458,7 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
         updated.Title.ShouldBe("Artículo 6 — Salario");
         updated.EconomicComparisonNote.ShouldBe("Nota de comparación económica");
 
-        // A full replacement: omitting the classification clears it, which A-12 allows.
+        // An explicit null clears the classification, which A-12 allows.
         updated.HeadingId.ShouldBeNull();
 
         var staleDelete = await SendWithIfMatchAsync(
@@ -498,7 +510,7 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
             client,
             HttpMethod.Patch,
             $"/statutes/{statute.Id}",
-            new UpdateStatuteRequest("Ley Auditada y Renombrada", null, null, null),
+            PatchStatute(name: Str("Ley Auditada y Renombrada")),
             detail!.RowVersion);
 
         updated.StatusCode.ShouldBe(HttpStatusCode.OK, await updated.Content.ReadAsStringAsync());
@@ -647,6 +659,343 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
         (await fixture.StatuteCountAsync()).ShouldBe(before);
     }
 
+    [Fact]
+    public async Task A_partial_update_keeps_omitted_fields_and_an_explicit_null_clears_a_nullable_one()
+    {
+        using var client = ClientFor(StatuteFixture.EditorA);
+        var statute = await CreateStatuteAsync(
+            client,
+            "OtherStatute",
+            "Ley de Parcheo",
+            new DateOnly(2014, 1, 30),
+            "Gaceta Oficial 40.340");
+
+        // Rename only. publishedOn and source are absent from the body, so they must survive — the
+        // defect this test exists for silently cleared them.
+        var renamedResponse = await SendWithIfMatchAsync(
+            client,
+            HttpMethod.Patch,
+            $"/statutes/{statute.Id}",
+            PatchStatute(name: Str("Ley de Parcheo Renombrada")),
+            statute.RowVersion);
+
+        renamedResponse.StatusCode.ShouldBe(
+            HttpStatusCode.OK,
+            await renamedResponse.Content.ReadAsStringAsync());
+
+        var renamed = await renamedResponse.Content.ReadFromJsonAsync<StatuteDetail>();
+
+        renamed.ShouldNotBeNull();
+        renamed!.Name.ShouldBe("Ley de Parcheo Renombrada");
+        renamed.PublishedOn.ShouldBe(new DateOnly(2014, 1, 30));
+        renamed.Source.ShouldBe("Gaceta Oficial 40.340");
+
+        // The audit row must not claim the untouched fields changed.
+        var changes = await fixture.AuditChangesAsync("statute", statute.Id.ToString());
+
+        changes.Last().ShouldContain("Name");
+        changes.Last().ShouldNotContain("PublishedOn");
+        changes.Last().ShouldNotContain("Source");
+
+        // An explicit null is how a nullable field is cleared.
+        var clearedResponse = await SendWithIfMatchAsync(
+            client,
+            HttpMethod.Patch,
+            $"/statutes/{statute.Id}",
+            PatchStatute(publishedOn: On(null), source: Str(null)),
+            renamed.RowVersion);
+
+        clearedResponse.StatusCode.ShouldBe(
+            HttpStatusCode.OK,
+            await clearedResponse.Content.ReadAsStringAsync());
+
+        var cleared = await clearedResponse.Content.ReadFromJsonAsync<StatuteDetail>();
+
+        cleared.ShouldNotBeNull();
+        cleared!.PublishedOn.ShouldBeNull();
+        cleared.Source.ShouldBeNull();
+        cleared.Name.ShouldBe("Ley de Parcheo Renombrada");
+
+        // A required field sent as null is refused rather than cleared.
+        var refused = await SendWithIfMatchAsync(
+            client,
+            HttpMethod.Patch,
+            $"/statutes/{statute.Id}",
+            PatchStatute(name: Str(null)),
+            cleared.RowVersion);
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await ReadProblemAsync(refused)).Code.ShouldBe("validation_failed");
+        (await fixture.StatuteTextAsync(statute.Id, "name")).ShouldBe("Ley de Parcheo Renombrada");
+    }
+
+    [Fact]
+    public async Task A_partial_article_update_changes_only_the_fields_it_sends()
+    {
+        using var client = ClientFor(StatuteFixture.EditorA);
+        var statute = await CreateStatuteAsync(client, "OtherStatute", "Ley de Artículo Parcial");
+        var heading = await fixture.HeadingIdAsync("Salarios");
+        var article = await AddArticleAsync(
+            client,
+            statute.Id,
+            7,
+            "Artículo 7 — Original",
+            "Cuerpo original.",
+            heading);
+
+        var patchedResponse = await SendWithIfMatchAsync(
+            client,
+            HttpMethod.Patch,
+            $"/statutes/{statute.Id}/articles/{article.Id}",
+            PatchArticle(title: Str("Artículo 7 — Título Nuevo")),
+            article.RowVersion);
+
+        patchedResponse.StatusCode.ShouldBe(
+            HttpStatusCode.OK,
+            await patchedResponse.Content.ReadAsStringAsync());
+
+        var patched = await patchedResponse.Content.ReadFromJsonAsync<StatuteArticleResponse>();
+
+        patched.ShouldNotBeNull();
+        patched!.Number.ShouldBe(7);
+        patched.Title.ShouldBe("Artículo 7 — Título Nuevo");
+        patched.Body.ShouldBe("Cuerpo original.");
+        patched.HeadingId.ShouldBe(heading);
+
+        // Clearing the classification is an explicit null, and it leaves the rest alone.
+        var clearedResponse = await SendWithIfMatchAsync(
+            client,
+            HttpMethod.Patch,
+            $"/statutes/{statute.Id}/articles/{article.Id}",
+            PatchArticle(headingId: Id(null)),
+            patched.RowVersion);
+
+        clearedResponse.StatusCode.ShouldBe(
+            HttpStatusCode.OK,
+            await clearedResponse.Content.ReadAsStringAsync());
+
+        var cleared = await clearedResponse.Content.ReadFromJsonAsync<StatuteArticleResponse>();
+
+        cleared.ShouldNotBeNull();
+        cleared!.HeadingId.ShouldBeNull();
+        cleared.Title.ShouldBe("Artículo 7 — Título Nuevo");
+        cleared.Body.ShouldBe("Cuerpo original.");
+
+        // Required fields cannot be cleared, only omitted.
+        var nullNumber = await SendWithIfMatchAsync(
+            client,
+            HttpMethod.Patch,
+            $"/statutes/{statute.Id}/articles/{article.Id}",
+            PatchArticle(number: Num(null)),
+            cleared.RowVersion);
+
+        nullNumber.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await ReadProblemAsync(nullNumber)).Code.ShouldBe("validation_failed");
+
+        var nullTitle = await SendWithIfMatchAsync(
+            client,
+            HttpMethod.Patch,
+            $"/statutes/{statute.Id}/articles/{article.Id}",
+            PatchArticle(title: Str(null)),
+            cleared.RowVersion);
+
+        nullTitle.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await fixture.ArticleCountAsync(statute.Id)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Creating_a_statute_with_a_name_that_already_exists_is_refused()
+    {
+        using var client = ClientFor(StatuteFixture.EditorA);
+        var before = await fixture.StatuteCountAsync();
+        await CreateStatuteAsync(client, "OtherStatute", "Ley de Nombre Único");
+
+        var duplicate = await client.PostAsJsonAsync(
+            new Uri("/statutes", UriKind.Relative),
+            new CreateStatuteRequest("OtherStatute", "ley de nombre único", null, null, null));
+
+        duplicate.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        var problem = await ReadProblemAsync(duplicate);
+
+        problem.Code.ShouldBe("conflict");
+        problem.Detail.ShouldNotBeNull();
+        problem.Detail!.ShouldContain(StatuteEndpoints.StatuteNameIndex);
+        (await fixture.StatuteCountAsync()).ShouldBe(before + 1);
+    }
+
+    [Fact]
+    public async Task The_comparison_bounds_statute_articles_at_100_and_reports_the_real_total()
+    {
+        using var client = ClientFor(StatuteFixture.EditorA);
+        var heading = await fixture.CreateHeadingAsync("Borde de Comparación");
+        var statute = await CreateStatuteAsync(client, "OtherStatute", "Ley de Borde de Comparación");
+
+        await fixture.InsertStatuteArticlesAsync(statute.Id, 1, 105, heading);
+
+        var agreement = await CreateAgreementAsync(client, new DateOnly(2029, 2, 1));
+        await AddClauseAsync(client, agreement.Id, 1, heading);
+        (await client.PostAsync(
+                new Uri($"/agreements/{agreement.Id}/publish", UriKind.Relative), content: null))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var comparison = await client.GetFromJsonAsync<ComparisonView>(
+            new Uri($"/comparison?headingId={heading}&agreementIds={agreement.Id}", UriKind.Relative));
+
+        comparison.ShouldNotBeNull();
+        comparison!.StatuteArticles.Count.ShouldBe(StatutePaging.MaxComparisonArticles);
+        comparison.StatuteArticleTotal.ShouldBe(105);
+
+        // The array is the first N in the documented order, and the total says how many there are, so
+        // a truncated answer is visible rather than silent.
+        comparison.StatuteArticleTotal.ShouldBeGreaterThan(comparison.StatuteArticles.Count);
+        comparison.StatuteArticles.Select(article => article.Number)
+            .ShouldBe(Enumerable.Range(1, StatutePaging.MaxComparisonArticles));
+        comparison.StatuteArticles.ShouldAllBe(article => article.StatuteId == statute.Id);
+    }
+
+    [Fact]
+    public async Task The_comparison_requires_statute_read_because_it_returns_statutory_text()
+    {
+        using var editor = ClientFor(StatuteFixture.EditorA);
+        var heading = await fixture.CreateHeadingAsync("Capacidad de Comparación");
+        var statute = await CreateStatuteAsync(editor, "OtherStatute", "Ley de Capacidad");
+        await AddArticleAsync(
+            editor,
+            statute.Id,
+            1,
+            "Artículo 1 — Capacidad",
+            "El texto estatutario no debe filtrarse.",
+            heading);
+
+        var agreement = await CreateAgreementAsync(editor, new DateOnly(2029, 3, 1));
+        await AddClauseAsync(editor, agreement.Id, 1, heading);
+        (await editor.PostAsync(
+                new Uri($"/agreements/{agreement.Id}/publish", UriKind.Relative), content: null))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        using var comparisonOnly = ClientFor(StatuteFixture.ComparisonOnly);
+
+        var refused = await comparisonOnly.GetAsync(
+            new Uri($"/comparison?headingId={heading}&agreementIds={agreement.Id}", UriKind.Relative));
+
+        refused.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        var problem = await ReadProblemAsync(refused);
+
+        problem.Code.ShouldBe("forbidden");
+        problem.Detail.ShouldNotBeNull();
+        problem.Detail!.ShouldContain("statute.read");
+
+        // The workspace itself is still theirs: the capability gates the statutory text, not the
+        // screen.
+        (await comparisonOnly.GetAsync(
+                new Uri($"/comparison/candidates?headingId={heading}", UriKind.Relative)))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // A caller holding both reads it.
+        (await editor.GetAsync(
+                new Uri($"/comparison?headingId={heading}&agreementIds={agreement.Id}", UriKind.Relative)))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task A_document_must_be_live_and_visible_to_the_caller()
+    {
+        using var editor = ClientFor(StatuteFixture.EditorA);
+
+        var live = await fixture.CreateDocumentAsync(
+            StatuteFixture.CompanyA, StatuteFixture.EditorA, "legal-live.pdf");
+
+        var attachLive = await editor.PostAsJsonAsync(
+            new Uri("/statutes", UriKind.Relative),
+            new CreateStatuteRequest("OtherStatute", "Ley con Documento Vivo", null, null, live));
+
+        attachLive.StatusCode.ShouldBe(HttpStatusCode.Created, await attachLive.Content.ReadAsStringAsync());
+
+        var deleted = await fixture.CreateDocumentAsync(
+            StatuteFixture.CompanyA, StatuteFixture.EditorA, "legal-deleted.pdf");
+        await fixture.SoftDeleteDocumentAsync(deleted);
+
+        var attachDeleted = await editor.PostAsJsonAsync(
+            new Uri("/statutes", UriKind.Relative),
+            new CreateStatuteRequest("OtherStatute", "Ley con Documento Borrado", null, null, deleted));
+
+        attachDeleted.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var deletedProblem = await ReadProblemAsync(attachDeleted);
+
+        deletedProblem.Code.ShouldBe("validation_failed");
+
+        // Another company's document is refused by the document policies, and the refusal is exactly
+        // the one a missing id produces: the check cannot be used to probe for document ids.
+        var foreign = await fixture.CreateDocumentAsync(
+            StatuteFixture.CompanyB, StatuteFixture.EditorB, "legal-foreign.pdf");
+
+        var attachForeign = await editor.PostAsJsonAsync(
+            new Uri("/statutes", UriKind.Relative),
+            new CreateStatuteRequest("OtherStatute", "Ley con Documento Ajeno", null, null, foreign));
+
+        attachForeign.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        var foreignProblem = await ReadProblemAsync(attachForeign);
+
+        foreignProblem.Code.ShouldBe("validation_failed");
+        foreignProblem.Detail.ShouldBe(deletedProblem.Detail);
+    }
+
+    [Fact]
+    public async Task An_article_is_only_addressable_through_its_own_statute()
+    {
+        using var client = ClientFor(StatuteFixture.EditorA);
+        var first = await CreateStatuteAsync(client, "OtherStatute", "Ley de Alcance Uno");
+        var second = await CreateStatuteAsync(client, "OtherStatute", "Ley de Alcance Dos");
+        var article = await AddArticleAsync(client, second.Id, 1, "Artículo 1 — De la segunda ley");
+
+        (await client.GetAsync(
+                new Uri($"/statutes/{first.Id}/articles/{article.Id}", UriKind.Relative)))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
+        var source = await client.GetFromJsonAsync<StatuteArticleResponse>(
+            new Uri($"/statutes/{second.Id}/articles/{article.Id}", UriKind.Relative));
+
+        source.ShouldNotBeNull();
+        source!.Title.ShouldBe("Artículo 1 — De la segunda ley");
+    }
+
+    [Fact]
+    public async Task A_body_that_is_not_valid_json_for_the_contract_is_reported_as_a_problem()
+    {
+        using var client = ClientFor(StatuteFixture.EditorA);
+
+        // `kind` is a string in the contract; a number cannot be bound to it.
+        var response = await client.PostAsJsonAsync(
+            new Uri("/statutes", UriKind.Relative),
+            new { kind = 1, name = "Ley con Tipo Equivocado" });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+
+        var problem = await ReadProblemAsync(response);
+
+        problem.Code.ShouldBe("malformed_request");
+        problem.Detail.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task A_wrong_content_type_keeps_its_status_and_gains_a_problem_body()
+    {
+        using var client = ClientFor(StatuteFixture.EditorA);
+
+        using var content = new StringContent("hello", Encoding.UTF8, "text/plain");
+        var response = await client.PostAsync(new Uri("/statutes", UriKind.Relative), content);
+
+        // The status is the framework's (415), unchanged; only the body is added, because the
+        // contract names a code for this refusal and forbids a bare status.
+        response.StatusCode.ShouldBe(HttpStatusCode.UnsupportedMediaType);
+        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+
+        var problem = await ReadProblemAsync(response);
+
+        problem.Code.ShouldBe("unsupported_media_type");
+    }
+
     // ---- Helpers ---------------------------------------------------------------------------------
 
     private HttpClient ClientFor(Guid subject)
@@ -721,6 +1070,35 @@ public sealed class StatuteTests(StatuteFixture fixture) : IDisposable
         string? title,
         Guid? headingId = null) =>
         new(number, title, null, "Texto del artículo.", headingId, null);
+
+    // ---- Patch helpers ---------------------------------------------------------------------------
+    //
+    // A partial update distinguishes "not sent" (Unset) from "sent as null" (Set(null)). These
+    // helpers make the body of each test say which of the two it means.
+
+    private static PatchField<string?> Str(string? value) => PatchField<string?>.Set(value);
+
+    private static PatchField<DateOnly?> On(DateOnly? value) => PatchField<DateOnly?>.Set(value);
+
+    private static PatchField<Guid?> Id(Guid? value) => PatchField<Guid?>.Set(value);
+
+    private static PatchField<int?> Num(int? value) => PatchField<int?>.Set(value);
+
+    private static UpdateStatuteRequest PatchStatute(
+        PatchField<string?> name = default,
+        PatchField<DateOnly?> publishedOn = default,
+        PatchField<string?> source = default,
+        PatchField<Guid?> documentId = default) =>
+        new(name, publishedOn, source, documentId);
+
+    private static UpdateStatuteArticleRequest PatchArticle(
+        PatchField<int?> number = default,
+        PatchField<string?> title = default,
+        PatchField<string?> summary = default,
+        PatchField<string?> body = default,
+        PatchField<Guid?> headingId = default,
+        PatchField<string?> economicNote = default) =>
+        new(number, title, summary, body, headingId, economicNote);
 
     private static async Task<AgreementDetail> CreateAgreementAsync(
         HttpClient client,
