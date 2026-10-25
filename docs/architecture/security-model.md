@@ -323,6 +323,12 @@ company predicate to these by reflex would make the legal library invisible to e
 everywhere would leak tenant data. The distinction is explicit and tested (`StatuteTests` asserts a user of
 any company can read statutes).
 
+**Capabilities gate data, not screens.** Because `GET /comparison` returns the body of statute articles,
+it requires `statute.read` **in addition to** `comparison.read` (ADR-024). A caller holding only
+`comparison.read` sees the workspace without the legal column, and is refused with `403` naming
+`statute.read`. `statute.read`/`statute.write` remain the capabilities of the library itself; statutes
+are global because they belong to no company, not because they are unguarded.
+
 If true multi-tenant isolation (separate deployments per organisation) is ever required, the path is
 documented in ADR-009: a `tenant_id` on every table and in the token. That is a schema-wide change and must
 be decided deliberately, not half-built.
