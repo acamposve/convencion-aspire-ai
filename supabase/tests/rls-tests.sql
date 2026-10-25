@@ -683,6 +683,48 @@ begin
     execute 'reset role';
 end $$;
 
+\echo '--- Tenant isolation: agreements (the other direction to R7) ---'
+
+-- R34 — R7 proves a company A user sees its own two agreements, which a capability-only policy would
+-- also satisfy. This proves the predicate: a company B editor holds agreement.read and must still see
+-- none of company A's agreements, and none of their clauses.
+do $$
+declare
+    visible int;
+    clauses int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000008"}', true);
+    execute 'set local role app_api';
+    select count(*) into visible from app.agreement
+     where company_id = '30000000-0000-0000-0000-000000000001';
+    select count(*) into clauses from app.agreement_clause
+     where agreement_id in ('50000000-0000-0000-0000-000000000001',
+                            '50000000-0000-0000-0000-000000000002');
+    execute 'reset role';
+    if visible = 0 and clauses = 0 then
+        raise notice 'PASS: R34 a company B editor sees none of company A''s agreements or clauses';
+    else
+        raise notice 'FAIL: R34 a company B editor saw % agreement(s) and % clause(s)', visible, clauses;
+    end if;
+end $$;
+
+-- R35 — and cannot write one either: the tenant predicate filters the update before it applies.
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000008"}', true);
+    execute 'set local role app_api';
+    update app.agreement set scope = 'Ajeno'
+     where id = '50000000-0000-0000-0000-000000000001';
+    get diagnostics n = row_count;
+    execute 'reset role';
+    if n = 0 then
+        raise notice 'PASS: R35 a company B editor updating company A''s agreement affects 0 rows';
+    else
+        raise notice 'FAIL: R35 a company B editor updated % row(s)', n;
+    end if;
+end $$;
+
 rollback;
 
 \echo ''

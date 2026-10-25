@@ -31,6 +31,11 @@ as free text; paging and hard bounds; `AsNoTracking` and GET-only routes.
 All routes are **GET-only**. `POST`/`PUT` on `/comparison` return **405**, and the module exposes no
 write method (AC 4).
 
+**Changed by T10 (review):** the projection now returns statutory text, so it requires
+**`comparison.read` *and* `statute.read`**; the other three routes keep `comparison.read` alone
+(ADR-024, `api-contracts.md` §4.4). The change is recorded here because it alters this table, and it is
+asserted by a T10 integration test with a `comparison.read`-only role.
+
 ### 3.1 Response shapes
 
 ```jsonc

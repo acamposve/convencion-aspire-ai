@@ -455,6 +455,28 @@ exception when others then
     raise notice 'FAIL: E8 an unclassified article was rejected: %', sqlerrm;
 end $$;
 
+-- The statute name is unique case-insensitively: 'Fixture Other Statute' exists from E2.
+do $$
+begin
+    begin
+        insert into app.statute (kind, name) values ('OtherStatute', 'FIXTURE OTHER STATUTE');
+        raise notice 'FAIL: E9 a duplicate statute name was accepted';
+    exception when unique_violation then
+        raise notice 'PASS: E9 statute_name_key refuses a duplicate name, case-insensitively';
+    end;
+end $$;
+
+do $$
+begin
+    begin
+        insert into app.statute_article (statute_id, number_int, title, body)
+        values ('eeeeeeee-0000-0000-0000-000000000001', 4, 'Article Four', '   ');
+        raise notice 'FAIL: E10 a blank article body was accepted';
+    exception when check_violation then
+        raise notice 'PASS: E10 statute_article_body_not_blank refuses a blank article body';
+    end;
+end $$;
+
 \echo '--- F. documents ---'
 
 do $$
