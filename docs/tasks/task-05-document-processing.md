@@ -1,7 +1,7 @@
 # T5 — Document processing and text extraction
 
-**Status: implemented and verified.** Branch `task/18-document-processing`. The executed results are in
-[§9](#9-implementation-record).
+**Status: implemented and verified — PR #18.** Branch `task/18-document-processing`. The executed
+results are in [§9](#9-implementation-record).
 
 ## 1. Objective
 
