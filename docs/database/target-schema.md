@@ -78,7 +78,7 @@ group that requires economic comparison — a contradiction the legacy data mode
 | Table | Purpose | Notable constraints |
 |---|---|---|
 | `statute` | One statute, `kind` ∈ {LabourLaw, OtherStatute} | **partial unique index** allows at most one LabourLaw; unique `lower(name)` |
-| `statute_article` | Articles | FK → statute CASCADE; unique `(statute_id, number_int, coalesce(number_suffix,''))`; `heading_id` **nullable** |
+| `statute_article` | Articles | FK → statute CASCADE; unique `(statute_id, number_int)`; `number_int >= 1`; `title` and `body` not blank; `heading_id` **nullable** |
 
 Article counts are computed, never stored. The legacy `total_articulos` column was maintained by
 application code and drifted.
@@ -88,7 +88,7 @@ application code and drifted.
 | Table | Purpose | Notable constraints |
 |---|---|---|
 | `agreement` | Collective agreement header | FK → company RESTRICT; unique `(company_id, valid_from)`; `valid_to >= valid_from`; publication consistency CHECK |
-| `agreement_clause` | Clause body and classification | FK → agreement CASCADE; FK → heading RESTRICT, **NOT NULL**; unique `(agreement_id, number_int, coalesce(number_suffix,''))`; `number_int >= 1`; suffix `^[A-Z]{1,2}$`; exclusion-note consistency |
+| `agreement_clause` | Clause body and classification | FK → agreement CASCADE; FK → heading RESTRICT, **NOT NULL**; unique `(agreement_id, number_int)`; `number_int >= 1`; exclusion-note consistency |
 | `agreement_annex` | Annexes | FK → agreement CASCADE; FK → document SET NULL; unique `(agreement_id, lower(name))` |
 
 Publication is a state plus an actor plus a timestamp, tied together by a CHECK so a half-published

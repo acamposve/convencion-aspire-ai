@@ -10,6 +10,9 @@ namespace Convenciones.Identity;
 public static class ErrorCodes
 {
     public const string ValidationFailed = "validation_failed";
+    public const string MalformedRequest = "malformed_request";
+    public const string PayloadTooLarge = "payload_too_large";
+    public const string UnsupportedMediaType = "unsupported_media_type";
     public const string Unauthorized = "unauthorized";
     public const string Forbidden = "forbidden";
     public const string NoProfile = "no_profile";

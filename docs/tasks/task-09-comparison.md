@@ -31,6 +31,11 @@ as free text; paging and hard bounds; `AsNoTracking` and GET-only routes.
 All routes are **GET-only**. `POST`/`PUT` on `/comparison` return **405**, and the module exposes no
 write method (AC 4).
 
+**Changed by T10 (review):** the projection now returns statutory text, so it requires
+**`comparison.read` *and* `statute.read`**; the other three routes keep `comparison.read` alone
+(ADR-024, `api-contracts.md` §4.4). The change is recorded here because it alters this table, and it is
+asserted by a T10 integration test with a `comparison.read`-only role.
+
 ### 3.1 Response shapes
 
 ```jsonc
@@ -212,6 +217,6 @@ query over the entity columns and compose the title after materialisation, using
 ## 9. Left undone
 
 - Clause alignment/pairing (R2-01), export (R2-04), full-text search (R2-02).
-- Statute articles (T10) — the field is empty.
-- The comparison workspace UI (T14).
+- Statute articles — the field was empty at merge; **T10 fills it** (`statuteArticles` plus
+  `statuteArticleTotal`, bounded at 100 per heading).- The comparison workspace UI (T14).
 - A per-agreement clause cap; paging bounds the number of agreements only (see §7).

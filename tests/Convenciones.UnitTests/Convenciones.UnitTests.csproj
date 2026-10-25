@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Convenciones.Identity\Convenciones.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Convenciones.Legal\Convenciones.Legal.csproj" />
   </ItemGroup>
 
 </Project>
