@@ -128,8 +128,9 @@ again at the public boundary; the UI never composes HTML from user input itself.
 ### Findings
 
 1. **A 1-second query timeout was too tight** for the heavier screens under parallel workers. The setup
-   now configures a 5-second `asyncUtilTimeout`; a slow wait was a test-infrastructure defect, not a
-   product one.
+   now configures a 5-second `asyncUtilTimeout` and the suite caps itself at four workers; both are
+   test-infrastructure fixes for a slow wait, not product defects. With eight workers the shell's company
+   lookup occasionally exceeded the timeout while twelve files rendered the full application at once.
 2. **The fakes had to grow with the client.** `FakeApi` now implements every endpoint the screens use, so
    a screen that calls the wrong method fails at typecheck rather than in a browser.
 3. **MUI selects are keyboard-operable** (focus, `Enter`, arrows, `Enter`), which is what made the
