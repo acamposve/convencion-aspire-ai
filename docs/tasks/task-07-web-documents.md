@@ -32,9 +32,13 @@ keyboard-accessible forms and a responsive layout (F-17).
 3. Status reflects the API honestly — **a failure is displayed as a failure**, not as an empty result.
 4. A `Failed` document shows the recorded error and offers a retry, which is disabled when the retry
    limit is exhausted.
-5. An image upload shows "text extraction not supported", never "completed".
-6. Every interactive control is reachable and operable by keyboard; the layout works at 360 px.
-7. No credential, key or storage path is present in the browser bundle or in browser storage.
+5. **PDF only, up to 20 MiB is stated on the upload control itself** — not only in an error after the fact.
+   Another format is refused before it is sent (by extension and, where the browser exposes it, by type),
+   while the server remains authoritative and its **415** is displayed verbatim.
+6. An file over 20 MiB is refused client-side with the limit stated, and the API's **413** is displayed
+   verbatim if the client check is bypassed.
+7. Every interactive control is reachable and operable by keyboard; the layout works at 360 px.
+8. No credential, key or storage path is present in the browser bundle or in browser storage.
 
 ## Risks
 

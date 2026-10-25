@@ -30,7 +30,10 @@ bounded and observable.
 2. A PDF with **no** extractable text is **not** reported as success — it is `Failed` with a reason, or
    `Completed` with an explicit "no text found" state. It must not claim text that does not exist.
 3. A corrupt PDF yields `Failed`, `extraction_error` populated, `document_text` absent.
-4. Uploading an image yields `NotSupported` and never enters extraction.
+4. The `NotSupported` status is retained in the enum but is **unreachable from the upload path**: T4 accepts
+   PDF only and rejects everything else with 415, so no image ever reaches extraction. The status remains
+   for documents that arrive through another route (a statute PDF attached later, for example), and the
+   test asserts that no upload can produce it.
 5. Status transitions are legal only: `Completed` cannot go back to `InProgress` without a new attempt,
    and `extraction_attempts` increments per attempt.
 6. A retry after failure is permitted up to the configured limit and then refused with **409**.
