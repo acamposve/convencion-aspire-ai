@@ -109,24 +109,54 @@ if the rule surface grows past roughly 50 distinct rules, revisit.
 
 `Cap` = required capability. `[public]` = anonymous. All other endpoints require authentication.
 
-### 4.1 Identity
+### 4.1 Identity and administration
 
 | Method | Path | Cap | Purpose |
 |---|---|---|---|
-| `GET` | `/auth/bootstrap/status` | `[public]` | Whether a SuperAdmin exists (drives first-run UI) |
+| `GET` | `/auth/bootstrap/status` | `[public]` | Whether the system is configured (drives first-run UI) |
 | `POST` | `/auth/bootstrap` | `[public, one-time]` | Create the single SuperAdmin (Art. VI.6) |
 | `GET` | `/me` | — | Current user, profile, roles, effective capabilities |
-| `GET` | `/users` · `POST` `/users` | `user.manage` | List / invite |
-| `PATCH` | `/users/{id}` | `user.manage` | Update profile, block, set expiry |
-| `PUT` | `/users/{id}/roles` | `user.manage` | Replace role set |
-| `GET` | `/roles` · `POST` `/roles` | `role.manage` | |
-| `GET` | `/capabilities` | `role.manage` | Catalogue |
-| `PUT` | `/roles/{id}/capabilities` | `role.manage` | Replace grants |
+| `GET` `POST` | `/users` | `user.manage` | List (paged, `q`) / provision |
+| `GET` `PATCH` `DELETE` | `/users/{id}` | `user.manage` | Detail / partial update / delete |
+| `PUT` | `/users/{id}/roles` | `user.manage` | Replace the role set |
+| `GET` | `/roles` · `/capabilities` | `role.manage` | The role × capability matrix, read-only in the MVP |
+| `GET` | `/audit` | `audit.read` | Paged audit trail with filters |
 
-**`POST /auth/bootstrap` contract:** accepted only when no SuperAdmin exists; otherwise `409
-invalid_state`. Body: `{ email, displayName, password }`. The password is forwarded to Supabase Auth and
-never stored (Art. VI.6). Idempotent by rejection, not by silent success.
+**`POST /auth/bootstrap` contract.** Body: `{ subject, email, displayName }`. `subject` is the Supabase
+Auth user id (`sub`) the account will be known by — the API does **not** create the Supabase Auth user.
+There is **no password**: Supabase Auth owns credentials, the database has no password column, and no
+endpoint accepts or returns one. An operator creates the auth user in Supabase (dashboard or Admin API,
+which is not part of this service) and provisions the account here with that subject.
 
+The call is accepted only while **no account exists**, and the guard is the database:
+`platform.bootstrap_first_admin` takes an exclusive lock on `platform.user_account`, re-checks under the
+lock, refuses with `22023`, and otherwise writes the account, its empty profile, the SuperAdmin grant and
+an audit row in one statement. A second call — including two concurrent ones — is **409 `invalid_state`**.
+Idempotent by rejection, not by silent success.
+
+**Users.** Provisioning takes `{ subject, email, displayName, phone?, companyId?, roleKeys?,
+isBlocked?, expiresOn? }`; an unknown role key is **400**, an already-provisioned subject is **409**.
+`PATCH` is partial (`displayName`, `email`, `phone`, `companyId`, `isBlocked`, `expiresOn`): an absent
+field is kept, an explicit `null` clears a nullable one, and `null` for a required one is **400**.
+Blocking is live: an existing token stops working on the **next request** because the session is resolved
+from the database each time.
+
+**Self-lockout is prevented, not repaired.** An administrator cannot block or delete their own account,
+and cannot replace their own roles with a set that grants no administrative capability — each is **409**.
+The database does not repeat this check, because it depends on the caller rather than on the row; a
+direct SQL self-lockout remains possible for whoever holds the database credentials, which is why the
+supported path is the endpoint.
+
+**Audit trail.** `GET /audit?module=&entityType=&entityId=&actorId=&from=&to=&page=&pageSize=` returns
+`{ items, page, pageSize, total }`, newest first; each item carries the actor (id and display name), the
+resource it refers to, the action, `fromState`/`toState` and the `changes` object. It is append-only at
+the database (no update or delete path exists) and invisible without `audit.read` (**403**). The per-
+agreement view is this endpoint with `entityType=agreement&entityId=…`.
+
+**Role matrix.** `GET /roles` returns each role with its capability keys and `isSystem`; `GET
+/capabilities` returns the catalogue. Writing roles and grants (`POST /roles`, `PUT
+/roles/{id}/capabilities`) is deliberately **not** part of the MVP: the screen shows the matrix, and the
+seeded roles are the product's own.
 ### 4.2 Catalog
 
 | Method | Path | Cap | Purpose |

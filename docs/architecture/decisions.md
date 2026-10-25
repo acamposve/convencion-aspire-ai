@@ -493,6 +493,52 @@ moved from `Convenciones.Legal` to `Convenciones.Catalog`, so both modules share
 the API login role must be allowed to `SET ROLE anon` (the `postgres`/`authenticator` logins Supabase uses are); agreement clause and annex bodies are now sanitised in T8's module, which is a security fix recorded here
 rather than a silent behaviour change. The public projections were verified field by field in
 `PublicApiTests`, and the database half in `constraint-tests` N1–N3 and `rls-tests` R41–R44.
+---
+
+### ADR-027 — The bootstrap is one database function, and identity administration never touches a password *(T13)*
+**Context:** T13 needs three things the API did not have: a one-time first-run provisioning path, user
+administration, and a readable audit trail. Each had a trap. The contract's bootstrap body carried
+`{ email, displayName, password }` and said the password is "forwarded to Supabase Auth" — but this
+service holds no Supabase Admin key, cannot create an auth user, and T13 forbids password handling
+outright. The one-time window existed as an INSERT policy on `platform.user_account` keyed on
+`not platform.has_any_user()`, which cannot admit the profile, role grant and audit row that must
+accompany the account: after the account is inserted, `has_any_user()` is already true inside the same
+transaction, so each child would need a *looser* rule — exactly the open registration door the window is
+meant to avoid.
+
+**Decision:**
+1. **Provisioning takes the subject, not a password.** `POST /auth/bootstrap` and `POST /users` receive the
+   Supabase Auth user id; an operator creates the auth user out of band. No endpoint accepts or returns a
+   credential, and the database still has no password column.
+2. **The first-run path is one `SECURITY DEFINER` function.** `platform.bootstrap_first_admin` takes an
+   exclusive lock on `platform.user_account`, re-checks "no account exists" under the lock, refuses with
+   `22023`, and writes the account, profile, SuperAdmin grant and audit row in one statement. Two
+   concurrent bootstraps serialise; the second is refused. The check is inside the write, not beside it.
+3. **Users are managed through the aggregate, with the anti-lockout rules in it.** Blocking or deleting
+   yourself is refused, and so is replacing your own roles with a set that grants no administrative
+   capability (**409**). Blocking takes effect on the next request because the session is resolved from the
+   database every time.
+4. **The role matrix is read-only in the MVP.** `GET /roles` and `GET /capabilities` expose what the seeded
+   roles grant; writing roles or grants is deferred, not forgotten.
+5. **The audit trail is a query, not a screen.** `GET /audit` filters by module, entity, actor and date,
+   and is gated by `audit.read` in the API **and** by the RLS policy. The append-only trigger already makes
+   history immutable.
+6. **`AuditEntry` moved to `Convenciones.Catalog`.** The audit handler needs to filter on its columns
+   before shaping the response; filtering over an API-owned projection is untranslatable, and the entity is
+   a platform type like `IAuditable`, not API infrastructure.
+
+**Why not the alternatives:** forwarding a password needs the Supabase Admin API and a service key this
+service does not hold, and would put credentials in the request path; widening five policies with
+`not has_any_user()` either fails after the account insert or loosens the window on every child table; an
+API-only bootstrap check would leave the database door open if a handler were ever bypassed; a
+database-level self-lockout guard would have to know the caller and would fight the replace-the-set
+operation, and the supported path is the endpoint anyway.
+
+**Consequences:** the seeded capability split matters — `user.manage` administers accounts, `role.manage`
+reads the matrix, `audit.read` reads history. An audit-only role would see the trail without actor display
+names, because reading another account's row requires `user.manage`; no seeded role has that shape today.
+The function is the only writer of the first account, and `constraint-tests` G1–G2 plus `rls-tests`
+R45–R47 assert it.
 ## 5. Rejected alternatives
 
 | Alternative | Why rejected |
@@ -522,3 +568,4 @@ rather than a silent behaviour change. The public projections were verified fiel
 | 0.3 | T10 review remediation: **ADR-023** records the two-headings rule so AC 3 and A-12 can both stand; **ADR-024** requires `comparison.read` **and** `statute.read` for the projection that returns statutory text; ADR-022 annotated with T10's query handler types and the remaining static-query exception. |
 | 0.4 | T11: **ADR-025** settles the negotiation state machine (create in `Open`, explicit transitions, read-only closure, atomic and terminal promotion, explicit petition outcomes), hardens `app.guard_case_promotion()` (INSERT, source state, capability, no re-pointing or clearing) and adds company scope to the six negotiation tables. INV-N1 stays unimplemented pending a decision. |
 | 0.5 | T12: **ADR-026** adds the public surface (allow-list projections, anonymous reads on the `anon` role), makes news publication a database-guarded transition that records its own actor and time, and applies A-33 sanitisation to clause, annex and news bodies. |
+| 0.6 | T13: **ADR-027** makes the bootstrap one locking database function with no credential in any endpoint, adds user/role/audit administration with the anti-lockout 409s, and moves `AuditEntry` to the shared kernel so the audit query can filter on columns. |

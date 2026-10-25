@@ -77,10 +77,10 @@ A fresh deployment must produce exactly one privileged account. Design:
 
 | Requirement (Art. VI.6) | Implementation |
 |---|---|
-| Exactly one SuperAdmin, created outside the app | `POST /auth/bootstrap`, guarded by "no user with the `system.superadmin` role exists" |
-| No default, hard-coded, or committed credential | The caller supplies email + password at setup time; nothing is seeded; no default account exists in any migration |
+| Exactly one SuperAdmin, created outside the app | `POST /auth/bootstrap` calls `platform.bootstrap_first_admin`, guarded by "no account exists at all" — not by a role, which would let a second account slip in before the grant |
+| No default, hard-coded, or committed credential | The caller supplies email, display name and the Supabase auth **subject**; no password exists in the API, the database or any migration |
 | Idempotent | A second call returns `409 invalid_state`; it never creates a second account or overwrites the first |
-| Inert once a SuperAdmin exists | The endpoint checks existence **before** any write, inside a serialisable transaction, so concurrent calls cannot both succeed |
+| Inert once a SuperAdmin exists | The function takes an **exclusive lock** on `platform.user_account` and re-checks inside the write, so concurrent calls serialise and the loser is refused |
 | No other out-of-band accounts | There is no seeding of users anywhere — not in migrations, not in the reference-data seed, not in tests against a real environment |
 
 ```mermaid
@@ -90,6 +90,8 @@ stateDiagram-v2
     Configured --> Configured: POST /auth/bootstrap → 409 invalid_state
     Configured --> [*]: all later users via /users (Art. VI.6)
 ```
+
+**The API does not create the Supabase Auth user.** It has no Admin API key and holds no credential; the operator creates the auth user out of band (dashboard or Admin API) and provisions the account here with that subject (ADR-027).
 
 **The one gap I cannot close from the repository:** whether Supabase Auth's own sign-up endpoint should
 be disabled. If public sign-up is enabled on the Supabase project, anyone can create an *authenticated*
