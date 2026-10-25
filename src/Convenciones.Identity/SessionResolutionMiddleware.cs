@@ -32,11 +32,16 @@ public sealed class SessionResolutionMiddleware(RequestDelegate next, ILogger<Se
 
         if (endpoint.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null)
         {
-            // Anonymous, but not necessarily unprivileged: only endpoints that declare public data
-            // switch the database role to anon. The bootstrap endpoint stays on the login's role.
+            // Anonymous, but not necessarily unprivileged: the endpoint declares which role its database
+            // work needs. Public reads switch to anon; bootstrap switches to app_api with no claims, so
+            // the one-time window policy applies. An undeclared anonymous request keeps the login role.
             if (endpoint.Metadata.GetMetadata<PublicDataAttribute>() is not null)
             {
-                accessor.UseAnonymousDatabaseRole = true;
+                accessor.DatabaseRole = RequestDatabaseRole.Anonymous;
+            }
+            else if (endpoint.Metadata.GetMetadata<ApiRoleDataAttribute>() is not null)
+            {
+                accessor.DatabaseRole = RequestDatabaseRole.Api;
             }
 
             await next(context).ConfigureAwait(false);

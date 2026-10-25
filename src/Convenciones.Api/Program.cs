@@ -6,6 +6,7 @@ using Convenciones.Identity;
 using Convenciones.Legal;
 using Convenciones.Negotiation;
 using Convenciones.Publishing;
+using Convenciones.Administration;
 using Convenciones.ServiceDefaults;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
@@ -147,6 +148,23 @@ builder.Services.AddScoped<GetPublicNewsHandler>();
 builder.Services.AddScoped<ListPublicAgreementsHandler>();
 builder.Services.AddScoped<GetPublicAgreementHandler>();
 
+// ---- Administration -----------------------------------------------------------------------------
+// User, role and audit administration. Bootstrap is anonymous and runs as app_api so the one-time
+// window policy is the guard, not an API check.
+builder.Services.AddScoped<IAdministrationStore, AdministrationStore>();
+builder.Services.AddScoped<IAuditTrail, AuditTrail>();
+builder.Services.AddScoped<BootstrapHandler>();
+builder.Services.AddScoped<BootstrapStatusHandler>();
+builder.Services.AddScoped<CreateUserHandler>();
+builder.Services.AddScoped<UpdateUserHandler>();
+builder.Services.AddScoped<ReplaceUserRolesHandler>();
+builder.Services.AddScoped<DeleteUserHandler>();
+builder.Services.AddScoped<ListUsersHandler>();
+builder.Services.AddScoped<GetUserHandler>();
+builder.Services.AddScoped<ListRolesHandler>();
+builder.Services.AddScoped<ListCapabilitiesHandler>();
+builder.Services.AddScoped<ListAuditHandler>();
+
 // ---- CORS ---------------------------------------------------------------------------------------
 // No wildcard and no default origin: the browser client is served from a known host, and a policy of
 // "any origin" would turn every token a user holds into something any website could use.
@@ -220,6 +238,7 @@ app.MapStatuteEndpoints();
 app.MapNegotiationEndpoints();
 app.MapNewsEndpoints();
 app.MapPublicEndpoints();
+app.MapAdministrationEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is

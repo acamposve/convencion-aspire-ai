@@ -37,6 +37,7 @@ public sealed class MigrationFileTests
         "20260104000100_agreement_tenant_rls.sql",
         "20260105000000_negotiation_workflow.sql",
         "20260106000000_news_publication_guard.sql",
+        "20260107000000_administration_bootstrap.sql",
     ];
 
     [Fact]

@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Convenciones.Legal\Convenciones.Legal.csproj" />
     <ProjectReference Include="..\..\src\Convenciones.Negotiation\Convenciones.Negotiation.csproj" />
     <ProjectReference Include="..\..\src\Convenciones.Publishing\Convenciones.Publishing.csproj" />
+    <ProjectReference Include="..\..\src\Convenciones.Administration\Convenciones.Administration.csproj" />
   </ItemGroup>
 
 </Project>
