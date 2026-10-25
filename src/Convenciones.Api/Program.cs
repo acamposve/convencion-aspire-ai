@@ -32,18 +32,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
 // The audit interceptor reads the change tracker, so a change cannot be saved without its audit row.
 builder.Services.AddScoped<AuditInterceptor>();
 
-// PostgreSQL enum types must be registered on the data source as well as in the model. Without this,
-// EF sends the CLR enum as an integer and the database rejects it — which is exactly how this was
-// found: "column extraction_status is of type platform.extraction_status but expression is of type
-// integer".
-var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-dataSourceBuilder.MapEnum<ExtractionStatus>("platform.extraction_status");
-var dataSource = dataSourceBuilder.Build();
-
-builder.Services.AddSingleton(dataSource);
-
+// EF Core 9+ maps PostgreSQL enums through the provider options. Doing it on a NpgsqlDataSource
+// instead leaves EF's built-in enum-to-integer conversion in place, and the database then rejects the
+// insert with "column extraction_status is of type platform.extraction_status but expression is of
+// type integer". The schema must be named because the type lives in platform, not public.
 builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) => options
-    .UseNpgsql(dataSource)
+    .UseNpgsql(connectionString, npgsql => npgsql.MapEnum<ExtractionStatus>("extraction_status", "platform", ExactNameTranslator.Instance))
     .AddInterceptors(serviceProvider.GetRequiredService<AuditInterceptor>()));
 
 // ---- Request limits -----------------------------------------------------------------------------

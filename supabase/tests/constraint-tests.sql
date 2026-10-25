@@ -174,6 +174,50 @@ begin
     end;
 end $$;
 
+\echo '--- B2. documents are PDF only (T4/D2) ---'
+
+-- A real uploader is required: without one the insert would fail on the foreign key, and a test that
+-- accepts any failure would pass for the wrong reason.
+insert into platform.user_account (id, email, display_name, is_blocked, expires_on)
+values ('dddddddd-0000-0000-0000-0000000000ff', 'pdf-only@example.test', 'PDF Only', false, null)
+on conflict (id) do nothing;
+
+do $$
+begin
+    begin
+        insert into platform.document (storage_path, file_name, content_type, size_bytes, uploaded_by, company_id)
+        values ('pdf-only/png.pdf', 'png.pdf', 'image/png', 1024,
+                'dddddddd-0000-0000-0000-0000000000ff',
+                '77777777-7777-7777-7777-777777777777');
+        raise notice 'FAIL: B9 a PNG document was accepted by the database';
+    exception when check_violation then
+        raise notice 'PASS: B9 the database refuses a non-PDF content type';
+    end;
+end $$;
+
+do $$
+begin
+    begin
+        insert into platform.document (storage_path, file_name, content_type, size_bytes, uploaded_by, company_id)
+        values ('pdf-only/jpeg.pdf', 'jpeg.pdf', 'image/jpeg', 1024,
+                'dddddddd-0000-0000-0000-0000000000ff',
+                '77777777-7777-7777-7777-777777777777');
+        raise notice 'FAIL: B11 a JPEG document was accepted by the database';
+    exception when check_violation then
+        raise notice 'PASS: B11 the database refuses image/jpeg too';
+    end;
+end $$;
+
+do $$
+begin
+    insert into platform.document (storage_path, file_name, content_type, size_bytes, uploaded_by, company_id)
+    values ('pdf-only/accepted.pdf', 'accepted.pdf', 'application/pdf', 1024,
+            'dddddddd-0000-0000-0000-0000000000ff',
+            '77777777-7777-7777-7777-777777777777');
+    raise notice 'PASS: B10 application/pdf is accepted by the database';
+exception when others then
+    raise notice 'FAIL: B10 application/pdf was rejected: %', sqlerrm;
+end $$;
 \echo '--- C. geography and cross-reference integrity ---'
 
 do $$
