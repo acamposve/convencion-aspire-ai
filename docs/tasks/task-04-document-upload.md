@@ -1,6 +1,6 @@
 # T4 — Document upload and private storage
 
-**Status: specification revised — not yet implemented.** Branch to be created from `main` after T3 (#14) merges.
+**Status: implemented and verified — PR #16.** Branch `task/16-document-upload`.
 
 ## 0. The mandatory rule
 
@@ -174,3 +174,51 @@ endpoint. The API must translate it into the same problem body every other failu
 
 Uploading is not processing. A stored PDF has `extraction_status = 'NotRequested'` until T5 runs, and the API
 must not describe it as processed.
+
+
+---
+
+## 13. Implementation record
+
+### Verified by execution
+
+```
+dotnet build Convenciones.slnx -> Compilacion correcta. 0 Advertencias, 0 Errores
+dotnet test  Convenciones.slnx -> UnitTests         10/10
+                               -> IntegrationTests  50/50   (17 new)
+```
+
+Covered: valid PDF accepted and stored byte-for-byte (checksum and file compared); a PDF of exactly
+20,971,520 bytes accepted; 20,971,521 bytes rejected with 413 and nothing written; JPEG rejected with 415
+both as `.jpg` and as `.pdf` claiming `application/pdf`; PNG, DOC, DOCX, TXT and ZIP each rejected with
+415; text renamed to `.pdf` rejected; empty file rejected with 400; truncated PDF rejected with 400
+`validation_failed`; a file whose only PDF-like content is the header rejected with 400; upload without
+`document.write` rejected with 403 and nothing stored; a client-supplied `company_id` ignored (the row
+belongs to the caller's company); two companies each uploading into their own company.
+
+Every rejection case also counts storage objects and database rows before and after, so "rejected" and
+"rejected without a side effect" are separate assertions.
+
+### Find: the PostgreSQL enum could not be mapped
+
+```
+42804: column "extraction_status" is of type platform.extraction_status but expression is of type integer
+```
+
+EF Core applies its built-in enum-to-integer conversion, so the value is sent as `integer` and PostgreSQL
+rejects it. Registering the type with `NpgsqlDataSourceBuilder.MapEnum` and `HasPostgresEnum` did not
+override that conversion in this configuration (tried with and without a schema-qualified name and with an
+explicit `HasColumnType`).
+
+**What T4 does instead:** the column is not mapped, so PostgreSQL applies its own default
+(`NotRequested`), and the domain exposes the same value. Upload does not need to write the status.
+
+**This is a blocker for T5**, which must write and read it. The options are to register the enum through a
+data source whose search path includes `platform`, or to map the column as `text` with a generated cast.
+It must be solved before T5 starts, not discovered during it.
+
+### Also found: `NotSupported` does not exist
+
+The suggested status list included `NotSupported`, but `platform.extraction_status` defines only
+`NotRequested, Requested, InProgress, Completed, Failed`. Since the API rejects non-PDFs outright, no
+document is ever "unsupported" — such a file has no record at all. T5's criterion was corrected to match.
