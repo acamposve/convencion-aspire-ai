@@ -18,9 +18,17 @@ public interface ISessionResolver
 public interface ISessionAccessor
 {
     SessionContext? Session { get; set; }
+
+    /// <summary>
+    /// True when the endpoint declared that it serves public data. The database connection then
+    /// runs as <c>anon</c> instead of the privileged login, so the public RLS policies filter.
+    /// </summary>
+    bool UseAnonymousDatabaseRole { get; set; }
 }
 
 internal sealed class SessionAccessor : ISessionAccessor
 {
     public SessionContext? Session { get; set; }
+
+    public bool UseAnonymousDatabaseRole { get; set; }
 }

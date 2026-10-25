@@ -15,6 +15,8 @@ using Npgsql;
 using Shouldly;
 using Xunit;
 
+using Convenciones.Catalog;
+
 namespace Convenciones.IntegrationTests;
 
 /// <summary>

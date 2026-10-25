@@ -162,7 +162,7 @@ public sealed class AgreementClause : IAuditable
         Number = number;
         Title = AgreementText.Required(title, "The clause title is required.");
         Summary = AgreementText.Optional(summary);
-        Body = AgreementText.Required(body, "The clause body is required.");
+        Body = AgreementText.Required(RichText.Clean(body), "The clause body is required.");
         HeadingId = headingId;
         EconomicComparisonNote = AgreementText.Optional(economicComparisonNote);
         IsExcludedFromCompilation = isExcludedFromCompilation;

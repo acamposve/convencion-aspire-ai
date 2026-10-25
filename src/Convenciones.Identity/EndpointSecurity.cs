@@ -52,6 +52,20 @@ public sealed class RequiresCapabilityAttribute : Attribute
     public IReadOnlyList<string> Capabilities { get; }
 }
 
+/// <summary>
+/// Declares that an endpoint serves public data: it is anonymous, and its database work must run under
+/// the <c>anon</c> role so the public RLS policies apply instead of being bypassed by the API login.
+/// </summary>
+/// <remarks>
+/// The marker is separate from <see cref="Microsoft.AspNetCore.Authorization.IAllowAnonymous"/> because
+/// "anonymous" alone does not imply "unprivileged": the bootstrap endpoint is anonymous and needs to
+/// write, while the public portal is anonymous and must read only what <c>anon</c> can see. Without this,
+/// an anonymous request would reset the role and run with the login's privileges — the exact hole a
+/// public projection cannot afford.
+/// </remarks>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public sealed class PublicDataAttribute : Attribute;
+
 public static class EndpointSecurityExtensions
 {
     public static TBuilder RequiresCapability<TBuilder>(this TBuilder builder, params string[] capabilities)
@@ -74,5 +88,17 @@ public static class EndpointSecurityExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         return builder.WithMetadata(new RequiresActiveSessionAttribute());
+    }
+
+    /// <summary>
+    /// Marks an anonymous endpoint whose database work must run as <c>anon</c>. Combine it with
+    /// <c>AllowAnonymous()</c>: the session middleware sets the flag and the connection interceptor
+    /// switches the role, so RLS does the filtering.
+    /// </summary>
+    public static TBuilder ServesPublicData<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.WithMetadata(new PublicDataAttribute());
     }
 }

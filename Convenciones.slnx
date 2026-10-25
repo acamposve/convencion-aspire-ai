@@ -10,6 +10,7 @@
     <Project Path="src/Convenciones.Legal/Convenciones.Legal.csproj" />
     <Project Path="src/Convenciones.Migrator/Convenciones.Migrator.csproj" />
     <Project Path="src/Convenciones.Negotiation/Convenciones.Negotiation.csproj" />
+    <Project Path="src/Convenciones.Publishing/Convenciones.Publishing.csproj" />
     <Project Path="src/Convenciones.ServiceDefaults/Convenciones.ServiceDefaults.csproj" />
   </Folder>
   <Folder Name="/tests/">
