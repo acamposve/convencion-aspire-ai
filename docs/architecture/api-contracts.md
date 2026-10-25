@@ -358,22 +358,75 @@ a `code` and an `errors` map. It is never a bare status with an empty body (AC-A
 
 ### 4.6 Negotiation
 
-| Method | Path | Cap | Purpose |
-|---|---|---|---|
-| `GET` `POST` | `/negotiation/cases` | `negotiation.read` / `.write` | |
-| `GET` | `/negotiation/cases/{id}` | `negotiation.read` | Full case with parties, petitions, meetings |
-| `POST` `DELETE` | `/negotiation/cases/{id}/parties[/{partyId}]` | `negotiation.write` | |
-| `POST` | `/negotiation/cases/{id}/open` · `/close` · `/reopen` · `/promote` | `negotiation.write` / `.promote` | Transitions |
-| `GET` `POST` | `/negotiation/cases/{id}/petitions` | `.read` / `.write` | |
-| `PATCH` | `/negotiation/cases/{id}/petitions/{petitionId}` | `.write` | Rejected when `Agreed` (INV-N3) |
-| `POST` | `/negotiation/cases/{id}/petitions/{petitionId}/offers` | `.write` | |
-| `POST` | `/negotiation/cases/{id}/meetings` | `.write` | |
-| `POST` | `/negotiation/cases/{id}/petitions/{petitionId}/agreements` | `.write` | Records a `MeetingAgreement` |
-| `POST` | `/negotiation/cases/{id}/promote` | `negotiation.promote` | Returns `{ agreementId }` |
+| Method | Path | Cap |
+|---|---|---|
+| `GET` `POST` | `/negotiation/cases` | `negotiation.read` / `.write` |
+| `GET` | `/negotiation/cases/{id}` | `negotiation.read` |
+| `POST` `DELETE` | `/negotiation/cases/{id}/parties[/{partyId}]` | `negotiation.write` |
+| `POST` | `/negotiation/cases/{id}/petitions` | `negotiation.write` |
+| `PATCH` `DELETE` | `/negotiation/cases/{id}/petitions/{petitionId}` | `negotiation.write` |
+| `PUT` | `/negotiation/cases/{id}/petitions/{petitionId}/state` | `negotiation.write` |
+| `POST` `DELETE` | `/negotiation/cases/{id}/petitions/{petitionId}/offers[/{offerId}]` | `negotiation.write` |
+| `POST` `DELETE` | `/negotiation/cases/{id}/meetings[/{meetingId}]` | `negotiation.write` |
+| `POST` `DELETE` | `/negotiation/cases/{id}/petitions/{petitionId}/agreements[/{agreementId}]` | `negotiation.write` |
+| `POST` | `/negotiation/cases/{id}/in-progress` · `/pending` · `/agree` | `negotiation.write` |
+| `POST` | `/negotiation/cases/{id}/close` · `/reopen` | `negotiation.write` |
+| `POST` | `/negotiation/cases/{id}/promote` | **`negotiation.promote`** |
 
-`POST /promote` returns `409 invalid_state` if the case is not `Closed`, and `409 conflict` if already
-promoted (INV-N7) — never a duplicate agreement.
+**The state machine (Q-4, T11).** `Open → InProgress → Pending → Agreed → Closed`. A case is created
+directly in `Open` — Q-4 removed `Draft`, so there is no state before `Open` and no `/open` operation.
+The three middle states are entered by explicit operations with no business precondition beyond the
+source state; `Agreed` is likewise an explicit act (no invented rules). `close` is only allowed from
+`Agreed` and requires **at least one meeting agreement** — the rule named by `409 invalid_state` above
+("close without agreements") and by INV-N2. `reopen` returns a `Closed` case to `InProgress` and clears
+`closedAt`. Every other transition is **409 `invalid_state`**.
 
+**A closed case is read-only.** Parties, petitions, offers, meetings and meeting agreements cannot be
+created, edited or deleted while the case is `Closed`; reopen it first. This replaces the legacy
+behaviour, where edit and delete handlers checked nothing and a closed case stayed fully editable.
+
+```jsonc
+// POST /negotiation/cases
+{ "startedOn": "2026-01-01", "companyId": null }        // 201, state "Open"
+
+// POST /negotiation/cases/{id}/petitions
+{ "number": 1, "title": "Salarios", "body": "…", "headingId": null }
+
+// PUT /negotiation/cases/{id}/petitions/{petitionId}/state
+{ "state": "Agreed" }                                   // 200 with the petition
+
+// POST /negotiation/cases/{id}/promote
+{ "validFrom": "2026-06-01", "validTo": "2028-06-01", "scope": "Nacional" }
+// 200 → { "agreementId": "…", "caseId": "…" }
+```
+
+**Promotion (T11).** It is a separate operation for an already-`Closed` case with no previous link. It
+creates the agreement header through the agreement module's own rules (so `validFrom` and `scope` are
+required and `validTo >= validFrom`), records `promotedAgreementId`, and leaves the state `Closed`. The
+body dates are typed, so the legacy placeholders `*Inicio`/`*Fin` cannot be sent; a `scope` that looks
+like a placeholder (`*Ambito`) is **400**. Meeting agreements are **not** copied into clauses: the case
+is the negotiation record and clauses are authored in the agreement workspace. Promotion is terminal:
+reopening a promoted case is **409 `invalid_state`**, and a second promotion is **409 `conflict`**. It
+requires `negotiation.promote` (**403** without it), and the database guard refuses the same statement
+with `42501` even when the API is bypassed.
+
+**Illegal transitions name the current state.** A `409 invalid_state` carries a `state` extension with
+the case's state at the time of the refusal:
+
+```jsonc
+{ "status": 409, "code": "invalid_state", "state": "InProgress",
+  "detail": "The case is 'InProgress'. It can only be closed from Agreed." }
+```
+
+**Petition outcomes (Q-5).** The four documented outcomes are `Open`, `Agreed`, `Rejected`, `Withdrawn`.
+The transition graph is not documented; the minimum consistent with the evidence is implemented: from
+`Open` to any outcome, and `Agreed` back to `Open` (the legacy "reopen petition"). `Rejected` and
+`Withdrawn` are terminal. An `Agreed` petition cannot be edited or deleted (**409 `conflict`**, INV-N3)
+until it is set back to `Open`. Recording a meeting agreement does **not** change the petition state.
+
+**A note on parties.** The domain model's INV-N1 (at least one union and one employer party before the
+case can open) has no place in this lifecycle — nothing precedes `Open` — and enforcing it at creation
+would be a new business rule. It is therefore **not enforced** yet; the decision is still open.
 ### 4.7 Publishing and public portal
 
 | Method | Path | Cap | Purpose |
