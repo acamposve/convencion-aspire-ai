@@ -323,12 +323,12 @@ classDiagram
         +date? PublishedOn
         +string? Source
         +DocumentId? DocumentId
-        +AddArticle(ClauseNumber, string title, string body, HeadingId?)
+        +AddArticle(int number, string title, string body, HeadingId?)
         +ArticleCount() int
     }
     class StatuteArticle {
         +ArticleId Id
-        +ClauseNumber Number
+        +int Number
         +string Title
         +string? Summary
         +string Body
@@ -342,9 +342,14 @@ Folding `ley_trabajo` and `otras_leyes` into one `Statute` with a `Kind` removes
 with no primary key" problem and gives labour-law articles the FK they never had (DS-03). The
 `ArticleCount` is **computed**, not stored (DS-29).
 
+**At most one `LabourLaw` statute may exist.** The rule spans rows, so no aggregate can evaluate it:
+the partial unique index `statute_single_labour_law_key` is the guard, and the API translates its
+refusal into a 409 that names it. `Kind` is fixed at creation for the same reason (T10).
+
 `StatuteArticle.HeadingId` is **nullable [A-12]**, unlike `AgreementClause.HeadingId`: 89.6% of
 other-statute articles were unclassified, so requiring classification would block loading the library
-at all.
+at all. The article's own heading — `StatuteArticle.Title` — is **mandatory**: an article with no
+heading cannot be cited.
 
 ### 3.4 `Company`
 

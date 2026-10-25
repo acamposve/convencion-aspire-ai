@@ -220,6 +220,12 @@ agreement (BR-11).
 **Consequences:** labour-law articles get the FK they never had; the "exactly one row" fragility
 disappears.
 
+*Implemented in T10, with three refinements:* at most one `LabourLaw` is enforced by the partial unique
+index `statute_single_labour_law_key` (the rule spans rows, so the index is the guard and the API's 409
+names it); `Kind` is fixed at creation; and an article's own heading (`title`) is mandatory while its
+comparison classification (`heading_id`) stays nullable per A-12 — two different "headings" that the
+legacy tables conflated.
+
 ### ADR-016 — Company has a single identity; the legacy code becomes optional data
 **Context:** Phase 2 proved `id` (116–195) and `codigo_empresa` (2–115) never coincide, agreements join
 on the code, and one user row joins on the id.
@@ -287,6 +293,52 @@ requires an amendment before adding any of it.
 response per use case) and stays trivially debuggable. The comparison workspace is the query that
 justifies CQRS at all: it is a multi-table projection that would be actively harmed by
 aggregate-loading.
+
+*Implemented by T10 as written.* The legal library has one handler **type** per use case on both
+sides — `CreateStatuteHandler` … `DeleteStatuteArticleHandler` for writes, `ListStatutesHandler` …
+`GetStatuteArticlesForHeadingHandler` for reads — each owning its request and response record and
+receiving its `IQueryable` explicitly, so a query has no way to write. The earlier static query helpers
+in Agreements and Comparison are the same rule expressed as static methods; they predate this
+implementation, are untouched by T10, and are the one remaining shape to normalise when those modules
+are next opened (recorded, not silently tolerated).
+
+### ADR-023 — A statute article has two different "headings", and only one is mandatory *(T10)*
+**Context:** T10's acceptance criterion 3 read "an article without a heading is refused" while citing
+the 89.6% of legacy statute articles that carried no *comparison classification*. Taken as a rule about
+classification it would reverse approval item A-12 (row 2.3), whose stated reason is that requiring
+classification blocks loading the library at all. The schema has two separate fields that the legacy
+tables conflated: `statute_article.title` (the article's own heading, e.g. "Artículo 12 — Vacaciones")
+and `statute_article.heading_id` (the optional comparison classification).
+**Decision:**
+- `title` is **mandatory**: not null, non-blank, enforced by the aggregate and by the CHECK
+  `statute_article_title_not_blank`. An article with no heading of its own is not citable and is refused
+  with `400 validation_failed`.
+- `heading_id` is **optional**, exactly as A-12 approved: `null` is a legitimate, permanent state and
+  the database accepts it (`statute_article_heading_idx` is partial on `heading_id is not null`).
+- The term "heading" alone is therefore avoided in the legal-library contract; the API says `title` and
+  `headingId`, and the task record states which one criterion 3 meant.
+**Why not make classification mandatory:** it would reverse A-12 and block the corpus the library
+exists to hold; 89.6% of the legacy other-statute articles have no classification, and the worklist to
+classify them is R2-05, a separate task.
+**Consequences:** A-12 stands unchanged. A future instruction that "law articles must be classified"
+is an amendment to A-12 with a data-loading plan, not a change to this endpoint.
+
+### ADR-024 — Reading statutory text through the comparison requires `statute.read` too *(T10)*
+**Context:** T9 left `statuteArticles` empty and declared `GET /comparison` as `comparison.read`. T10
+fills the array with the full body of every statute article classified under the heading, so the
+projection returns legal-library data to a caller who never needed `statute.read`. Every seeded role
+that holds `comparison.read` also holds `statute.read`, so nothing broke — but the capability
+separation was accidental rather than enforced.
+**Decision:** `GET /comparison` requires **both** `comparison.read` and `statute.read`. The other
+comparison routes (heading groups, taxonomy, candidates) return no statutory text and keep
+`comparison.read` alone. Enforcement stays where capabilities are enforced everywhere: the endpoint
+declaration, with the startup gate refusing any route that does not declare one.
+**Why not the other way round:** relaxing `statute.read` to mean "everything the legal library shows"
+would make the distinction meaningless; dropping the statute array from the comparison would remove the
+product's core value. A capability gates the data it names, not the screen the data appears on.
+**Consequences:** a caller with `comparison.read` only sees the workspace without the legal column
+(**403** naming `statute.read`). Recorded in <code>api-contracts.md §4.4</code> and asserted by an
+integration test with a transient role that has exactly that shape.
 
 ---
 
@@ -365,3 +417,5 @@ land as a forward migration, not by editing applied migration files (constitutio
 | Version | Change |
 |---|---|
 | 0.1 | Initial architecture proposal from approved Phase 1 and Phase 2 findings. 42 approval items, 20 ADRs, 19 question resolutions. |
+| 0.2 | ADR-015 annotated with what T10 implemented: the single labour statute is guarded by the partial unique index, `Kind` is immutable, and the article heading is mandatory while its classification stays optional (A-12). |
+| 0.3 | T10 review remediation: **ADR-023** records the two-headings rule so AC 3 and A-12 can both stand; **ADR-024** requires `comparison.read` **and** `statute.read` for the projection that returns statutory text; ADR-022 annotated with T10's query handler types and the remaining static-query exception. |

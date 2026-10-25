@@ -71,6 +71,14 @@ RFC 9457 `application/problem+json`, extended with a stable machine-readable `co
 — where `execute()` returned `true` regardless of outcome (Phase 1 §S13) — are the specific defect this
 replaces, so every failure is observable by the caller.
 
+**Refusals the framework makes before an endpoint runs.** A body the binder cannot read, or a parameter
+it cannot bind, is **400 `malformed_request`**; a content type the endpoint does not accept is **415
+`unsupported_media_type`**. Both keep the status the framework chose — nothing is remapped, and
+`401`/`403`/`404`/`405` are untouched — and gain the problem body, so the rule above holds for them too.
+A handler that refuses an oversized payload (a document over the 20 MiB business limit) answers **413
+`payload_too_large`** itself. A body above the *transport* limit (22 MiB) is stopped by the server before
+the API can answer consistently; that pre-existing gap is recorded in T10's task record §10.
+
 ### 2.2 Success envelopes
 
 Single resource: the resource object directly (`200`). Created: the resource plus `Location` header
@@ -209,10 +217,17 @@ The database policy scopes all three tables by company as well.
 | `GET` | `/comparison/heading-groups` | `comparison.read` | Active blocks, ordered, with `requiresEconomicComparison` |
 | `GET` | `/comparison/headings?groupIds=&includeExcluded=false` | `comparison.read` | Taxonomy; implemented in T8 |
 | `GET` | `/comparison/candidates?headingId=&companyId=&page=&pageSize=` | `comparison.read` | Published agreements having ≥ 1 clause for the heading |
-| `GET` | `/comparison?headingId=&agreementIds=&page=&pageSize=` | `comparison.read` | The adjacency projection |
+| `GET` | `/comparison?headingId=&agreementIds=&page=&pageSize=` | `comparison.read` + `statute.read` | The adjacency projection |
 
 All routes are **GET-only**; `POST`/`PUT /comparison` return **405**. The projection is read-only and
 every query is `AsNoTracking`.
+
+**Why the projection needs two capabilities.** `GET /comparison` returns the text of the statute
+articles classified under the heading, so it requires **both** `comparison.read` and `statute.read`:
+a capability gates the data it names, not the screen the data appears on. The other comparison routes
+return no statutory text and still take `comparison.read` alone. A caller holding only
+`comparison.read` therefore gets **403 `forbidden`** naming `statute.read`, while the candidates and
+taxonomy routes keep working for it (T10 review, ADR-024).
 
 ```jsonc
 // GET /comparison?headingId=…&agreementIds=id1,id2&page=1&pageSize=5
@@ -221,7 +236,18 @@ every query is `AsNoTracking`.
     "id": "…", "groupId": "…", "groupName": "GENERALES", "name": "Salarios",
     "isExcluded": false, "requiresEconomicComparison": false, "sortOrder": 10
   },
-  "statuteArticles": [],              // T10; shape is stable now
+  "statuteArticles": [                 // T10; empty when no statute article is classified here
+    {
+      "statuteId": "…", "statuteName": "Código del Trabajo", "statuteKind": "LabourLaw",
+      "articleId": "…", "number": 12, "title": "Artículo 12 — Vacaciones",
+      "body": "…", "economicComparisonNote": null
+    }
+  ],
+  // How many statute articles this projection has in scope for the heading. The array is bounded at
+  // 100, so `statuteArticleTotal > statuteArticles.length` means the answer was truncated. It is the
+  // rendered scope, not a count of the library: an excluded heading reports 0, because nothing is
+  // offered for comparison there.
+  "statuteArticleTotal": 1,
   "agreements": [
     {
       "agreementId": "…", "companyId": "…", "companyName": "…",
@@ -270,11 +296,65 @@ across companies.
 | Method | Path | Cap |
 |---|---|---|
 | `GET` `POST` | `/statutes` | `statute.read` / `.write` |
-| `GET` `PATCH` | `/statutes/{id}` | |
-| `GET` `POST` | `/statutes/{id}/articles` | |
-| `GET` `PATCH` `DELETE` | `/statutes/{id}/articles/{articleId}` | |
+| `GET` `PATCH` | `/statutes/{id}` | `statute.read` / `.write` |
+| `GET` `POST` | `/statutes/{id}/articles` | `statute.read` / `.write` |
+| `GET` `PATCH` `DELETE` | `/statutes/{id}/articles/{articleId}` | `statute.read` / `.write` |
 
-`statute.kind` is `LabourLaw` or `OtherStatute` — the fold of `ley_trabajo` and `otras_leyes`.
+`statute.kind` is `LabourLaw` or `OtherStatute` — the fold of `ley_trabajo` and `otras_leyes`. It is
+fixed at creation; `PATCH /statutes/{id}` covers name, publication date, source and document only.
+
+```jsonc
+// POST /statutes
+{ "kind": "LabourLaw", "name": "Código del Trabajo", "publishedOn": "2012-05-07",
+  "source": "Gaceta Oficial 6.076", "documentId": null }
+// 201 → { "id": "…", "kind": "LabourLaw", "name": "…", "articleCount": 0, "rowVersion": 1, … }
+
+// POST /statutes/{id}/articles
+{ "number": 12, "title": "Artículo 12 — Vacaciones", "summary": null, "body": "…",
+  "headingId": null, "economicComparisonNote": null }
+// 201 → { "id": "…", "number": 12, "title": "…", "body": "…", "headingId": null, … }
+```
+
+**Reference data, not tenant data.** No statute or article belongs to a company, and no endpoint
+applies a company filter: a caller of any company — and a caller with no company at all — reads the
+same library. This is the deliberate difference from agreements, and it is the reason `statute.read`
+exists separately from `agreement.read`. Writes require `statute.write`, enforced by the endpoint
+declaration and again by the RLS policy.
+
+**The single labour statute.** At most one `LabourLaw` statute exists. A second is **409 `conflict`**
+and the problem's `detail` names the partial unique index `statute_single_labour_law_key` that refused
+it; the request is not retried, de-dup'd or merged. The database, not the handler, is the guard,
+because the rule spans rows.
+
+**Article numbering.** `number` is an integer (`12`, never `"012"` or `"12-A"`), unique within a
+statute (**409 `conflict`**, naming `statute_article_number_key`) and ordered numerically on read.
+`number < 1` is **400 `validation_failed`**.
+
+**The heading.** `title` — the article's own heading — is **required**: an article with a blank or
+absent title is **400 `validation_failed`**, and the database CHECK refuses it too. `headingId` — the
+comparison classification — is **optional** (approval A-12): `null` means unclassified and is accepted.
+A supplied `headingId` must be an existing active heading, else **400**; an empty Guid is **400**, not
+`null`. `PATCH` clears the classification only when `headingId` is sent as `null` (see below).
+
+**`PATCH` is a partial update.** It follows the company endpoint's rule — a field that is not sent is
+left unchanged — with the one thing a plain nullable property cannot express:
+
+| What the body says | Effect |
+|---|---|
+| the field is **absent** | the stored value is kept |
+| the field is **present with a value** | the value replaces the stored one |
+| a **nullable** field is present as `null` | the field is cleared (`publishedOn`, `source`, `documentId`, `summary`, `headingId`, `economicComparisonNote`) |
+| a **required** field is present as `null` | **400 `validation_failed`**, nothing changes (`name`, `number`, `title`, `body`) |
+
+A rename that sends only `name` therefore cannot erase the publication date, the source or the
+attached document, and the audit entry records only the fields that actually changed. `PATCH` and
+`DELETE` require `If-Match` with the current `rowVersion` (**400** missing, **409
+`concurrent_modification`** stale). No statute deletion is exposed: a statute owns its articles by
+cascade.
+
+**Malformed bodies.** A body the contract cannot bind — a number where a string is expected, invalid
+JSON, a missing required parameter — is **400 `malformed_request`** as `application/problem+json`, with
+a `code` and an `errors` map. It is never a bare status with an empty body (AC-A1, AC-A32).
 
 ### 4.6 Negotiation
 
@@ -526,3 +606,9 @@ the community edition — S5/S10/S12 could use it).
 | **AC-A24** | An unpublished agreement is never rendered; it appears in `unpublishedRequested` and becomes visible after publication |
 | **AC-A25** | The comparison is paged/bounded (candidate page ≤ 50, comparison page ≤ 10 agreements, ≤ 50 ids) and rejects invalid requests with `400`; the routes are GET-only (`405` otherwise) |
 | **AC-A26** | Another company's agreement id makes the comparison `404` with no partial data; clauses are adjacent, never paired, and ordered by numeric number |
+| **AC-A27** | A second `LabourLaw` statute is **409 `conflict`** whose `detail` names `statute_single_labour_law_key`, and the partial unique index refuses a direct insert with `23505` on that index |
+| **AC-A28** | A statute article with no title is **400 `validation_failed`**; article numbers are integers, unique within a statute (**409**), ordered numerically, and `< 1` is **400**; an unclassified article (`headingId: null`) is accepted |
+| **AC-A29** | An authenticated user of **any** company — and one with no company — reads every statute and article; without `statute.write` every write is **403**, and the RLS policy refuses the same write at the database |
+| **AC-A30** | `PATCH` on a statute or article is partial: an absent field is unchanged (a rename preserves `publishedOn`, `source` and `documentId`), a nullable field sent as `null` is cleared, a required field sent as `null` is **400** with nothing changed, and the audit entry names only the fields that changed |
+| **AC-A31** | `GET /comparison` requires **both** `comparison.read` and `statute.read`; a caller holding only `comparison.read` gets **403** naming `statute.read` from the projection while `/comparison/candidates` still answers `200` |
+| **AC-A32** | A body that cannot be bound to the contract (invalid JSON, a number where a string is expected, a missing required parameter) is **400 `malformed_request`** as `application/problem+json` with a `code`, never a bare status |

@@ -48,7 +48,7 @@ deployable.
 |---|---|---|---|
 | T8 | [Agreements and clauses](task-08-agreements-clauses.md) | T3 | **implemented** (#21) |
 | T9 | [Comparison](task-09-comparison.md) | T8 | **implemented** (#22) |
-| T10 | [Legal library](task-10-legal-library.md) | T3 | planned |
+| T10 | [Legal library](task-10-legal-library.md) | T3 | **implemented** (#23) |
 | T11 | [Negotiation workflow](task-11-negotiation.md) | T8 | planned |
 | T12 | [Publishing and public portal](task-12-publishing-portal.md) | T9, T10 | planned |
 | T13 | [Administration and audit](task-13-administration-audit.md) | T2 | planned |
@@ -116,3 +116,4 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T7 | [task-07](task-07-web-documents.md) | Vite/React/MUI document workflow: memory-only Supabase session, honest synchronous processing, retry and text viewer; 44 web tests |
 | T8 | [task-08](task-08-agreements-clauses.md) | Agreement aggregate, integer clause numbering, publication with audit, composed title and tenant RLS; 12 acceptance tests |
 | T9 | [task-09](task-09-comparison.md) | Read-only adjacency comparison: heading exclusion, published-only, economic note, bounded paging and cross-company 404; 7 acceptance tests |
+| T10 | [task-10](task-10-legal-library.md) | Legal library: one labour statute guarded by the partial unique index, integer article numbering, mandatory article heading with an optional classification (ADR-023), company-independent reference data and statute articles in the comparison behind `statute.read` (ADR-024). Review remediation: partial `PATCH` semantics, `malformed_request` for unreadable bodies, agreement tenancy assertions R34–R35; 20 + 13 + 5 tests |

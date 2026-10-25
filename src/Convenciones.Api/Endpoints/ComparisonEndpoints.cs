@@ -3,6 +3,7 @@ using Convenciones.Api.Infrastructure;
 using Convenciones.Catalog;
 using Convenciones.Comparison;
 using Convenciones.Identity;
+using Convenciones.Legal;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Endpoints;
@@ -45,8 +46,12 @@ public static class ComparisonEndpoints
             .RequiresCapability("comparison.read")
             .WithName("ListComparisonCandidates");
 
+        // The projection returns statutory text beside the clauses, so it needs the capability that
+        // governs the legal library as well as the one that governs the workspace. Requiring both is
+        // the security model's rule that a capability gates the data it names, not the screen it
+        // appears on (docs/architecture/api-contracts.md §4.4).
         group.MapGet("/", CompareAsync)
-            .RequiresCapability("comparison.read")
+            .RequiresCapability("comparison.read", "statute.read")
             .WithName("GetComparison");
 
         return app;
@@ -152,6 +157,7 @@ public static class ComparisonEndpoints
 
     private static async Task<IResult> CompareAsync(
         ConvencionesDbContext db,
+        GetStatuteArticlesForHeadingHandler statuteArticlesHandler,
         ISessionAccessor accessor,
         CancellationToken cancellationToken,
         Guid headingId,
@@ -185,6 +191,21 @@ public static class ComparisonEndpoints
         {
             return NotFoundHeading(headingId);
         }
+
+        // The legal side of the workspace: every statute article classified under this heading.
+        // Statutes are company-independent reference data, so this query carries no company filter —
+        // that is the deliberate difference from the agreements beside it. An excluded heading yields
+        // no statute articles either, exactly as it yields no clauses, and its total is 0 because
+        // nothing is in scope for the projection.
+        var statuteArticles = heading.IsExcluded
+            ? new StatuteArticlePage([], 0)
+            : await statuteArticlesHandler
+                .HandleAsync(
+                    db.StatuteArticles,
+                    db.Statutes,
+                    new GetStatuteArticlesForHeadingQuery(headingId),
+                    cancellationToken)
+                .ConfigureAwait(false);
 
         var agreements = await db.Agreements
             .AsNoTracking()
@@ -265,7 +286,18 @@ public static class ComparisonEndpoints
 
         return Results.Ok(new ComparisonView(
             heading,
-            [],
+            statuteArticles.Items
+                .Select(row => new ComparisonStatuteArticleView(
+                    row.StatuteId,
+                    row.StatuteName,
+                    row.StatuteKind,
+                    row.ArticleId,
+                    row.Number,
+                    row.Title,
+                    row.Body,
+                    row.EconomicComparisonNote))
+                .ToArray(),
+            statuteArticles.Total,
             views,
             unpublishedRequested,
             page,
