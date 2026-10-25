@@ -87,7 +87,7 @@ against evidence — they are a design judgement about what a negotiation workfl
 
 | Value object | Shape | Invariant |
 |---|---|---|
-| `ClauseNumber` | `Number int`, `Suffix string?` | `Number >= 1`; `Suffix` matches `^[A-Z]{1,2}$` |
+| `ClauseNumber` | `int` | `>= 1`. **Q-2 removed the letter suffix**; T8 implements the number as a positive integer with no derived sort key |
 | `DateRange` | `Start date`, `End date?` | `End >= Start` when present |
 | `TaxId` (RIF/NIT) | `Prefix`, `Number`, `CheckDigit?` | Normalised; not validated against a registry |
 | `EmailAddress` | string | RFC-compliant enough for contact data |
@@ -95,22 +95,21 @@ against evidence — they are a design judgement about what a negotiation workfl
 | `PersonName` | string | Non-empty; no further structure (legacy had none) |
 
 `ClauseNumber` is the most consequential. Legacy stored `varchar(11)` and sorted lexicographically,
-producing 1, 10, 100, 11, 2 (DS-23 / BR-02). The value object makes the numeric part a number and
-derives a deterministic sort key: `order = Number * 100 + SuffixRank`. **[A-14]** Confirm that a
-clause number is always `<integer>` optionally followed by a short letter suffix (the legacy data
-showed `'004'`, `'01-A'`, `'012-3'`, `'5 555'`; the last is junk).
+producing 1, 10, 100, 11, 2 (DS-23 / BR-02). **Decision Q-2 settled the question A-14 left open: the
+number is a plain integer.** There is no suffix, and numeric ordering is what the column and the query
+now produce.
 
-### 2.3 Agreement identity **[A-15]** (resolves Phase 1 Q-1)
+### 2.3 Agreement identity (Q-1, superseding A-15)
 
-**Proposal:** `CollectiveAgreement` gains `Title` (required, ≤ 300 chars) and `Number`
-(optional, ≤ 50 chars, free text such as `"2019-2021"`), plus a unique constraint on
-`(CompanyId, ValidFrom)`.
+**Decision Q-1:** identity is `(CompanyId, ValidFrom)`, with a unique constraint. The agreement has
+**no stored `Title` and no `Number`**: the display title is composed on read from the company's current
+name and the validity period. The A-15 proposal to store both was rejected after the drift risk was
+seen in the legacy data.
 
 Reasoning: the legacy table had **no** identity beyond its company, so two agreements for one company
-were indistinguishable in every list and URL. Comparison shows several agreements per company, so an
-identity is required for the product to be usable. A globally unique agreement number would be
-inventing a registry that does not exist; uniqueness per company per start date matches how the data
-actually behaves (72 distinct companies, one company with two agreements).
+were indistinguishable in every list and URL. A globally unique agreement number would be inventing a
+registry that does not exist; uniqueness per company per start date matches how the data behaves (72
+distinct companies, one company with two agreements).
 
 ### 2.4 Clause classification **[A-16]** (resolves Phase 1 Q-15)
 
@@ -163,14 +162,14 @@ classDiagram
     class CollectiveAgreement {
         +AgreementId Id
         +CompanyId CompanyId
-        +string Title
-        +string? Number
-        +DateRange Validity
+        +DateOnly ValidFrom
+        +DateOnly? ValidTo
         +string Scope
         +PublicationState State
         +DateTimeOffset? PublishedAt
         +UserId? PublishedBy
-        +AddClause(ClauseNumber, string title, string body, HeadingId)
+        +ComposeTitle(companyName) string
+        +AddClause(int number, string title, string body, HeadingId)
         +UpdateClause(ClauseId, ...)
         +RemoveClause(ClauseId)
         +Publish(UserId, now)
@@ -180,7 +179,7 @@ classDiagram
     }
     class AgreementClause {
         +ClauseId Id
-        +ClauseNumber Number
+        +int Number
         +string Title
         +string? Summary
         +string Body
@@ -206,7 +205,7 @@ classDiagram
 | ID | Invariant | Where enforced |
 |---|---|---|
 | INV-A1 | `Validity.End >= Validity.Start` | `DateRange` constructor |
-| INV-A2 | Clause numbers unique within the agreement (case-insensitive on suffix) | aggregate `AddClause`/`UpdateClause` + DB unique index |
+| INV-A2 | Clause numbers are positive integers, unique within the agreement | aggregate `AddClause`/`UpdateClause` + DB unique index |
 | INV-A3 | Publishing requires ≥ 1 clause | `Publish()` |
 | INV-A4 | Every clause references exactly one heading | `NOT NULL` FK |
 | INV-A5 | `PublishedAt`/`PublishedBy` are set together, never partially | `Publish()`/`Unpublish()` + DB `CHECK` |
@@ -397,9 +396,9 @@ call them directly (see [solution-architecture.md](solution-architecture.md) §8
 
 | Service | Method | Invariants touched |
 |---|---|---|
-| `CreateAgreement` | `Handle(CompanyId, Title, Number?, DateRange, Scope, actor)` | INV-A1, INV-A7 |
+| `CreateAgreement` | `Handle(CompanyId, DateRange, Scope, actor)` | INV-A1, INV-A7 |
 | `UpdateAgreementHeader` | `Handle(AgreementId, …)` | INV-A1 |
-| `AddClause` | `Handle(AgreementId, ClauseNumber, Title, Summary?, Body, HeadingId, actor)` | INV-A2, INV-A4 |
+| `AddClause` | `Handle(AgreementId, int number, Title, Summary?, Body, HeadingId, actor)` | INV-A2, INV-A4 |
 | `UpdateClause` | `Handle(AgreementId, ClauseId, …)` | INV-A2, INV-A4, INV-A6 |
 | `RemoveClause` | `Handle(AgreementId, ClauseId, actor)` | INV-A2 |
 | `ReclassifyClause` | `Handle(AgreementId, ClauseId, HeadingId, actor)` | INV-A4 |
