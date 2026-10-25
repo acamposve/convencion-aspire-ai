@@ -114,6 +114,7 @@ app.MapDefaultEndpoints();
 app.MapMeEndpoints();
 app.MapCompanyEndpoints();
 app.MapDocumentEndpoints();
+app.MapDocumentExtractionEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is

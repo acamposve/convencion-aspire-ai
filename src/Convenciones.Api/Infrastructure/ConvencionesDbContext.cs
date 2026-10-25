@@ -24,6 +24,8 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<Document> Documents => Set<Document>();
 
+    public DbSet<DocumentText> DocumentTexts => Set<DocumentText>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -35,6 +37,7 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         modelBuilder.ApplyConfiguration(new CompanyConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEntryConfiguration());
         modelBuilder.ApplyConfiguration(new DocumentConfiguration());
+        modelBuilder.ApplyConfiguration(new DocumentTextConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

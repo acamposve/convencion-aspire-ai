@@ -16,8 +16,37 @@ namespace Convenciones.IntegrationTests;
 /// </remarks>
 internal static class PdfSamples
 {
+    /// <summary>
+    /// The exact text drawn by <see cref="TextPdf"/>. Tests assert this survives extraction, so the
+    /// fixture and the expectation cannot drift apart.
+    /// </summary>
+    public const string ExtractedText =
+        "Estimado cliente: este contrato colectivo entra en vigencia en 2026.";
+
     /// <summary>A minimal but genuinely valid one-page PDF.</summary>
     public static byte[] ValidPdf() => BuildValid(0);
+
+    /// <summary>
+    /// A valid one-page PDF whose page draws <see cref="ExtractedText"/> in a standard font.
+    /// </summary>
+    /// <remarks>
+    /// Built byte by byte here rather than checked in as a binary, so the test cannot depend on an
+    /// external file, a network fetch or a fixture that silently changes. The cross-reference offsets
+    /// are computed from the actual bytes, which is what makes it genuinely parseable.
+    /// </remarks>
+    public static byte[] TextPdf() => BuildPdf(
+        "BT\n/F1 18 Tf\n72 720 Td\n(" + ExtractedText.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("(", "\\(", StringComparison.Ordinal)
+            .Replace(")", "\\)", StringComparison.Ordinal) + ") Tj\nET\n",
+        withFont: true);
+
+    /// <summary>
+    /// A valid one-page PDF with a drawing but no text operators: a scan-shaped document with no
+    /// extractable text. Extraction must report a failure, never an empty success.
+    /// </summary>
+    public static byte[] BlankPdf() => BuildPdf(
+        "0.20 0.31 0.59 rg\n72 72 468 648 re f\n",
+        withFont: false);
 
     /// <summary>
     /// A valid PDF of exactly <paramref name="targetLength"/> bytes, padded with a PDF comment.
@@ -80,6 +109,64 @@ internal static class PdfSamples
         [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1, .. Enumerable.Repeat((byte)0x00, 64)];
 
     public static byte[] Empty() => [];
+
+    /// <summary>
+    /// Builds a valid one-page PDF around a content stream. Object offsets and the stream length are
+    /// computed from the emitted bytes, so the fixture parses without being cross-checked by hand.
+    /// </summary>
+    private static byte[] BuildPdf(string contentStream, bool withFont)
+    {
+        var builder = new StringBuilder();
+        var offsets = new List<int>();
+
+        void AddObject(int number, string body)
+        {
+            offsets.Add(Encoding.ASCII.GetByteCount(builder.ToString()));
+            builder.Append(number.ToString(CultureInfo.InvariantCulture)).Append(" 0 obj\n");
+            builder.Append(body).Append("\nendobj\n");
+        }
+
+        builder.Append("%PDF-1.7\n");
+
+        // A binary comment marks the file as containing binary data, per the specification.
+        builder.Append("%\u00E2\u00E3\u00CF\u00D3\n");
+
+        AddObject(1, "<</Type/Catalog/Pages 2 0 R>>");
+        AddObject(2, "<</Type/Pages/Kids[3 0 R]/Count 1>>");
+
+        var fontResource = withFont ? "/Font<</F1 5 0 R>>" : string.Empty;
+        AddObject(3,
+            $"<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<<{fontResource}>>/Contents 4 0 R>>");
+
+        var streamLength = Encoding.ASCII.GetByteCount(contentStream);
+        AddObject(4,
+            $"<</Length {streamLength.ToString(CultureInfo.InvariantCulture)}>>\nstream\n{contentStream}endstream");
+
+        if (withFont)
+        {
+            AddObject(5, "<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>");
+        }
+
+        var size = offsets.Count + 1;
+        var xrefOffset = Encoding.ASCII.GetByteCount(builder.ToString());
+
+        builder.Append("xref\n0 ").Append(size.ToString(CultureInfo.InvariantCulture)).Append('\n');
+        builder.Append("0000000000 65535 f \n");
+
+        // Each entry is exactly 20 bytes, as the specification requires.
+        foreach (var offset in offsets)
+        {
+            builder.Append(offset.ToString("D10", CultureInfo.InvariantCulture));
+            builder.Append(" 00000 n \n");
+        }
+
+        builder.Append("trailer\n<</Size ").Append(size.ToString(CultureInfo.InvariantCulture));
+        builder.Append("/Root 1 0 R>>\nstartxref\n");
+        builder.Append(xrefOffset.ToString(CultureInfo.InvariantCulture));
+        builder.Append("\n%%EOF\n");
+
+        return Encoding.ASCII.GetBytes(builder.ToString());
+    }
 
     private static byte[] BuildValid(int paddingLength)
     {

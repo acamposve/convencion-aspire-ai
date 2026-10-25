@@ -26,6 +26,11 @@ public sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
         // store type is resolved from the provider's enum registration.
         builder.Property(document => document.ExtractionStatus).HasColumnName("extraction_status");
 
+        builder.Property(document => document.ExtractionAttempts).HasColumnName("extraction_attempts");
+        builder.Property(document => document.ExtractionStartedAt).HasColumnName("extraction_started_at");
+        builder.Property(document => document.ExtractionCompletedAt).HasColumnName("extraction_completed_at");
+        builder.Property(document => document.ExtractionError).HasColumnName("extraction_error");
+
         builder.Property(document => document.CreatedAt).HasColumnName("created_at");
     }
 }
