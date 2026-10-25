@@ -87,6 +87,13 @@ insert into app.company (id, name, country_id)
 values ('30000000-0000-0000-0000-000000000001', 'RLS Fixture Company',
         (select id from app.country where code = 'VE'));
 
+-- Company membership must exist BEFORE the read and write assertions. T8's tenant policies scope
+-- agreements by company, so a user with no profile — or with a profile created later in this file —
+-- would see none of them and the agreement tests below would pass or fail for the wrong reason.
+insert into platform.user_profile (user_id, company_id) values
+    ('20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001'),
+    ('20000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001');
+
 insert into app.comparison_heading (id, group_id, name)
 select '40000000-0000-0000-0000-000000000001', g.id, 'RLS Fixture Heading'
 from app.comparison_heading_group g where lower(g.name) = 'generales';
@@ -125,6 +132,11 @@ values ('20000000-0000-0000-0000-000000000007', 'writer@example.test', 'Writer')
 
 insert into platform.user_role (user_id, role_id)
 values ('20000000-0000-0000-0000-000000000007', '70000000-0000-0000-0000-000000000001');
+
+-- The writer needs a company too, or the tenant policy would filter the agreement out before the
+-- publication guard trigger got a chance to refuse it.
+insert into platform.user_profile (user_id, company_id)
+values ('20000000-0000-0000-0000-000000000007', '30000000-0000-0000-0000-000000000001');
 
 \echo '--- Read visibility ---'
 
@@ -448,9 +460,8 @@ join platform.user_account u on u.id = v.user_id
 join platform.role r on r.key = v.role_key;
 
 -- Company A: editor and reader. Company B: editor B. The transcriptor deliberately has no company.
+-- The company A memberships were created with the fixtures at the top; only company B is new here.
 insert into platform.user_profile (user_id, company_id) values
-    ('20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001'),
-    ('20000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001'),
     ('20000000-0000-0000-0000-000000000008', '30000000-0000-0000-0000-000000000002');
 
 -- One document per company, plus one with no company (must be visible to nobody).
@@ -586,6 +597,90 @@ begin
     else
         raise notice 'FAIL: R28 a user with no company saw % documents', n;
     end if;
+end $$;
+
+\echo '--- Reference data: statutes are NOT tenant-scoped (T10) ---'
+
+-- Two statutes and one article, created as the owner so RLS does not interfere with setup.
+insert into app.statute (id, kind, name) values
+    ('80000000-0000-0000-0000-000000000001', 'LabourLaw',   'RLS Labour Statute'),
+    ('80000000-0000-0000-0000-000000000002', 'OtherStatute', 'RLS Other Statute');
+
+insert into app.statute_article (statute_id, number_int, title, body) values
+    ('80000000-0000-0000-0000-000000000001', 1, 'RLS Article One', 'Body');
+
+-- R29 — a company A user reads the whole library: there is no company predicate to apply.
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from app.statute;
+    execute 'reset role';
+    if n = 2 then
+        raise notice 'PASS: R29 a company A editor reads both statutes (not tenant-scoped)';
+    else
+        raise notice 'FAIL: R29 company A editor saw % statutes, expected 2', n;
+    end if;
+end $$;
+
+-- R30 — so does a user of the OTHER company. Applying a company filter here would make the library
+-- invisible to everyone, which is exactly the risk T10 records.
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000008"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from app.statute;
+    execute 'reset role';
+    if n = 2 then
+        raise notice 'PASS: R30 a company B editor reads both statutes too';
+    else
+        raise notice 'FAIL: R30 company B editor saw % statutes, expected 2', n;
+    end if;
+end $$;
+
+-- R31 — and membership is not required at all: user 009 has no profile row.
+do $$
+declare n int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000009"}', true);
+    execute 'set local role app_api';
+    select count(*) into n from app.statute;
+    execute 'reset role';
+    if n = 2 then
+        raise notice 'PASS: R31 a user with no company reads the statute library';
+    else
+        raise notice 'FAIL: R31 a user with no company saw % statutes, expected 2', n;
+    end if;
+end $$;
+
+-- R32 — writing reference data still requires statute.write; the negotiator has read only.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000003"}', true);
+    execute 'set local role app_api';
+    begin
+        insert into app.statute (kind, name) values ('OtherStatute', 'Written Without Capability');
+        raise notice 'FAIL: R32 a negotiator wrote a statute through the API role';
+    exception when insufficient_privilege then
+        raise notice 'PASS: R32 statute.write is required to write the library';
+    end;
+    execute 'reset role';
+end $$;
+
+-- R33 — an editor holds statute.write and is allowed.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    begin
+        insert into app.statute (kind, name) values ('OtherStatute', 'Written By An Editor');
+        raise notice 'PASS: R33 an editor WITH statute.write can write the library';
+    exception when others then
+        raise notice 'FAIL: R33 editor statute write rejected: %', sqlerrm;
+    end;
+    execute 'reset role';
 end $$;
 
 rollback;
