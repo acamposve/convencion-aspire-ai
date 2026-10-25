@@ -138,48 +138,69 @@ displays and by unauthenticated registration forms later.
 
 | Method | Path | Cap | Purpose |
 |---|---|---|---|
-| `GET` | `/agreements` | `agreement.read` | Paged; `companyId`, `state`, `q` |
-| `POST` | `/agreements` | `agreement.write` | |
-| `GET` `PATCH` | `/agreements/{id}` | `agreement.read` / `.write` | |
-| `POST` | `/agreements/{id}/publish` | `agreement.publish` | |
-| `POST` | `/agreements/{id}/unpublish` | `agreement.publish` | |
-| `GET` `POST` | `/agreements/{id}/clauses` | `.read` / `.write` | |
-| `GET` `PATCH` `DELETE` | `/agreements/{id}/clauses/{clauseId}` | |
-| `PUT` | `/agreements/{id}/clauses/{clauseId}/heading` | `agreement.write` | Reclassify only |
-| `GET` `POST` | `/agreements/{id}/annexes` | `.read` / `.write` | |
-| `PATCH` `DELETE` | `/agreements/{id}/annexes/{annexId}` | |
-| `GET` | `/agreements/{id}/audit` | `audit.read` | Change history of the aggregate |
+| `GET` | `/agreements` | `agreement.read` | Paged; `companyId`, `state` (`Draft`/`Published`), `q` |
+| `POST` | `/agreements` | `agreement.write` | Body: `companyId?`, `validFrom`, `validTo?`, `scope` |
+| `GET` `PATCH` | `/agreements/{id}` | `agreement.read` / `.write` | PATCH requires `If-Match` |
+| `POST` | `/agreements/{id}/publish` | `agreement.publish` | Requires ≥ 1 clause |
+| `POST` | `/agreements/{id}/unpublish` | `agreement.publish` | Clears the published act |
+| `GET` `POST` | `/agreements/{id}/clauses` | `.read` / `.write` | Numeric order on read |
+| `GET` `PATCH` `DELETE` | `/agreements/{id}/clauses/{clauseId}` | `.read` / `.write` | PATCH/DELETE require `If-Match` |
+| `PUT` | `/agreements/{id}/clauses/{clauseId}/heading` | `agreement.write` | Reclassify only; requires `If-Match` |
+| `GET` `POST` | `/agreements/{id}/annexes` | `.read` / `.write` | Metadata |
+| `PATCH` `DELETE` | `/agreements/{id}/annexes/{annexId}` | `agreement.write` | Require `If-Match` |
+| `GET` | `/agreements/{id}/audit` | `audit.read` | T13 |
+| `GET` | `/comparison/headings` | `comparison.read` | Taxonomy for clause classification; T8 read-only |
 
 **Representative payloads**
 
 ```jsonc
 // POST /agreements
 {
-  "companyId": 12,
-  "title": "Convención Colectiva 2026-2028",
-  "number": "2026-2028",
+  "companyId": null,                 // null = the caller's company
   "validFrom": "2026-01-01",
   "validTo": "2028-12-31",
   "scope": "Nacional"
 }
-// 201 → { "id": 42, "state": "Draft", "clauseCount": 0, … }
+// 201 → {
+//   "id": "…", "companyId": "…", "companyName": "…",
+//   "title": "Empresa · 2026–2028",   // composed on read; never stored (Q-1)
+//   "state": "Draft", "clauseCount": 0, "rowVersion": 1234, …
+// }
 
-// POST /agreements/42/clauses
+// POST /agreements/{id}/clauses
 {
-  "number": "12-A",
+  "number": 12,                      // integer only (Q-2)
   "title": "Bono de alimentación",
   "summary": "…",
-  "body": "<p>…</p>",
-  "headingId": 38,
+  "body": "…",
+  "headingId": "…",                  // required (Q-3/A-16)
   "economicComparisonNote": "…",
-  "isExcludedFromCompilation": false
+  "isExcludedFromCompilation": false,
+  "exclusionNote": null
 }
-// 201 → { "id": 501, "number": "12-A", "order": 1201, … }
+// 201 → { "id": "…", "number": 12, "headingName": "…", "rowVersion": 1234, … }
 ```
 
-`number` is accepted as a string and parsed by `ClauseNumber` — `"012"`, `"12"` and `"12-A"` are all
-valid requests; `"5 555"` is a `400 validation_failed`. The response's `order` is the derived sort key,
-so the client never sorts.
+`number` is an integer: `"12"`, `"012"` and `"12-A"` are not accepted, and the response has no
+string sort key — ordering is numeric by the database and the query (`2` before `10`). A duplicate
+number within one agreement is **409 `conflict`**; clause 0 is **400 `validation_failed`**; a missing,
+unknown or inactive heading is **400 `validation_failed`**.
+
+**Identity and title (Q-1).** An agreement is identified by `(companyId, validFrom)`; a second
+agreement with the same pair is **409 `conflict`**, and the database unique index refuses it as well.
+The display title is composed from the company's **current** name and the validity period on every
+read. There is no `title` or `number` column to drift.
+
+**Publication (Q-7).** `POST /publish` requires `agreement.publish`; without it the response is
+**403** and the row is unchanged. The transition records `publishedAt` and `publishedBy`; it is
+refused with **409 `invalid_state`** when the agreement is already published or has no clauses.
+`POST /unpublish` clears both fields and is refused on a draft. Each transition writes exactly one
+audit entry. The database enforces the same capability with
+`app.guard_agreement_publication`, so a direct SQL update by a caller without the capability fails.
+
+**Tenancy.** Another company's agreement, clause or annex is **404** on every read or write. Creating
+an agreement for a company the caller cannot access is **403**: there is no existing row to hide.
+The database policy scopes all three tables by company as well.
 
 ### 4.4 Comparison
 
@@ -467,3 +488,7 @@ the community edition — S5/S10/S12 could use it).
 | **AC-A16** | `GET /documents/{id}`, `/text`, `/download` and `DELETE` return `404` for another company's document; `/text` is `404` when no text exists; no response exposes `storage_path`, `checksum` or `uploaded_by` |
 | **AC-A17** | `GET /documents/{id}/download` returns the stored bytes (and `206` for a range) without a redirect, storage key or permanent URL |
 | **AC-A18** | `DELETE` requires the current `If-Match` (`400` missing, `409` stale, `204` success); a soft-deleted document is absent from the list and `404` everywhere, its object is removed, and its audit trail survives |
+| **AC-A19** | Two agreements for one company with the same `validFrom` are `409 conflict`, and the database unique index refuses the duplicate as well |
+| **AC-A20** | Clause numbers are positive integers, unique within the agreement (`409` duplicate), returned in numeric order; a missing or unknown heading is `400 validation_failed` |
+| **AC-A21** | Publication requires `agreement.publish` (`403` and unchanged otherwise), records actor and timestamp, is refused with `409 invalid_state` on an empty/already-published agreement, and is audited exactly once; unpublishing clears both fields |
+| **AC-A22** | The agreement title is composed from the company's current name and validity period and is not stored; another company's agreement is `404`, and creating one for a company the caller cannot access is `403` |

@@ -4,9 +4,9 @@ A **contract intelligence platform** for collective bargaining agreements (*conv
 colectivas*): authoring agreement clauses, comparing them across agreements and against labour
 legislation, tracking the negotiation that produced them, and publishing the results.
 
-> **Status: pre-alpha — the document workflow is implemented and tested.** The API (T1–T6) and the
-> first web slice (T7) build and run locally. Real sign-in needs the Supabase project that T18
-> provisions, and nothing is deployed yet.
+> **Status: pre-alpha — the document and agreement-authoring workflows are implemented and tested.**
+> The API (T1–T8) and the first web slice (T7) build and run locally. Real sign-in needs the Supabase
+> project that T18 provisions, and nothing is deployed yet.
 
 ---
 
