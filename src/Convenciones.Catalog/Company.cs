@@ -7,8 +7,12 @@ namespace Convenciones.Catalog;
 /// Mapped column-by-column from <c>app.company</c> rather than by convention, because the schema
 /// enforces geography consistency with composite foreign keys that a convention cannot express.
 /// </remarks>
-public sealed class Company
+public sealed class Company : IAuditable
 {
+    private Company()
+    {
+    }
+
     public Guid Id { get; private set; }
 
     public string Name { get; private set; } = string.Empty;
@@ -57,12 +61,80 @@ public sealed class Company
 
     public DateTimeOffset? ArchivedAt { get; private set; }
 
+    public Guid? CreatedBy { get; private set; }
+
+    public Guid? UpdatedBy { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    /// <summary>Row version, used as the optimistic concurrency token.</summary>
+    /// <summary>Row version (PostgreSQL <c>xmin</c>), used as the optimistic concurrency token.</summary>
     public uint RowVersion { get; private set; }
 
-    internal void Rename(string name) => Name = name;
+    public string AuditModule => "catalog";
+
+    public string AuditEntityType => "company";
+
+    public string AuditEntityId => Id.ToString();
+
+    public static Company Create(
+        string name,
+        string? legalName,
+        string? taxId,
+        string? contactEmail,
+        string? city,
+        Guid? actorId)
+    {
+        return new Company
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            LegalName = legalName,
+            TaxId = taxId,
+            ContactEmail = contactEmail,
+            City = city,
+            CreatedBy = actorId,
+            UpdatedBy = actorId,
+        };
+    }
+
+    /// <summary>
+    /// Applies a partial update. A null argument means "leave unchanged", which is what PATCH means.
+    /// </summary>
+    public void Apply(
+        string? name,
+        string? legalName,
+        string? taxId,
+        string? contactEmail,
+        string? city,
+        Guid? actorId)
+    {
+        if (name is not null)
+        {
+            Name = name;
+        }
+
+        if (legalName is not null)
+        {
+            LegalName = legalName;
+        }
+
+        if (taxId is not null)
+        {
+            TaxId = taxId;
+        }
+
+        if (contactEmail is not null)
+        {
+            ContactEmail = contactEmail;
+        }
+
+        if (city is not null)
+        {
+            City = city;
+        }
+
+        UpdatedBy = actorId;
+    }
 }

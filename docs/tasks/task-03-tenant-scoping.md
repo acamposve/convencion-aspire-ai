@@ -1,65 +1,83 @@
 # T3 — Tenant scoping and persistence cross-cutting concerns
 
-**Status: in progress — read path done, write path pending.** Branch `task/14-tenant-scoping`.
+**Status: complete — ready for review.** Branch `task/14-tenant-scoping`, PR #14.
 
 ## Decisions taken before starting
 
 | Decision | Outcome |
 |---|---|
-| **Scope** | Option A: this task includes `GET /companies` and `GET /companies/{id}` as the proving ground, because the tenant rule cannot be proven without a company-scoped endpoint. Confirmed by the Product Owner |
+| **Scope** | Option A: includes the company endpoints as the proving ground, because the tenant rule cannot be proven without a company-scoped endpoint. Confirmed by the Product Owner |
 | **Audit writer** | An EF Core interceptor in the API — not a database trigger, not per-handler calls. Confirmed by the Product Owner |
+| **Creating a company** | Requires **`company.write` AND `company.read_all`**. A user who could create a company without cross-company visibility would be granting themselves a new tenant. Confirmed by the Product Owner |
 
-## Objective
+## What was built
 
-Make the tenant rule real in the application layer, not only in SQL, and close the persistence gaps the
-release audit listed as high priority (H1, H2, H3).
-
-## Scope
-
-**In:** the company read path as the proving ground; a company-scoped rule in one place; audit-column
-interceptor; optimistic concurrency (`xmin` / `If-Match`); `Result<T>` → RFC 9457 mapping; request size
-limits; CORS policy.
-
-**Out:** domain aggregates (T8); comparison read models (T9); user administration (T13).
-
-## Progress
-
-### Done — the tenant scope, proven over HTTP
+### Read path
 
 | Piece | File |
 |---|---|
-| `Company` entity mapped column by column, `xmin` as concurrency token | `src/Convenciones.Catalog/` |
-| `TenantScope` — the single place the rule lives | `src/Convenciones.Catalog/TenantScope.cs` |
-| `GET /companies`, `GET /companies/{id}` | `src/Convenciones.Api/Endpoints/CompanyEndpoints.cs` |
-| `ErrorCodes` matching the API contract | `src/Convenciones.Identity/ErrorCodes.cs` |
-| CORS allow-list and a 21 MiB transport limit (audit H3) | `src/Convenciones.Api/Program.cs` |
+| `Company` entity mapped column by column, `xmin` as concurrency token | [Company.cs](src/Convenciones.Catalog/Company.cs) |
+| `TenantScope` — the rule in one place | [TenantScope.cs](src/Convenciones.Catalog/TenantScope.cs) |
+| `GET /companies`, `GET /companies/{id}` | [CompanyEndpoints.cs](src/Convenciones.Api/Endpoints/CompanyEndpoints.cs) |
+| `ErrorCodes` matching the API contract | [ErrorCodes.cs](src/Convenciones.Identity/ErrorCodes.cs) |
 
-Verified: build **0 warnings, 0 errors**; **33 tests passing** (10 unit, 23 integration).
+### Write path
 
-The six new tests prove:
+| Piece | Behaviour |
+|---|---|
+| `POST /companies` | 201 with `Location`; creator taken from the session, never the body |
+| `PATCH /companies/{id}` | Requires `If-Match`; stale version → **409 concurrent_modification**; missing header → **400** |
+| Audit interceptor | One `platform.audit_entry` row per change, same transaction, actor and correlation id recorded |
+| Multi-capability enforcement | `RequiresCapability(...)` now requires **every** declared capability, not the first |
+| CORS + transport limit | Allow-list with no wildcard; 21 MiB so an oversized upload is refused while reading (audit **H3**) |
 
-1. The caller's own company is readable.
-2. **Another company is 404, not 403** — a 403 would confirm it exists and let a caller enumerate tenants.
-3. The list returns only the caller's company for an editor, who holds `company.read` but not
-   `company.read_all`.
-4. `company.read_all` unlocks the full list.
-5. `company.read_all` can read any company.
-6. Both endpoints are **401** without a token.
+## Verification
 
-### Remaining — the write path
+```
+dotnet build Convenciones.slnx → Compilación correcta. 0 Advertencias, 0 Errores
+dotnet test  Convenciones.slnx → UnitTests         10/10
+                               → IntegrationTests  33/33
+```
 
-`POST /companies`, `PATCH /companies/{id}` with `If-Match` returning **409 concurrent_modification**,
-the audit interceptor writing `platform.audit_entry`, and `Result<T>` → RFC 9457 mapping.
+### The authorization matrix — all four cases
 
-These are precisely the criteria that need a write to exist before they can be demonstrated. They are not
-"nearly done": nothing has been written to `audit_entry` by this code yet, and the concurrency path has
-never executed.
+| Caller | `company.write` | `company.read_all` | `POST /companies` |
+|---|---|---|---|
+| Administrator | yes | yes | **201** |
+| Editor | yes | no | **403** |
+| Auditor (transient role) | no | yes | **403** |
+| Negotiator | no | no | **403** |
 
-## Risks
+The "auditor" role exists only in the test fixture, because no seeded role has the shape
+"read across companies, write nothing" and the matrix is incomplete without it.
 
-- RLS filters silently (audit §5.1): a cross-tenant write returns **0 rows without an error**. The write
-  path must inspect affected row counts or it will report success for a write that never happened.
-- `xmin` as a concurrency token is cheap but coarse: any update to the row invalidates it, which is
-  correct, and any update to a *different* row does not, which is also correct. It does mean the value is
-  not stable across a `VACUUM FULL`; the contract's `rowVersion` is opaque to clients, so that is
-  acceptable but worth knowing.
+### Creation does not widen access
+
+- The creator's `user_profile.company_id` is unchanged — asserted through `/me` after creating.
+- Another company's user still gets **404** for the new company and still sees exactly **one** company
+  in the list.
+
+### Concurrency and audit
+
+- `PATCH` with the current `rowVersion` → **200**, and the returned `rowVersion` differs.
+- `PATCH` re-using the pre-update `rowVersion` → **409 concurrent_modification**.
+- `PATCH` without `If-Match` → **400 validation_failed**.
+- `PATCH` of another company → **404**, even for a caller holding `company.write` (a 403 would confirm it
+  exists).
+- Creating writes exactly **one** `audit_entry` row with `action = 'created'` and the actor's id; updating
+  writes exactly **one** `action = 'updated'` row whose `changes` contains the modified property.
+
+## Notes and limits
+
+- `Result<T>` was not introduced. The endpoints return `IResult` directly, and an abstraction with no
+  second caller would be an untested abstraction.
+- `xmin` is the concurrency token because PostgreSQL maintains it and the schema has no `rowversion`
+  column. It is coarse but correct, and the contract treats `rowVersion` as opaque.
+- A missing `If-Match` returns **400** rather than 428: the contract defines `If-Match` as required but
+  does not define 428, and inventing a code outside the contract would be worse than reusing one.
+
+## What this task does not cover
+
+- Contracts and agreements (T8). The same `TenantScope` and the same interceptor will apply; nothing
+  here is company-specific except the entity.
+- The audit **read** endpoint (`GET /audit`) is T13. Rows are written now, read later.
