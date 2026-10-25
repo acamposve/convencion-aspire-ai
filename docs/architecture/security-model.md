@@ -261,7 +261,8 @@ Legacy contains identifiable representatives, contacts and contract holders. Rul
 1. **No legacy personal data is migrated** (Art. V.2). Reference data only (Art. V.3).
 2. Personal data never appears in logs, audit `Changes` payloads beyond field names, or error messages.
 3. The public portal returns a projection with **no** representative names, emails or phone numbers —
-   only the agreement content and the company's public identity.
+   only the agreement content and the company's public identity. The projection is an explicit
+   allow-list type, and rich text is sanitised again at that boundary (ADR-026).
 4. **[A-39]** Data-retention policy (how long negotiation party records are kept) is a **new**
    requirement with no legacy precedent. Proposed default: retain while the case exists, delete with the
    case, no hard-delete of published agreements.
@@ -355,6 +356,7 @@ geography and links tables (DS-30).
 | Clause created / updated / removed / reclassified | actor, clause number, changed field names |
 | Agreement annex added / removed | actor |
 | Negotiation state transitions (open/close/reopen/promote) | actor, from → to. Promotion keeps the case `Closed`, so its row carries the link in `changes` and no from/to pair |
+| News published / unpublished | actor, from → to. The publication actor and time are also on the row, assigned by the database |
 | Petition state change | actor |
 | Statute / statute article create / update / delete | actor |
 | User created / blocked / roles changed | actor, target |
