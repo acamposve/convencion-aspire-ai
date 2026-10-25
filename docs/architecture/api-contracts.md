@@ -303,7 +303,8 @@ recorded design for a genuinely asynchronous extraction (FUT-01).
 - `GET /documents?page=1&pageSize=25` lists newest first, scoped to the caller's company. `total` is
   the number of **visible** rows, not the number that exist. A caller with no company (and no
   `company.read_all`) gets an empty page rather than an unfiltered one; `company.read_all` widens the
-  list to every attributed document, and a null-company document remains visible to nobody.
+  list to every attributed document, and a null-company document remains visible to nobody. Each
+  summary includes the extraction status, attempt count and the server-authored `extractionError`.
 - `GET /documents/{id}` returns metadata, extraction state and `rowVersion`, and omits `storage_path`,
   `checksum` and `uploaded_by`.
 - `GET /documents/{id}/text` returns `{ documentId, content, charCount, extractedAt }`. If no
@@ -418,6 +419,7 @@ control (never the UI alone — the legacy system's core failure, Phase 1 §S5).
 | # | Screen | Route | Endpoints | Cap |
 |---|---|---|---|---|
 | S1 | Sign in | `/login` | Supabase Auth; `GET /me` | `[public]` |
+| — | **Document workflow (T7)** | `/documents` | `/me`, `/companies/{id}`, `GET`/`POST /documents`, `POST /{id}/extract`, `GET /{id}/text` | `document.read` / `document.write` |
 | S2 | First-run setup | `/setup` | `/auth/bootstrap/status`, `/auth/bootstrap` | `[public]` |
 | S3 | Dashboard | `/` | counts from `/agreements`, `/negotiation/cases` | — |
 | S4 | Company list / editor | `/companies`, `/companies/:id` | `/companies` | `company.*` |
