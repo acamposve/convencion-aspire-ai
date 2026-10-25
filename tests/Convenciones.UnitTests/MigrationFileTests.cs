@@ -33,6 +33,8 @@ public sealed class MigrationFileTests
         "20260102000000_align_product_decisions.sql",
         "20260102000100_document_processing.sql",
         "20260103000000_document_pdf_only.sql",
+        "20260104000000_audit_writer_read_policy.sql",
+        "20260104000100_agreement_tenant_rls.sql",
     ];
 
     [Fact]
