@@ -30,14 +30,14 @@ public sealed class Document : IAuditable
     public Guid? CompanyId { get; private set; }
 
     /// <summary>
-    /// Processing status. Not mapped: T4 only creates documents, so the column keeps its database
-    /// default (<c>NotRequested</c>). Writing and reading it needs the PostgreSQL enum mapped — see
-    /// the blocked-mapping note in docs/tasks/task-04-document-upload.md.
+    /// Processing status, stored in the PostgreSQL enum <c>platform.extraction_status</c>.
     /// </summary>
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public ExtractionStatus ExtractionStatus => ExtractionStatus.NotRequested;
+    public ExtractionStatus ExtractionStatus { get; private set; } = ExtractionStatus.NotRequested;
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>Moves the document to a new processing state. T5 owns the legal transitions.</summary>
+    public void SetExtractionStatus(ExtractionStatus status) => ExtractionStatus = status;
 
     public string AuditModule => "documents";
 

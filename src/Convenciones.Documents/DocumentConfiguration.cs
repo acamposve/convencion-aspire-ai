@@ -22,6 +22,10 @@ public sealed class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(document => document.UploadedBy).HasColumnName("uploaded_by");
         builder.Property(document => document.CompanyId).HasColumnName("company_id");
 
+        // A PostgreSQL enum type, mapped through UseNpgsql(...MapEnum...). No HasColumnType: the
+        // store type is resolved from the provider's enum registration.
+        builder.Property(document => document.ExtractionStatus).HasColumnName("extraction_status");
+
         builder.Property(document => document.CreatedAt).HasColumnName("created_at");
     }
 }
