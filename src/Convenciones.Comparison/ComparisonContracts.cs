@@ -53,19 +53,28 @@ public sealed record ComparisonAgreementView(
     IReadOnlyList<ComparisonClauseView> Clauses);
 
 /// <summary>
-/// Statute articles are T10. The field is in the shape now so adding them is not a contract change;
-/// it is empty until the legal library exists.
+/// A statute article classified under the compared heading — the legal side of the workspace.
 /// </summary>
+/// <remarks>
+/// The field existed in T9, empty, so that filling it was not a contract change; T10 fills it. The
+/// number is an integer because clause and article numbering is integer-only (Q-2). Articles are
+/// <b>adjacent</b> to the agreements, never paired with a clause: no clause-to-article alignment
+/// exists (Q-6).
+/// </remarks>
 public sealed record ComparisonStatuteArticleView(
     Guid StatuteId,
     string StatuteName,
-    string ArticleNumber,
+    string StatuteKind,
+    Guid ArticleId,
+    int Number,
     string Title,
-    string Body);
+    string Body,
+    string? EconomicComparisonNote);
 
 public sealed record ComparisonView(
     ComparisonHeadingView Heading,
     IReadOnlyList<ComparisonStatuteArticleView> StatuteArticles,
+    int StatuteArticleTotal,
     IReadOnlyList<ComparisonAgreementView> Agreements,
     IReadOnlyList<Guid> UnpublishedRequested,
     int Page,

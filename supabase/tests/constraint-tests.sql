@@ -411,6 +411,50 @@ begin
     end;
 end $$;
 
+-- T10: the article's own heading is mandatory ...
+do $$
+begin
+    begin
+        insert into app.statute_article (statute_id, number_int, title, body)
+        values ('eeeeeeee-0000-0000-0000-000000000001', 2, '   ', 'Body');
+        raise notice 'FAIL: E5 a statute article with a blank heading was accepted';
+    exception when check_violation then
+        raise notice 'PASS: E5 statute_article_title_not_blank refuses a blank article heading (T10)';
+    end;
+end $$;
+
+do $$
+begin
+    begin
+        insert into app.statute (kind, name) values ('OtherStatute', '   ');
+        raise notice 'FAIL: E6 a statute with a blank name was accepted';
+    exception when check_violation then
+        raise notice 'PASS: E6 statute_name_not_blank refuses a blank statute name';
+    end;
+end $$;
+
+do $$
+begin
+    begin
+        insert into app.statute_article (statute_id, number_int, title, body)
+        values ('eeeeeeee-0000-0000-0000-000000000001', 0, 'Article Zero', 'Body');
+        raise notice 'FAIL: E7 a statute article numbered 0 was accepted';
+    exception when check_violation then
+        raise notice 'PASS: E7 statute_article_number_positive refuses article number 0';
+    end;
+end $$;
+
+-- ... and the CLASSIFICATION is not (approval item A-12): 89.6% of the legacy corpus is
+-- unclassified, so requiring a heading would block loading the library.
+do $$
+begin
+    insert into app.statute_article (statute_id, number_int, title, body, heading_id)
+    values ('eeeeeeee-0000-0000-0000-000000000001', 3, 'Unclassified Article', 'Body', null);
+    raise notice 'PASS: E8 an unclassified statute article is accepted (A-12)';
+exception when others then
+    raise notice 'FAIL: E8 an unclassified article was rejected: %', sqlerrm;
+end $$;
+
 \echo '--- F. documents ---'
 
 do $$

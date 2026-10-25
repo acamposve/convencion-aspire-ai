@@ -7,6 +7,7 @@
     <Project Path="src/Convenciones.Comparison/Convenciones.Comparison.csproj" />
     <Project Path="src/Convenciones.Documents/Convenciones.Documents.csproj" />
     <Project Path="src/Convenciones.Identity/Convenciones.Identity.csproj" />
+    <Project Path="src/Convenciones.Legal/Convenciones.Legal.csproj" />
     <Project Path="src/Convenciones.Migrator/Convenciones.Migrator.csproj" />
     <Project Path="src/Convenciones.ServiceDefaults/Convenciones.ServiceDefaults.csproj" />
   </Folder>
