@@ -144,7 +144,11 @@ public sealed class UpdateStatuteHandler(IStatuteStore store)
             return StatuteCommandResult.ConcurrentModification();
         }
 
-        if (request.DocumentId is { } documentId
+        // A partial update: omitted fields keep their stored value, explicit nulls clear nullable ones.
+        var edit = StatutePatch.Merge(statute, request);
+
+        if (edit.DocumentId != statute.DocumentId
+            && edit.DocumentId is { } documentId
             && !await store.DocumentIsAvailableAsync(documentId, cancellationToken).ConfigureAwait(false))
         {
             return StatuteCommandResult.Validation(
@@ -154,10 +158,10 @@ public sealed class UpdateStatuteHandler(IStatuteStore store)
         try
         {
             statute.UpdateHeader(
-                request.Name,
-                request.PublishedOn,
-                request.Source,
-                request.DocumentId,
+                edit.Name,
+                edit.PublishedOn,
+                edit.Source,
+                edit.DocumentId,
                 actorId,
                 DateTimeOffset.UtcNow);
         }
@@ -235,7 +239,7 @@ public sealed class UpdateStatuteArticleHandler(IStatuteStore store)
     public async Task<StatuteCommandResult> HandleAsync(
         Guid statuteId,
         Guid articleId,
-        StatuteArticleRequest request,
+        UpdateStatuteArticleRequest request,
         uint expectedVersion,
         Guid actorId,
         CancellationToken cancellationToken)
@@ -260,7 +264,18 @@ public sealed class UpdateStatuteArticleHandler(IStatuteStore store)
             return StatuteCommandResult.ConcurrentModification();
         }
 
-        if (request.HeadingId is { } headingId
+        // A partial update: omitted fields keep their stored value, explicit nulls clear nullable ones.
+        var edit = StatutePatch.Merge(article, request);
+
+        // Sending a required field as null is a rejected request, not a clear.
+        if (edit.Number is not { } number)
+        {
+            return StatuteCommandResult.Validation(
+                "The article number is required and cannot be cleared.");
+        }
+
+        if (edit.HeadingId != article.HeadingId
+            && edit.HeadingId is { } headingId
             && !await store.HeadingIsActiveAsync(headingId, cancellationToken).ConfigureAwait(false))
         {
             return StatuteCommandResult.Validation(
@@ -269,14 +284,14 @@ public sealed class UpdateStatuteArticleHandler(IStatuteStore store)
 
         try
         {
-            statute.EnsureNumberAvailable(request.Number, article.Id);
+            statute.EnsureNumberAvailable(number, article.Id);
             article.Update(
-                request.Number,
-                request.Title,
-                request.Summary,
-                request.Body,
-                request.HeadingId,
-                request.EconomicComparisonNote,
+                number,
+                edit.Title,
+                edit.Summary,
+                edit.Body,
+                edit.HeadingId,
+                edit.EconomicComparisonNote,
                 actorId,
                 DateTimeOffset.UtcNow);
         }

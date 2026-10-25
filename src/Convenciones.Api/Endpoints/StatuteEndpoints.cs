@@ -85,12 +85,13 @@ public static class StatuteEndpoints
 
     private static async Task<IResult> ListAsync(
         ConvencionesDbContext db,
+        ListStatutesHandler handler,
         ISessionAccessor accessor,
         CancellationToken cancellationToken,
         string? kind = null,
         string? q = null,
         int page = 1,
-        int pageSize = StatuteQueries.DefaultPageSize)
+        int pageSize = StatutePaging.DefaultPageSize)
     {
         if (accessor.Session is null)
         {
@@ -110,8 +111,11 @@ public static class StatuteEndpoints
         }
 
         // No company predicate. Statutes are reference data shared by every tenant.
-        var list = await StatuteQueries
-            .ListAsync(db.Statutes, kindFilter, q, page, pageSize, cancellationToken)
+        var list = await handler
+            .HandleAsync(
+                db.Statutes,
+                new ListStatutesQuery(kindFilter, q, page, pageSize),
+                cancellationToken)
             .ConfigureAwait(false);
 
         return Results.Ok(list);
@@ -148,6 +152,7 @@ public static class StatuteEndpoints
     private static async Task<IResult> GetAsync(
         Guid id,
         ConvencionesDbContext db,
+        GetStatuteHandler handler,
         ISessionAccessor accessor,
         CancellationToken cancellationToken)
     {
@@ -156,8 +161,8 @@ public static class StatuteEndpoints
             return Forbidden();
         }
 
-        var detail = await StatuteQueries
-            .DetailAsync(db.Statutes, id, cancellationToken)
+        var detail = await handler
+            .HandleAsync(db.Statutes, new GetStatuteQuery(id), cancellationToken)
             .ConfigureAwait(false);
 
         return detail is null ? NotFoundStatute(id) : Results.Ok(detail);
@@ -208,6 +213,7 @@ public static class StatuteEndpoints
     private static async Task<IResult> ListArticlesAsync(
         Guid id,
         ConvencionesDbContext db,
+        ListStatuteArticlesHandler handler,
         ISessionAccessor accessor,
         CancellationToken cancellationToken)
     {
@@ -216,8 +222,8 @@ public static class StatuteEndpoints
             return Forbidden();
         }
 
-        var articles = await StatuteQueries
-            .ArticlesAsync(db.Statutes, id, cancellationToken)
+        var articles = await handler
+            .HandleAsync(db.Statutes, new ListStatuteArticlesQuery(id), cancellationToken)
             .ConfigureAwait(false);
 
         return articles is null ? NotFoundStatute(id) : Results.Ok(articles);
@@ -256,6 +262,7 @@ public static class StatuteEndpoints
         Guid id,
         Guid articleId,
         ConvencionesDbContext db,
+        GetStatuteArticleHandler handler,
         ISessionAccessor accessor,
         CancellationToken cancellationToken)
     {
@@ -264,8 +271,8 @@ public static class StatuteEndpoints
             return Forbidden();
         }
 
-        var article = await StatuteQueries
-            .ArticleAsync(db.Statutes, id, articleId, cancellationToken)
+        var article = await handler
+            .HandleAsync(db.Statutes, new GetStatuteArticleQuery(id, articleId), cancellationToken)
             .ConfigureAwait(false);
 
         return article is null ? NotFoundArticle(articleId) : Results.Ok(article);
@@ -274,7 +281,7 @@ public static class StatuteEndpoints
     private static async Task<IResult> UpdateArticleAsync(
         Guid id,
         Guid articleId,
-        StatuteArticleRequest request,
+        UpdateStatuteArticleRequest request,
         HttpRequest httpRequest,
         UpdateStatuteArticleHandler handler,
         ISessionAccessor accessor,
@@ -312,7 +319,8 @@ public static class StatuteEndpoints
         }
         catch (DbUpdateException exception) when (IsUniqueViolation(exception))
         {
-            return FromUniqueViolation(exception, request.Number);
+            // Only a sent number can appear in the message; an unsent one keeps its stored value.
+            return FromUniqueViolation(exception, request.Number.IsSet ? request.Number.Value : null);
         }
 
         return Map(result);

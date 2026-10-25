@@ -20,6 +20,12 @@ builder.AddServiceDefaults();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
+// A request the model binder cannot read must become a problem response, not a bare status. Left at
+// the framework default, a binding failure is answered with 400 and an empty body in every
+// environment except Development, which is exactly the silent failure the contract forbids. Throwing
+// hands the failure to GlobalExceptionHandler, which reports malformed_request.
+builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
+
 // ---- Data access ----------------------------------------------------------------------------
 // Fail fast: a missing connection string must stop startup, never produce an API that answers
 // requests it cannot serve. There is deliberately no default value.
@@ -91,7 +97,11 @@ builder.Services.AddScoped<UpdateStatuteHandler>();
 builder.Services.AddScoped<AddStatuteArticleHandler>();
 builder.Services.AddScoped<UpdateStatuteArticleHandler>();
 builder.Services.AddScoped<DeleteStatuteArticleHandler>();
-
+builder.Services.AddScoped<ListStatutesHandler>();
+builder.Services.AddScoped<GetStatuteHandler>();
+builder.Services.AddScoped<ListStatuteArticlesHandler>();
+builder.Services.AddScoped<GetStatuteArticleHandler>();
+builder.Services.AddScoped<GetStatuteArticlesForHeadingHandler>();
 
 // ---- CORS ---------------------------------------------------------------------------------------
 // No wildcard and no default origin: the browser client is served from a known host, and a policy of
@@ -122,6 +132,29 @@ builder.Services
 var app = builder.Build();
 
 app.UseExceptionHandler();
+
+// Two refusals never reach an endpoint and are written by the framework itself: an unsupported
+// content type (415) and a body over the transport limit (413). They would otherwise be a bare status
+// with an empty body, which the contract forbids; this adds the body for exactly those two and leaves
+// every other response, status included, untouched.
+app.UseStatusCodePages(async statusCodeContext =>
+{
+    var response = statusCodeContext.HttpContext.Response;
+
+    if (RequestFailureProblem.For(statusCodeContext.HttpContext, response.StatusCode) is not { } problem)
+    {
+        return;
+    }
+
+    await statusCodeContext.HttpContext.RequestServices
+        .GetRequiredService<IProblemDetailsService>()
+        .TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = statusCodeContext.HttpContext,
+            ProblemDetails = problem,
+        })
+        .ConfigureAwait(false);
+});
 
 app.UseCors();
 

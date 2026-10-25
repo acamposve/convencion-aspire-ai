@@ -1,5 +1,7 @@
 namespace Convenciones.Legal;
 
+using System.Text.Json.Serialization;
+
 /// <summary>Parsing for the statute kind, used by the body of <c>POST /statutes</c> and the list filter.</summary>
 /// <remarks>
 /// Parsing is explicit rather than <c>Enum.TryParse</c> alone, because that accepts a numeric string:
@@ -40,18 +42,29 @@ public sealed record CreateStatuteRequest(
     Guid? DocumentId);
 
 /// <summary>
-/// A statute's descriptive fields. <c>kind</c> is absent on purpose: it is fixed at creation, because
-/// changing it would have to obey the single-labour-law invariant and that is a separate operation.
+/// A statute's descriptive fields, partially. <c>kind</c> is absent on purpose: it is fixed at
+/// creation, because changing it would have to obey the single-labour-law invariant and that is a
+/// separate operation.
 /// </summary>
+/// <remarks>
+/// The same rule as the company endpoint: a field that is not sent is left unchanged. The addition is
+/// that a field sent as <c>null</c> clears a nullable field (<c>publishedOn</c>, <c>source</c>,
+/// <c>documentId</c>), which a plain nullable property could not express. <c>name</c> is required, so
+/// sending it as <c>null</c> is a 400 rather than a clear.
+/// </remarks>
 public sealed record UpdateStatuteRequest(
-    string? Name,
-    DateOnly? PublishedOn,
-    string? Source,
-    Guid? DocumentId);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<string?> Name,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<DateOnly?> PublishedOn,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<string?> Source,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<Guid?> DocumentId);
 
 /// <summary>
-/// A statute article. A full replacement, like <c>ClauseRequest</c>: an omitted
-/// <paramref name="HeadingId"/> clears the classification, which is legitimate under A-12.
+/// A new statute article: number, its own heading (title) and body are mandatory; the comparison
+/// classification is optional under A-12.
 /// </summary>
 public sealed record StatuteArticleRequest(
     int Number,
@@ -60,6 +73,28 @@ public sealed record StatuteArticleRequest(
     string? Body,
     Guid? HeadingId,
     string? EconomicComparisonNote);
+
+/// <summary>
+/// A statute article, partially. A field that is not sent keeps its stored value; a nullable field
+/// sent as <c>null</c> is cleared (the classification included, which A-12 allows).
+/// </summary>
+/// <remarks>
+/// <c>number</c>, <c>title</c> and <c>body</c> are required by the aggregate, so sending any of them
+/// as <c>null</c> is a 400 rather than a clear. Omitting them is a valid partial update.
+/// </remarks>
+public sealed record UpdateStatuteArticleRequest(
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<int?> Number,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<string?> Title,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<string?> Summary,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<string?> Body,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<Guid?> HeadingId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    PatchField<string?> EconomicComparisonNote);
 
 public sealed record StatuteSummary(
     Guid Id,

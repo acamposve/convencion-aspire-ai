@@ -15,7 +15,7 @@ public sealed class StatuteStore(ConvencionesDbContext db) : IStatuteStore
 {
     /// <summary>
     /// Tracked, with its articles: a command loads the aggregate before changing it. Reads never go
-    /// through here — they project directly in <c>StatuteQueries</c>.
+    /// through here — they project directly in the query handlers.
     /// </summary>
     public Task<Statute?> FindAsync(Guid statuteId, CancellationToken cancellationToken) =>
         db.Statutes
@@ -28,9 +28,17 @@ public sealed class StatuteStore(ConvencionesDbContext db) : IStatuteStore
             .AnyAsync(heading => heading.Id == headingId && heading.IsActive, cancellationToken);
 
     /// <summary>
-    /// A statute's own file is library-level, so the check is not company-scoped. A soft-deleted
-    /// document is not available: every read of it returns 404.
+    /// Whether the document exists, has not been deleted, and is visible to the caller.
     /// </summary>
+    /// <remarks>
+    /// The predicate names no company, deliberately — and the check is still company-scoped at
+    /// runtime: the query runs as <c>app_api</c> with the caller's claims
+    /// (<see cref="DatabaseSessionInterceptor"/>), and the <c>platform.document</c> policies filter by
+    /// company. Another company's document is therefore indistinguishable from a missing one: the
+    /// same 400, so the check cannot be used to probe for document ids. A test pins that
+    /// indistinguishability; if the role or the policies ever changed, this predicate would be the
+    /// thing to revisit.
+    /// </remarks>
     public Task<bool> DocumentIsAvailableAsync(Guid documentId, CancellationToken cancellationToken) =>
         db.Documents
             .AsNoTracking()
