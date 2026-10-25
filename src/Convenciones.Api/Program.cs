@@ -125,6 +125,7 @@ app.MapDocumentEndpoints();
 app.MapDocumentExtractionEndpoints();
 app.MapAgreementEndpoints();
 app.MapComparisonHeadingEndpoints();
+app.MapComparisonEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is

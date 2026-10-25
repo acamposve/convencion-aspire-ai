@@ -92,19 +92,8 @@ public sealed class Agreement : IAuditable
     /// Composed on read. The company name is supplied by the caller so the aggregate does not need a
     /// cross-module navigation, and so the title changes when the company name changes.
     /// </summary>
-    public string ComposeTitle(string companyName)
-    {
-        var name = string.IsNullOrWhiteSpace(companyName) ? "Empresa" : companyName.Trim();
-
-        if (ValidTo is not { } end)
-        {
-            return $"{name} · desde {ValidFrom.Year}";
-        }
-
-        return ValidFrom.Year == end.Year
-            ? $"{name} · {ValidFrom.Year}"
-            : $"{name} · {ValidFrom.Year}–{end.Year}";
-    }
+    public string ComposeTitle(string companyName) =>
+        AgreementTitles.Compose(companyName, ValidFrom, ValidTo);
 
     public void UpdateHeader(
         DateOnly validFrom,

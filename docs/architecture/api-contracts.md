@@ -206,34 +206,64 @@ The database policy scopes all three tables by company as well.
 
 | Method | Path | Cap | Purpose |
 |---|---|---|---|
-| `GET` | `/comparison/heading-groups` | `comparison.read` | Blocks, with `requiresEconomicComparison` |
-| `GET` | `/comparison/headings?groupIds=&includeExcluded=false` | `comparison.read` | |
-| `GET` | `/comparison/candidates?headingId=` | `comparison.read` | Published agreements having ≥ 1 clause for the heading |
-| `GET` | `/comparison?headingId=&agreementIds=1,2,3` | `comparison.read` | The comparison grid |
+| `GET` | `/comparison/heading-groups` | `comparison.read` | Active blocks, ordered, with `requiresEconomicComparison` |
+| `GET` | `/comparison/headings?groupIds=&includeExcluded=false` | `comparison.read` | Taxonomy; implemented in T8 |
+| `GET` | `/comparison/candidates?headingId=&companyId=&page=&pageSize=` | `comparison.read` | Published agreements having ≥ 1 clause for the heading |
+| `GET` | `/comparison?headingId=&agreementIds=&page=&pageSize=` | `comparison.read` | The adjacency projection |
+
+All routes are **GET-only**; `POST`/`PUT /comparison` return **405**. The projection is read-only and
+every query is `AsNoTracking`.
 
 ```jsonc
-// GET /comparison?headingId=38&agreementIds=1,2
+// GET /comparison?headingId=…&agreementIds=id1,id2&page=1&pageSize=5
 {
-  "heading": { "id": 38, "name": "Contribución a Sindicato", "isExcluded": false },
-  "statuteArticles": [
-    { "statuteId": 3, "statuteName": "LOTTT", "articleNumber": "…", "title": "…", "body": "…" }
-  ],
+  "heading": {
+    "id": "…", "groupId": "…", "groupName": "GENERALES", "name": "Salarios",
+    "isExcluded": false, "requiresEconomicComparison": false, "sortOrder": 10
+  },
+  "statuteArticles": [],              // T10; shape is stable now
   "agreements": [
-    { "agreementId": 1, "title": "…", "companyName": "…",
-      "clauses": [ { "clauseId": 501, "number": "38", "order": 3800, "title": "…", "body": "…" } ] },
-    { "agreementId": 2, "title": "…", "companyName": "…", "clauses": [] }
+    {
+      "agreementId": "…", "companyId": "…", "companyName": "…",
+      "title": "Empresa · 2026–2028",
+      "validFrom": "2026-01-01", "validTo": "2028-12-31",
+      "clauses": [
+        { "clauseId": "…", "number": 2, "title": "…", "summary": "…", "body": "…",
+          "economicComparisonNote": "…", "isExcludedFromCompilation": false }
+      ]
+    }
   ],
-  "unpublishedRequested": []
+  "unpublishedRequested": [],
+  "page": 1, "pageSize": 5, "total": 2
 }
 ```
 
-**`AC-W1.8` is enforced here:** any `agreementIds` entry that is not published is dropped into
-`unpublishedRequested` rather than silently included or 404'd — the caller learns why a column is
-missing. `[A-27]` Alternatively return `409 invalid_state`. I prefer the explicit list because it is
-observable and testable both ways.
+**Adjacency, not alignment (Q-6).** Each agreement is a column; clauses sit inside their own
+agreement. No clause is paired with a clause in another agreement. The UI must not imply pairing; R2-01
+is the alignment feature.
 
-**No writes.** This endpoint is the product's read surface; it is deliberately the only one with a
-bespoke shaped response instead of per-resource DTOs.
+**Excluded headings.** A heading with `is_excluded = true` ("No Compara") produces no candidates and no
+comparison rows. The comparison responds **200** with an empty `agreements` array and
+`heading.isExcluded = true`, so the caller sees why. The test creates a published clause under that
+heading and asserts its title and body are absent. `isExcludedFromCompilation` on a clause is a
+different flag (compiled-document exclusion) and is not a comparison filter.
+
+**Published only.** An unpublished requested agreement is never rendered, even for a caller who can
+read drafts. It is reported in **`unpublishedRequested`** rather than silently included or 404'd
+(AC-W1.8). Candidates exclude drafts too. `unpublishedRequested` is outside the page.
+
+**Paging and bounds.** Candidates: default 10, max 50. Comparison: default 5, max 10 agreements per
+page; at most 50 distinct `agreementIds`, and missing/invalid ids are **400 `validation_failed`**. The
+caller chooses one heading and a bounded set of columns, so a company with hundreds of clauses cannot
+make one request return the corpus.
+
+**Stable order.** Candidates and agreement columns by `validFrom` descending then id; clauses by
+numeric number ascending; heading groups by `sortOrder` then name.
+
+**Tenancy.** A normal user's candidates are restricted to their company; another `companyId` is
+**404**. In the projection every requested agreement must be visible: one another-company or
+nonexistent id makes the whole request **404**, with no partial data. `company.read_all` may compare
+across companies.
 
 ### 4.5 Legal library
 
@@ -492,3 +522,7 @@ the community edition — S5/S10/S12 could use it).
 | **AC-A20** | Clause numbers are positive integers, unique within the agreement (`409` duplicate), returned in numeric order; a missing or unknown heading is `400 validation_failed` |
 | **AC-A21** | Publication requires `agreement.publish` (`403` and unchanged otherwise), records actor and timestamp, is refused with `409 invalid_state` on an empty/already-published agreement, and is audited exactly once; unpublishing clears both fields |
 | **AC-A22** | The agreement title is composed from the company's current name and validity period and is not stored; another company's agreement is `404`, and creating one for a company the caller cannot access is `403` |
+| **AC-A23** | A clause under an `is_excluded` heading is absent from comparison output and from candidates, and the JSON is asserted not to contain its title or body |
+| **AC-A24** | An unpublished agreement is never rendered; it appears in `unpublishedRequested` and becomes visible after publication |
+| **AC-A25** | The comparison is paged/bounded (candidate page ≤ 50, comparison page ≤ 10 agreements, ≤ 50 ids) and rejects invalid requests with `400`; the routes are GET-only (`405` otherwise) |
+| **AC-A26** | Another company's agreement id makes the comparison `404` with no partial data; clauses are adjacent, never paired, and ordered by numeric number |
