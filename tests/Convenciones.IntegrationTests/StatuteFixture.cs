@@ -31,6 +31,12 @@ public sealed class StatuteFixture : IAsyncLifetime
     /// <summary>Editor with no company and no profile — reference data must still be readable.</summary>
     public static readonly Guid EditorWithoutCompany = new("c6000000-0000-0000-0000-000000000004");
 
+    /// <summary>
+    /// <c>comparison.read</c> without <c>statute.read</c>. No seeded role has that shape, and the
+    /// comparison projection must refuse it because it returns statutory text.
+    /// </summary>
+    public static readonly Guid ComparisonOnly = new("c6000000-0000-0000-0000-000000000005");
+
     private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:17-alpine")
         .WithDatabase("convenciones_legal")
         .WithCleanUp(true)
@@ -179,6 +185,108 @@ public sealed class StatuteFixture : IAsyncLifetime
         return modules;
     }
 
+    public async Task<IReadOnlyList<string>> AuditChangesAsync(string entityType, string entityId)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            """
+            select coalesce(changes::text, '') from platform.audit_entry
+            where entity_type = @type and entity_id = @id order by id
+            """, connection);
+        command.Parameters.AddWithValue("type", entityType);
+        command.Parameters.AddWithValue("id", entityId);
+
+        var changes = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+
+        while (await reader.ReadAsync().ConfigureAwait(false))
+        {
+            changes.Add(reader.GetString(0));
+        }
+
+        return changes;
+    }
+
+    /// <summary>Creates a heading under GENERALES and returns its id.</summary>
+    public async Task<Guid> CreateHeadingAsync(string name)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            """
+            insert into app.comparison_heading (group_id, name, is_excluded, sort_order)
+            select g.id, @name, false, 10
+            from app.comparison_heading_group g
+            where g.name = 'GENERALES'
+            returning id
+            """, connection);
+        command.Parameters.AddWithValue("name", name);
+
+        return (Guid)(await command.ExecuteScalarAsync().ConfigureAwait(false))!;
+    }
+
+    /// <summary>
+    /// Adds articles straight to a statute. The comparison bound is about what one request returns,
+    /// so the corpus is built without a hundred round trips.
+    /// </summary>
+    public async Task InsertStatuteArticlesAsync(
+        Guid statuteId,
+        int firstNumber,
+        int count,
+        Guid? headingId)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            """
+            insert into app.statute_article (statute_id, number_int, title, body, heading_id)
+            select @statute, n, 'Artículo ' || n, 'Cuerpo del artículo ' || n, @heading
+            from generate_series(@first, @first + @count - 1) as n
+            """, connection);
+        command.Parameters.AddWithValue("statute", statuteId);
+        command.Parameters.AddWithValue("first", firstNumber);
+        command.Parameters.AddWithValue("count", count);
+        command.Parameters.AddWithValue("heading", (object?)headingId ?? DBNull.Value);
+
+        (await command.ExecuteNonQueryAsync().ConfigureAwait(false)).ShouldBe(count);
+    }
+
+    public async Task<Guid> CreateDocumentAsync(Guid companyId, Guid uploadedBy, string fileName)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            """
+            insert into platform.document
+                (storage_path, file_name, content_type, size_bytes, uploaded_by, company_id)
+            values (@path, @name, 'application/pdf', 1024, @uploadedBy, @company)
+            returning id
+            """, connection);
+        command.Parameters.AddWithValue("path", $"legal-tests/{fileName}");
+        command.Parameters.AddWithValue("name", fileName);
+        command.Parameters.AddWithValue("uploadedBy", uploadedBy);
+        command.Parameters.AddWithValue("company", companyId);
+
+        return (Guid)(await command.ExecuteScalarAsync().ConfigureAwait(false))!;
+    }
+
+    public async Task SoftDeleteDocumentAsync(Guid documentId)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            "update platform.document set deleted_at = now() where id = @id", connection);
+        command.Parameters.AddWithValue("id", documentId);
+
+        (await command.ExecuteNonQueryAsync().ConfigureAwait(false)).ShouldBe(1);
+    }
+
     private async Task SeedAsync()
     {
         const string sql = """
@@ -192,7 +300,22 @@ public sealed class StatuteFixture : IAsyncLifetime
                 ('c6000000-0000-0000-0000-000000000001', 'legal.a@example.test', 'Statute Editor A', false, null),
                 ('c6000000-0000-0000-0000-000000000002', 'legal.b@example.test', 'Statute Editor B', false, null),
                 ('c6000000-0000-0000-0000-000000000003', 'legal.n@example.test', 'Statute Negotiator', false, null),
-                ('c6000000-0000-0000-0000-000000000004', 'legal.nc@example.test', 'Statute Reader No Company', false, null);
+                ('c6000000-0000-0000-0000-000000000004', 'legal.nc@example.test', 'Statute Reader No Company', false, null),
+                ('c6000000-0000-0000-0000-000000000005', 'legal.cmp@example.test', 'Statute Comparison Only', false, null);
+
+            -- A transient role with comparison.read and no statute.read: no seeded role has that
+            -- shape, and the comparison projection must refuse it because it returns statutory text.
+            insert into platform.role (id, key, name)
+            values ('c7000000-0000-0000-0000-000000000001', 'comparison_only',
+                    'Comparison Without Statute Read');
+
+            insert into platform.role_capability (role_id, capability_id)
+            select 'c7000000-0000-0000-0000-000000000001', id
+            from platform.capability
+            where key in ('company.read', 'agreement.read', 'comparison.read');
+
+            insert into platform.user_role (user_id, role_id)
+            values ('c6000000-0000-0000-0000-000000000005', 'c7000000-0000-0000-0000-000000000001');
 
             insert into platform.user_role (user_id, role_id)
             select u.id, r.id from platform.user_account u
@@ -211,7 +334,8 @@ public sealed class StatuteFixture : IAsyncLifetime
             insert into platform.user_profile (user_id, company_id) values
                 ('c6000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000001'),
                 ('c6000000-0000-0000-0000-000000000002', 'c5000000-0000-0000-0000-000000000002'),
-                ('c6000000-0000-0000-0000-000000000003', 'c5000000-0000-0000-0000-000000000001');
+                ('c6000000-0000-0000-0000-000000000003', 'c5000000-0000-0000-0000-000000000001'),
+                ('c6000000-0000-0000-0000-000000000005', 'c5000000-0000-0000-0000-000000000001');
 
             insert into app.comparison_heading (group_id, name, description, is_excluded, sort_order)
             select g.id, v.name, v.description, false, v.sort_order
