@@ -1,5 +1,4 @@
 using Convenciones.Api.Infrastructure;
-using Convenciones.Catalog;
 using Convenciones.Documents;
 using Convenciones.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -60,7 +59,7 @@ public static class DocumentExtractionEndpoints
             return Forbidden("No session was resolved for this request.");
         }
 
-        if (await FindAccessibleAsync(session, id, db, cancellationToken).ConfigureAwait(false)
+        if (await DocumentAccess.FindAccessibleAsync(session, id, db, cancellationToken).ConfigureAwait(false)
             is not { } document)
         {
             return NotFound(id);
@@ -136,7 +135,7 @@ public static class DocumentExtractionEndpoints
             return Forbidden("No session was resolved for this request.");
         }
 
-        if (await FindAccessibleAsync(session, id, db, cancellationToken).ConfigureAwait(false)
+        if (await DocumentAccess.FindAccessibleAsync(session, id, db, cancellationToken).ConfigureAwait(false)
             is not { } document)
         {
             return NotFound(id);
@@ -160,30 +159,6 @@ public static class DocumentExtractionEndpoints
         db.DocumentTexts
             .Where(text => text.DocumentId == documentId)
             .ExecuteDeleteAsync(cancellationToken);
-
-    /// <summary>
-    /// Loads a document the caller may touch: their company's, or any company's when they hold
-    /// <c>company.read_all</c>. A document belonging to another company is reported as not found.
-    /// </summary>
-    private static async Task<Document?> FindAccessibleAsync(
-        SessionContext session,
-        Guid documentId,
-        ConvencionesDbContext db,
-        CancellationToken cancellationToken)
-    {
-        var document = await db.Documents
-            .SingleOrDefaultAsync(candidate => candidate.Id == documentId, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (document is null)
-        {
-            return null;
-        }
-
-        return document.CompanyId is { } companyId && TenantScope.CanAccess(session, companyId)
-            ? document
-            : null;
-    }
 
     private static ExtractionResponse ToExtraction(Document document, int? charCount) =>
         new(

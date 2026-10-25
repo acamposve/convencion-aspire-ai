@@ -46,7 +46,8 @@ public sealed class ExtractionStatusMappingTests(DocumentsFixture fixture)
                 1024,
                 new string('a', 64),
                 owner,
-                company);
+                company,
+                DateTimeOffset.UtcNow);
 
             document.SetExtractionStatus(status);
             db.Documents.Add(document);
@@ -73,7 +74,7 @@ public sealed class ExtractionStatusMappingTests(DocumentsFixture fixture)
 
         db.Documents.Add(Document.Register(
             id, DocumentKeys.For(company, id, DateTimeOffset.UtcNow), "fresh.pdf", 512,
-            new string('b', 64), owner, company));
+            new string('b', 64), owner, company, DateTimeOffset.UtcNow));
 
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();

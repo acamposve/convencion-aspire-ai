@@ -1,4 +1,5 @@
 using Convenciones.Api.Infrastructure;
+using Convenciones.Catalog;
 using Convenciones.Documents;
 using Convenciones.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,9 @@ public static partial class DocumentEndpoints
     /// <summary>20 MiB, exactly the value of the <c>document_size_within_limit</c> constraint.</summary>
     public const long MaxDocumentBytes = 20L * 1024 * 1024;
 
+    private const int DefaultPageSize = 25;
+    private const int MaxPageSize = 100;
+
     public static IEndpointRouteBuilder MapDocumentEndpoints(this IEndpointRouteBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
@@ -27,6 +31,31 @@ public static partial class DocumentEndpoints
             .DisableAntiforgery()
             .WithTags("Documents")
             .WithName("UploadDocument");
+
+        app.MapGet("/documents", ListAsync)
+            .RequiresCapability("document.read")
+            .WithTags("Documents")
+            .WithName("ListDocuments");
+
+        app.MapGet("/documents/{id:guid}", GetAsync)
+            .RequiresCapability("document.read")
+            .WithTags("Documents")
+            .WithName("GetDocument");
+
+        app.MapGet("/documents/{id:guid}/text", GetTextAsync)
+            .RequiresCapability("document.read")
+            .WithTags("Documents")
+            .WithName("GetDocumentText");
+
+        app.MapGet("/documents/{id:guid}/download", DownloadAsync)
+            .RequiresCapability("document.read")
+            .WithTags("Documents")
+            .WithName("DownloadDocument");
+
+        app.MapDelete("/documents/{id:guid}", DeleteAsync)
+            .RequiresCapability("document.write")
+            .WithTags("Documents")
+            .WithName("DeleteDocument");
 
         return app;
     }
@@ -142,7 +171,8 @@ public static partial class DocumentEndpoints
             }
 
             var documentId = Guid.NewGuid();
-            var key = DocumentKeys.For(companyId, documentId, DateTimeOffset.UtcNow);
+            var uploadedAt = DateTimeOffset.UtcNow;
+            var key = DocumentKeys.For(companyId, documentId, uploadedAt);
 
             // Store first, then insert: an orphaned object is invisible and sweepable, whereas a row
             // pointing at a missing object is a broken record that looks valid.
@@ -158,7 +188,8 @@ public static partial class DocumentEndpoints
                 actualSize,
                 checksum,
                 session.UserId,
-                companyId);
+                companyId,
+                uploadedAt);
 
             db.Documents.Add(document);
 
@@ -264,6 +295,314 @@ public static partial class DocumentEndpoints
             title: status is 413 ? "Content too large" : "Request rejected",
             detail: detail,
             extensions: new Dictionary<string, object?> { ["code"] = code });
+
+    // ---- Retrieval -----------------------------------------------------------------------------
+
+    /// <summary>
+    /// Lists the documents the caller may see, newest first, with offset paging.
+    /// </summary>
+    /// <remarks>
+    /// The company filter is part of the query, not applied after materialising, so the total is the
+    /// number of rows the caller may see rather than the number of rows that exist. A caller with no
+    /// company and no <c>company.read_all</c> gets an empty page, never an unfiltered one: absence of
+    /// a company must not become visibility of everything.
+    /// </remarks>
+    private static async Task<IResult> ListAsync(
+        ConvencionesDbContext db,
+        ISessionAccessor accessor,
+        CancellationToken cancellationToken,
+        int page = 1,
+        int pageSize = DefaultPageSize)
+    {
+        var session = accessor.Session;
+        if (session is null)
+        {
+            return Forbidden("No session was resolved for this request.");
+        }
+
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > MaxPageSize ? DefaultPageSize : pageSize;
+
+        var query = db.Documents.AsNoTracking();
+
+        if (session.HasCapability(TenantScope.CrossCompanyCapability))
+        {
+            // A document with no company is visible to nobody through the API (T1); read_all does
+            // not change that, so those rows are excluded here as well.
+            query = query.Where(document => document.CompanyId != null);
+        }
+        else if (session.CompanyId is { } ownCompany)
+        {
+            query = query.Where(document => document.CompanyId == ownCompany);
+        }
+        else
+        {
+            return Results.Ok(new DocumentListResponse([], page, pageSize, 0));
+        }
+
+        var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var rows = await query
+            .OrderByDescending(document => document.UploadedAt)
+            .ThenByDescending(document => document.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new DocumentListResponse(
+            rows.Select(ToSummary).ToArray(), page, pageSize, total));
+    }
+
+    /// <summary>
+    /// Returns one document's metadata and extraction state, or 404.
+    /// </summary>
+    private static async Task<IResult> GetAsync(
+        Guid id,
+        ConvencionesDbContext db,
+        ISessionAccessor accessor,
+        CancellationToken cancellationToken)
+    {
+        var session = accessor.Session;
+        if (session is null)
+        {
+            return Forbidden("No session was resolved for this request.");
+        }
+
+        var document = await DocumentAccess
+            .FindAccessibleAsync(session, id, db, cancellationToken)
+            .ConfigureAwait(false);
+
+        return document is null ? NotFound(id) : Results.Ok(ToDetail(document));
+    }
+
+    /// <summary>
+    /// Returns the extracted text, or 404 when there is none.
+    /// </summary>
+    /// <remarks>
+    /// "No text" is a missing row, never an empty string: the database forbids a blank
+    /// <c>document_text</c> row, and reporting an empty body would look like a successful extraction
+    /// that found nothing.
+    /// </remarks>
+    private static async Task<IResult> GetTextAsync(
+        Guid id,
+        ConvencionesDbContext db,
+        ISessionAccessor accessor,
+        CancellationToken cancellationToken)
+    {
+        var session = accessor.Session;
+        if (session is null)
+        {
+            return Forbidden("No session was resolved for this request.");
+        }
+
+        var document = await DocumentAccess
+            .FindAccessibleAsync(session, id, db, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (document is null)
+        {
+            return NotFound(id);
+        }
+
+        var text = await db.DocumentTexts
+            .AsNoTracking()
+            .SingleOrDefaultAsync(candidate => candidate.DocumentId == id, cancellationToken)
+            .ConfigureAwait(false);
+
+        return text is null
+            ? NotFoundText(id)
+            : Results.Ok(new DocumentTextResponse(
+                document.Id, text.Content, text.CharCount, text.ExtractedAt));
+    }
+
+    /// <summary>
+    /// Streams the stored bytes. Range requests are enabled, so a client can resume a download.
+    /// </summary>
+    /// <remarks>
+    /// The bytes are served by the API after the tenant check. The response never contains the
+    /// storage key or a signed URL that outlives the request, and the private directory is not
+    /// reachable by path.
+    /// </remarks>
+    private static async Task<IResult> DownloadAsync(
+        Guid id,
+        HttpContext context,
+        ConvencionesDbContext db,
+        IDocumentStorage storage,
+        ISessionAccessor accessor,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var session = accessor.Session;
+        if (session is null)
+        {
+            return Forbidden("No session was resolved for this request.");
+        }
+
+        var document = await DocumentAccess
+            .FindAccessibleAsync(session, id, db, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (document is null)
+        {
+            return NotFound(id);
+        }
+
+        var stream = await storage.OpenReadAsync(document.StoragePath, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (stream is null)
+        {
+            // A row pointing at missing bytes is not a usable document. Reporting 404 keeps "gone"
+            // and "never existed" indistinguishable, like every other not-visible case.
+            return NotFound(id);
+        }
+
+        context.Response.Headers.CacheControl = "private, no-store";
+
+        return Results.File(
+            stream,
+            document.ContentType,
+            document.FileName,
+            enableRangeProcessing: true);
+    }
+
+    /// <summary>
+    /// Soft-deletes a document: the row and its audit trail remain, the bytes are removed.
+    /// </summary>
+    /// <remarks>
+    /// <c>If-Match</c> is required, like every other DELETE in the contract. The document is located
+    /// before the header is read, so another company's document is 404 rather than 400 even when the
+    /// caller omits it. The row is hidden before the object is removed: a failed object removal
+    /// leaves an invisible orphan, whereas removing bytes first would leave a visible, broken record.
+    /// </remarks>
+    private static async Task<IResult> DeleteAsync(
+        Guid id,
+        HttpRequest request,
+        ConvencionesDbContext db,
+        IDocumentStorage storage,
+        ISessionAccessor accessor,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var session = accessor.Session;
+        if (session is null)
+        {
+            return Forbidden("No session was resolved for this request.");
+        }
+
+        var document = await DocumentAccess
+            .FindAccessibleAsync(session, id, db, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (document is null)
+        {
+            return NotFound(id);
+        }
+
+        var ifMatch = request.Headers.IfMatch.ToString();
+        if (string.IsNullOrWhiteSpace(ifMatch) || !TryParseRowVersion(ifMatch, out var expectedVersion))
+        {
+            return Validation(
+                "The If-Match header with the current rowVersion is required to delete a document.");
+        }
+
+        if (document.RowVersion != expectedVersion)
+        {
+            return ConcurrentModification();
+        }
+
+        document.SoftDelete(DateTimeOffset.UtcNow);
+
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ConcurrentModification();
+        }
+
+        try
+        {
+            await storage.DeleteAsync(document.StoragePath, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The document is already invisible and the attempt is audited. Failing the request now
+            // would report a failure for an operation the caller can no longer observe; the leftover
+            // object is private, unreachable and sweepable.
+            loggerFactory
+                .CreateLogger("DocumentDelete")
+                .LogError(exception,
+                    "Document {DocumentId} is hidden, but its stored object could not be removed.", id);
+        }
+
+        return Results.NoContent();
+    }
+
+    private static DocumentSummary ToSummary(Document document) =>
+        new(
+            document.Id,
+            document.FileName,
+            document.ContentType,
+            document.SizeBytes,
+            document.ExtractionStatus.ToString(),
+            document.ExtractionAttempts,
+            document.UploadedAt);
+
+    private static DocumentDetail ToDetail(Document document) =>
+        new(
+            document.Id,
+            document.FileName,
+            document.ContentType,
+            document.SizeBytes,
+            document.ExtractionStatus.ToString(),
+            document.ExtractionAttempts,
+            document.ExtractionStartedAt,
+            document.ExtractionCompletedAt,
+            document.ExtractionError,
+            document.UploadedAt,
+            document.RowVersion);
+
+    private static bool TryParseRowVersion(string header, out uint version) =>
+        uint.TryParse(header.Trim().Trim('"'), out version);
+
+    private static IResult Forbidden(string detail) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status403Forbidden,
+            title: "Forbidden",
+            detail: detail,
+            extensions: new Dictionary<string, object?> { ["code"] = ErrorCodes.Forbidden });
+
+    private static IResult Validation(string detail) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Validation failed",
+            detail: detail,
+            extensions: new Dictionary<string, object?> { ["code"] = ErrorCodes.ValidationFailed });
+
+    private static IResult NotFound(Guid id) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Not found",
+            detail: $"No document with id '{id}' is visible to the caller.",
+            extensions: new Dictionary<string, object?> { ["code"] = ErrorCodes.NotFound });
+
+    private static IResult NotFoundText(Guid id) =>
+        Results.Problem(
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Not found",
+            detail: $"No extracted text exists for document '{id}'.",
+            extensions: new Dictionary<string, object?> { ["code"] = ErrorCodes.NotFound });
+
+    private static IResult ConcurrentModification() =>
+        Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Conflict",
+            detail: "The document was modified by someone else. Re-read it and retry with the current rowVersion.",
+            extensions: new Dictionary<string, object?> { ["code"] = ErrorCodes.ConcurrentModification });
 }
 
 public sealed class PayloadTooLargeException : Exception
@@ -282,3 +621,39 @@ public sealed record DocumentResponse(
     string? ChecksumSha256,
     string ExtractionStatus,
     DateTimeOffset CreatedAt);
+
+/// <summary>List projection: enough for the documents screen, no storage or uploader internals.</summary>
+public sealed record DocumentSummary(
+    Guid Id,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    string ExtractionStatus,
+    int ExtractionAttempts,
+    DateTimeOffset UploadedAt);
+
+/// <summary>One document's metadata, extraction state and concurrency token.</summary>
+public sealed record DocumentDetail(
+    Guid Id,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    string ExtractionStatus,
+    int ExtractionAttempts,
+    DateTimeOffset? ExtractionStartedAt,
+    DateTimeOffset? ExtractionCompletedAt,
+    string? ExtractionError,
+    DateTimeOffset UploadedAt,
+    uint RowVersion);
+
+public sealed record DocumentListResponse(
+    IReadOnlyList<DocumentSummary> Items,
+    int Page,
+    int PageSize,
+    int Total);
+
+public sealed record DocumentTextResponse(
+    Guid DocumentId,
+    string Content,
+    int CharCount,
+    DateTimeOffset ExtractedAt);
