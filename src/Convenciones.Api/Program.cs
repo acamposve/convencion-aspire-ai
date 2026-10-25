@@ -28,6 +28,30 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<ConvencionesDbContext>(options => options.UseNpgsql(connectionString));
 
+// ---- Request limits -----------------------------------------------------------------------------
+// Documents are capped at 20 MiB by a database constraint; the transport limit sits just above it so
+// an oversized upload is refused while reading, not after the whole body has been buffered. The
+// framework default (30 MB) would let a request through that the database must then reject.
+builder.WebHost.ConfigureKestrel(options =>
+    options.Limits.MaxRequestBodySize = (21L * 1024 * 1024));
+
+// ---- CORS ---------------------------------------------------------------------------------------
+// No wildcard and no default origin: the browser client is served from a known host, and a policy of
+// "any origin" would turn every token a user holds into something any website could use.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+{
+    if (allowedOrigins.Length == 0)
+    {
+        // No origins configured means no browser client is authorised. Absence of configuration must
+        // not silently become permission for everyone.
+        policy.WithOrigins("https://localhost");
+        return;
+    }
+
+    policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
+}));
+
 // ---- Authentication and authorization ---------------------------------------------------------
 // Fail fast again: without a way to validate signatures there is no authentication, only a claim
 // that there is. See docs/architecture/security-model.md.
@@ -41,6 +65,8 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
+app.UseCors();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -49,6 +75,7 @@ app.UseMiddleware<SessionResolutionMiddleware>();
 
 app.MapDefaultEndpoints();
 app.MapMeEndpoints();
+app.MapCompanyEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is

@@ -1,3 +1,4 @@
+using Convenciones.Catalog;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Infrastructure;
@@ -8,19 +9,24 @@ namespace Convenciones.Api.Infrastructure;
 /// infrastructure).
 /// </summary>
 /// <remarks>
-/// Deliberately empty for the infrastructure task. Entity mappings arrive with the modules that own
-/// them; nothing is mapped ahead of a use case, because an unused mapping is an untested mapping.
-/// The context exists now so that connection configuration, readiness probing and the testing
-/// harness are proven before domain code depends on them.
+/// Mappings are contributed by the modules that own them, through <c>IEntityTypeConfiguration</c> in
+/// each module assembly. Nothing is mapped ahead of a use case: an unused mapping is an untested
+/// mapping, and a wrong mapping is worse than a missing one because it fails at runtime rather than
+/// at review.
 /// </remarks>
 public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext> options)
     : DbContext(options)
 {
+    public DbSet<Company> Companies => Set<Company>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
         modelBuilder.HasDefaultSchema("app");
+
+        // Catalog owns app.company. Later modules register their own configurations the same way.
+        modelBuilder.ApplyConfiguration(new CompanyConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }
