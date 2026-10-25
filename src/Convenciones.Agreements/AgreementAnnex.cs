@@ -86,7 +86,7 @@ public sealed class AgreementAnnex : IAuditable
     {
         Name = AgreementText.Required(name, "The annex name is required.");
         Description = AgreementText.Optional(description);
-        Body = AgreementText.Optional(body);
+        Body = RichText.Clean(body);
         DocumentId = documentId;
         SortOrder = sortOrder;
         UpdatedBy = actorId;

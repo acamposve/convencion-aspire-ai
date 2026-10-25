@@ -4,6 +4,8 @@ using Convenciones.Legal;
 using Shouldly;
 using Xunit;
 
+using Convenciones.Catalog;
+
 namespace Convenciones.UnitTests;
 
 /// <summary>

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Convenciones.Legal;
+namespace Convenciones.Catalog;
 
 /// <summary>
 /// One field of a partial update. Distinguishes "not sent" from "sent as null", which a plain

@@ -1,3 +1,5 @@
+using Convenciones.Catalog;
+
 namespace Convenciones.Legal;
 
 using System.Text.Json.Serialization;

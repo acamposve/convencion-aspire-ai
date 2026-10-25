@@ -844,6 +844,116 @@ begin
     end if;
 end $$;
 
+-- --- Publishing (T12) ----------------------------------------------------------------------------
+
+-- Fixtures: a news writer who may write but not publish, one category and one draft article.
+insert into platform.role (id, key, name)
+values ('70000000-0000-0000-0000-000000000003', 'news_writer', 'News Writer Without Publish');
+
+insert into platform.role_capability (role_id, capability_id)
+select '70000000-0000-0000-0000-000000000003', id
+from platform.capability where key in ('news.read', 'news.write');
+
+insert into platform.user_account (id, email, display_name)
+values ('20000000-0000-0000-0000-000000000011', 'news.writer@example.test', 'News Writer');
+
+insert into platform.user_role (user_id, role_id)
+values ('20000000-0000-0000-0000-000000000011', '70000000-0000-0000-0000-000000000003');
+
+insert into platform.user_profile (user_id, company_id)
+values ('20000000-0000-0000-0000-000000000011', '30000000-0000-0000-0000-000000000001');
+
+insert into app.news_category (id, name) values
+    ('80000000-0000-0000-0000-000000000301', 'T12 category');
+
+insert into app.news_article (id, category_id, title, body, state) values
+    ('80000000-0000-0000-0000-000000000302', '80000000-0000-0000-0000-000000000301',
+     'T12 draft', 'Cuerpo', 'Draft');
+
+-- R41 — news.write alone cannot publish; the guard, not the handler, is what refuses.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000011"}', true);
+    execute 'set local role app_api';
+    begin
+        update app.news_article set state = 'Published'
+        where id = '80000000-0000-0000-0000-000000000302';
+        raise notice 'FAIL: R41 a news writer without news.publish published an article';
+    exception when insufficient_privilege then
+        raise notice 'PASS: R41 publishing news requires news.publish at the database';
+    end;
+    execute 'reset role';
+end $$;
+
+-- R42 — with the capability the transition succeeds, and the database records the actor and the time:
+-- the UPDATE sets neither column.
+do $$
+declare
+    actor uuid := '20000000-0000-0000-0000-000000000002';
+    recorded uuid;
+    recorded_at timestamptz;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    update app.news_article set state = 'Published'
+    where id = '80000000-0000-0000-0000-000000000302';
+    execute 'reset role';
+
+    select published_by, published_at into recorded, recorded_at
+    from app.news_article where id = '80000000-0000-0000-0000-000000000302';
+
+    if recorded = actor and recorded_at is not null then
+        raise notice 'PASS: R42 the database records the publisher and the publication time';
+    else
+        raise notice 'FAIL: R42 published_by=% published_at=%', recorded, recorded_at;
+    end if;
+end $$;
+
+-- R43 — anon sees the published article and no draft, and cannot write.
+do $$
+declare
+    published int;
+    drafts int;
+begin
+    perform set_config('request.jwt.claims', '', true);
+    execute 'set local role anon';
+
+    select count(*) into published from app.news_article
+     where id = '80000000-0000-0000-0000-000000000302';
+    select count(*) into drafts from app.news_article where state = 'Draft';
+
+    begin
+        insert into app.news_article (category_id, title, body)
+        values ('80000000-0000-0000-0000-000000000301', 'Anon', 'Cuerpo');
+        execute 'reset role';
+        raise notice 'FAIL: R43 anon inserted a news article';
+    exception when insufficient_privilege then
+        execute 'reset role';
+        if published = 1 and drafts = 0 then
+            raise notice 'PASS: R43 anon reads published news only and cannot write';
+        else
+            raise notice 'FAIL: R43 anon saw % published and % draft article(s)', published, drafts;
+        end if;
+    end;
+end $$;
+
+-- R44 — anon reads no unpublished agreement.
+do $$
+declare
+    drafts int;
+begin
+    perform set_config('request.jwt.claims', '', true);
+    execute 'set local role anon';
+    select count(*) into drafts from app.agreement where state <> 'Published';
+    execute 'reset role';
+
+    if drafts = 0 then
+        raise notice 'PASS: R44 anon sees no unpublished agreement';
+    else
+        raise notice 'FAIL: R44 anon saw % unpublished agreement(s)', drafts;
+    end if;
+end $$;
+
 rollback;
 
 \echo ''

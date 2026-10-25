@@ -5,6 +5,7 @@ using Convenciones.Documents;
 using Convenciones.Identity;
 using Convenciones.Legal;
 using Convenciones.Negotiation;
+using Convenciones.Publishing;
 using Convenciones.ServiceDefaults;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
@@ -130,6 +131,22 @@ builder.Services.AddScoped<PromoteCaseHandler>();
 builder.Services.AddScoped<ListCasesHandler>();
 builder.Services.AddScoped<GetCaseHandler>();
 
+// ---- Publishing ----------------------------------------------------------------------------------
+// Public reads run as the anon role (ServesPublicData), so the public RLS policies are the filter.
+builder.Services.AddScoped<INewsStore, NewsStore>();
+builder.Services.AddScoped<CreateNewsHandler>();
+builder.Services.AddScoped<UpdateNewsHandler>();
+builder.Services.AddScoped<PublishNewsHandler>();
+builder.Services.AddScoped<UnpublishNewsHandler>();
+builder.Services.AddScoped<CreateNewsCategoryHandler>();
+builder.Services.AddScoped<ListNewsHandler>();
+builder.Services.AddScoped<GetNewsHandler>();
+builder.Services.AddScoped<ListNewsCategoriesHandler>();
+builder.Services.AddScoped<ListPublicNewsHandler>();
+builder.Services.AddScoped<GetPublicNewsHandler>();
+builder.Services.AddScoped<ListPublicAgreementsHandler>();
+builder.Services.AddScoped<GetPublicAgreementHandler>();
+
 // ---- CORS ---------------------------------------------------------------------------------------
 // No wildcard and no default origin: the browser client is served from a known host, and a policy of
 // "any origin" would turn every token a user holds into something any website could use.
@@ -201,6 +218,8 @@ app.MapComparisonHeadingEndpoints();
 app.MapComparisonEndpoints();
 app.MapStatuteEndpoints();
 app.MapNegotiationEndpoints();
+app.MapNewsEndpoints();
+app.MapPublicEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is
