@@ -128,7 +128,7 @@ named requirement appear in MVP.
 | F-10 | Publish / unpublish with actor and timestamp | §BR-06 | Gates comparison and the portal |
 | F-11 | Comparison workspace (adjacency) | §BR-15 | The product's purpose |
 | F-12 | Legal library: statutes and articles | decided Task 1 | Comparison reads statute text |
-| F-13 | Document storage for PDFs and images | §S7, DS-11 | Annexes, acts, statute PDFs |
+| F-13 | Document storage for **PDF documents only** — every other format is rejected with 415 | §S7, DS-11 | Annexes, acts and statute documents are PDFs; the platform parses them instead of trusting a declared type |
 | F-14 | Audit trail | §S14, DS-30 | New requirement, not a port |
 | F-15 | Negotiation case lifecycle | §BR-08…14 | In scope by your decision |
 | F-16 | Public portal: published agreements + news | decided Task 1 | Publication must have a consumer |

@@ -247,9 +247,9 @@ convention is enforced by a test asserting no `GET` route maps to a state-changi
 |---|---|
 | Bucket privacy | **Private.** No public bucket, no direct object URL exposure |
 | Object key | Server-generated UUID path; client filename stored as metadata only (legacy stored the raw client name as the path, §S7) |
-| Content type | Sniffed from bytes (magic numbers), not from `Content-Type` or the extension |
-| Allow-list | `application/pdf`, `image/png`, `image/jpeg` |
-| Size limit | 20 MB **[A-28]** |
+| Content type | **Parsed from the bytes**, not from `Content-Type` or the extension: a `%PDF-` signature is not evidence. Magic-number sniffing alone was the earlier plan and is insufficient — it accepts anything whose first four bytes are plausible |
+| Allow-list | **`application/pdf` only.** Every other format is rejected with **415**, including JPEG and PNG |
+| Size limit | **20,971,520 bytes (20 MiB)**, enforced while the request is being received; larger is **413** and nothing is written |
 | Serving | `302` to a signed URL valid ≤ 5 minutes, issued only after a capability check |
 | Executable content | No `Content-Disposition: inline` for PDFs served from our origin; downloads are attachments |
 | Deletion | Metadata soft-deleted, object removed; deletion audited |
