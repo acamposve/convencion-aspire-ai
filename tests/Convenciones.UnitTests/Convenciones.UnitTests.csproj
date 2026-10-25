@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Convenciones.Identity\Convenciones.Identity.csproj" />
     <ProjectReference Include="..\..\src\Convenciones.Legal\Convenciones.Legal.csproj" />
+    <ProjectReference Include="..\..\src\Convenciones.Negotiation\Convenciones.Negotiation.csproj" />
   </ItemGroup>
 
 </Project>

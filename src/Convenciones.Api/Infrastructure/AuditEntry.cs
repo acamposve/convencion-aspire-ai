@@ -25,6 +25,12 @@ public sealed class AuditEntry
 
     public string? Changes { get; private set; }
 
+    /// <summary>State before the change, when the entity has a state machine.</summary>
+    public string? FromState { get; private set; }
+
+    /// <summary>State after the change, when the entity has a state machine.</summary>
+    public string? ToState { get; private set; }
+
     public string? CorrelationId { get; private set; }
 
     public static AuditEntry Record(
@@ -34,7 +40,9 @@ public sealed class AuditEntry
         string entityId,
         string action,
         string? changes,
-        string? correlationId) =>
+        string? correlationId,
+        string? fromState = null,
+        string? toState = null) =>
         new()
         {
             ActorId = actorId,
@@ -43,6 +51,8 @@ public sealed class AuditEntry
             EntityId = entityId,
             Action = action,
             Changes = changes,
+            FromState = fromState,
+            ToState = toState,
             CorrelationId = correlationId,
         };
 }

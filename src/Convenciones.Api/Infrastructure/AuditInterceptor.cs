@@ -82,6 +82,11 @@ public sealed class AuditInterceptor(ISessionAccessor accessor, ILogger<AuditInt
                 continue;
             }
 
+            // A state machine records "actor, from -> to" in its own columns; the values come from the
+            // changed State property, so a handler cannot forget them.
+            var stateProperty = entry.Properties
+                .FirstOrDefault(property => property.Metadata.Name == "State" && property.IsModified);
+
             var audit = AuditEntry.Record(
                 actorId,
                 auditable.AuditModule,
@@ -89,7 +94,9 @@ public sealed class AuditInterceptor(ISessionAccessor accessor, ILogger<AuditInt
                 auditable.AuditEntityId,
                 action,
                 DescribeChanges(entry),
-                correlationId);
+                correlationId,
+                stateProperty?.OriginalValue?.ToString(),
+                stateProperty?.CurrentValue?.ToString());
 
             context.Add(audit);
         }

@@ -301,16 +301,28 @@ classDiagram
 
 | ID | Invariant | Where enforced |
 |---|---|---|
-| INV-N1 | A case has at least one `Union` party and one `Employer` party before it can open | `Open()` |
-| INV-N2 | Closing requires ≥ 1 `MeetingAgreement` | `Close()` |
+| INV-N1 | A case has at least one `Union` party and one `Employer` party before it can open | **not enforced** — see the note below |
+| INV-N2 | Closing requires ≥ 1 `MeetingAgreement` | `Close()` + `api-contracts.md §2.1` |
 | INV-N3 | A petition with state `Agreed` cannot be edited or deleted | `UpdatePetition`/`DeletePetition` |
-| INV-N4 | Closing is only allowed from `Open` | state machine |
-| INV-N5 | `Promoted` is terminal and records the resulting agreement | `Promote()` |
-| INV-N6 | Reopening is allowed from `Closed` but **not** from `Promoted` | state machine |
-| INV-N7 | Promotion is idempotent — a second attempt is rejected, not duplicated | `Promote()` + unique index on `PromotedAgreementId` |
+| INV-N4 | The chain is `Open → InProgress → Pending → Agreed → Closed`; closing is only allowed from `Agreed` | state machine |
+| INV-N5 | Promotion is a separate operation for a `Closed` case; it records the resulting agreement while the state stays `Closed` | `Promote()` + the database guard |
+| INV-N6 | Reopening is allowed from `Closed` but **not** from a promoted case | state machine + the database guard |
+| INV-N7 | Promotion is idempotent — a second attempt is rejected, not duplicated | `Promote()` + the database guard and the unique index on `PromotedAgreementId` |
 
 INV-N7 answers the legacy defect where reopening and re-closing duplicated every clause into a second
 agreement (BR-11). INV-N6 is the decision that promotion is final **[A-21]**.
+
+**INV-N1 is not enforceable in the implemented lifecycle.** Q-4 (T11 D2) removed `Draft`, so a case is
+created directly in `Open`: nothing precedes the state in which the parties would be required. Enforcing
+the invariant at creation would be a new business rule, and T11 was authorised on the opposite principle
+(no invented preconditions). It stays unimplemented until a decision is recorded — the options are a
+pre-open state, a party requirement on creation, or dropping the invariant.
+
+**INV-N2's provenance.** The "at least one meeting agreement before closing" rule comes from the API
+contract (which lists "close without agreements" among the `invalid_state` refusals) and from this
+invariant. The legacy application only computed the message "No Existen Acuerdos en este Contrato" in
+the UI; it never refused the write server-side. The rule is implemented, with that distinction recorded
+in ADR-025.
 
 ### 3.3 `Statute`
 
@@ -455,13 +467,19 @@ and reference-data reads.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Draft
-    Draft --> Open: Open() · requires ≥1 Union + ≥1 Employer party
-    Open --> Open: petitions · offers · meetings · agreements
-    Open --> Closed: Close() · requires ≥1 meeting agreement
-    Closed --> Open: Reopen() · audited
-    Closed --> Promoted: Promote() · creates agreement atomically
-    Promoted --> [*]: terminal · reopen forbidden
+    [*] --> Open: Create() · Open is the initial state (Q-4, no Draft)
+    Open --> InProgress: StartInProgress()
+    InProgress --> Pending: MarkPending()
+    Pending --> InProgress: StartInProgress()
+    Pending --> Agreed: Agree() · explicit, no invented precondition
+    Agreed --> Closed: Close() · requires ≥1 meeting agreement (INV-N2)
+    Closed --> InProgress: Reopen() · audited, clears closed_at
+    Closed --> Closed: Promote() · separate, authorised, atomic; records promoted_agreement_id
+    note right of Closed
+        A promoted case is terminal: the link cannot be cleared,
+        so it cannot be reopened (A-21, ADR-014). Established by
+        app.guard_case_promotion(), not only by the aggregate.
+    end note
 ```
 
 ### 5.2 `CollectiveAgreement` publication
@@ -503,7 +521,7 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     API->>N: POST /negotiation/cases/{id}/promote
-    N->>N: load case, assert state = Closed (INV-N4)
+    N->>N: load case, assert state = Closed (INV-N5)
     N->>N: assert case not already promoted (INV-N7)
     N->>A: CreateFromCase(companyId, caseAgreements, actor)
     A->>A: build CollectiveAgreement + clauses from MeetingAgreements
@@ -535,10 +553,10 @@ Verifiable by unit tests, independent of the database:
 | **AC-D4** | `Publish()` on an agreement with zero clauses fails with `AgreementHasNoClauses` |
 | **AC-D5** | `Publish()` sets `State`, `PublishedAt` and `PublishedBy` together; `Unpublish()` clears all three |
 | **AC-D6** | `Close()` on a case with no `MeetingAgreement` fails |
-| **AC-D7** | `Open()` on a case without a Union party fails |
+| **AC-D7** | *(not enforced — INV-N1 needs a decision; a case is created in `Open`)* |
 | **AC-D8** | A petition in `Agreed` state rejects `UpdatePetition` |
 | **AC-D9** | `Promote()` twice returns a conflict and creates no second agreement |
-| **AC-D10** | `Reopen()` on a `Promoted` case fails |
+| **AC-D10** | `Reopen()` on a promoted case fails (state `Closed`, link set) |
 | **AC-D11** | `ClauseNumber` parses `"12"`, `"012"`, `"12-A"` to the same numeric order as `12`, and rejects `"5 555"` |
 | **AC-D12** | The comparison projection excludes headings where `IsExcluded = true` |
 | **AC-D13** | A `Company` can hold a `LegacyCode` that is unique-when-present, and two companies cannot share one |
