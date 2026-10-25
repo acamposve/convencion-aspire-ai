@@ -212,6 +212,6 @@ query over the entity columns and compose the title after materialisation, using
 ## 9. Left undone
 
 - Clause alignment/pairing (R2-01), export (R2-04), full-text search (R2-02).
-- Statute articles (T10) — the field is empty.
-- The comparison workspace UI (T14).
+- Statute articles — the field was empty at merge; **T10 fills it** (`statuteArticles` plus
+  `statuteArticleTotal`, bounded at 100 per heading).- The comparison workspace UI (T14).
 - A per-agreement clause cap; paging bounds the number of agreements only (see §7).
