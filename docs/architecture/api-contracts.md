@@ -261,10 +261,12 @@ return a projection that omits internal identifiers, publisher identity and any 
 
 | Method | Path | Cap | Purpose |
 |---|---|---|---|
-| `POST` | `/documents` | `document.write` | Upload; returns metadata + a storage path |
-| `GET` | `/documents/{id}` | `document.read` | Metadata |
-| `GET` | `/documents/{id}/download` | `document.read` | `302` to a short-lived signed URL |
-| `DELETE` | `/documents/{id}` | `document.write` | Soft delete + storage removal |
+| `POST` | `/documents` | `document.write` | Upload; returns metadata (no storage path) |
+| `GET` | `/documents` | `document.read` | Paged, company-scoped list; `{ items, page, pageSize, total }` |
+| `GET` | `/documents/{id}` | `document.read` | Metadata, extraction state and `rowVersion` |
+| `GET` | `/documents/{id}/text` | `document.read` | Extracted text; `404` when no text exists |
+| `GET` | `/documents/{id}/download` | `document.read` | Streams the stored bytes (range enabled); never a path or permanent URL |
+| `DELETE` | `/documents/{id}` | `document.write` | Soft delete + storage removal; `If-Match` required |
 | `POST` | `/documents/{id}/extract` | `document.write` | Runs extraction synchronously; `200` with the final state |
 | `GET` | `/documents/{id}/extraction` | `document.read` | Extraction state: status, attempts, timestamps, error, `charCount` |
 | `GET` | `/audit` | `audit.read` | Paged; `entityType`, `entityId`, `actorId`, date range |
@@ -280,8 +282,8 @@ cross-reference table and at least one page; a malformed, truncated or empty fil
 `validation_failed`**.
 
 Maximum size is **20 MiB (20,971,520 bytes)**, enforced server-side while receiving the request; anything
-larger is **413 Content Too Large** and nothing is written to storage. Downloads are always served through a
-short-lived signed URL, never from a public bucket path.
+larger is **413 Content Too Large** and nothing is written to storage. The upload response contains
+metadata only — never `storage_path`, a public URL or the uploader.
 
 **Extraction contract (T5) — synchronous, `200 OK`.** `POST /documents/{id}/extract` performs the
 extraction inside the request and answers **`200 OK`** with the resulting state. The MVP has no queue or
@@ -295,6 +297,29 @@ recorded design for a genuinely asynchronous extraction (FUT-01).
 - Re-extracting a `Completed` document is **`409 invalid_state`**, as is any attempt after the maximum of
   three. A failed attempt deletes any text left by a previous attempt, so obsolete content cannot be read.
 - A caller without `document.write` gets **403**; a document belonging to another company gets **404**.
+
+**Retrieval contract (T6).**
+
+- `GET /documents?page=1&pageSize=25` lists newest first, scoped to the caller's company. `total` is
+  the number of **visible** rows, not the number that exist. A caller with no company (and no
+  `company.read_all`) gets an empty page rather than an unfiltered one; `company.read_all` widens the
+  list to every attributed document, and a null-company document remains visible to nobody.
+- `GET /documents/{id}` returns metadata, extraction state and `rowVersion`, and omits `storage_path`,
+  `checksum` and `uploaded_by`.
+- `GET /documents/{id}/text` returns `{ documentId, content, charCount, extractedAt }`. If no
+  `document_text` row exists — never extracted, or extraction failed — it returns **404 `not_found`**,
+  not an empty body and not a 500.
+- `GET /documents/{id}/download` streams the bytes after the tenant check, with an attachment
+  disposition, `Cache-Control: private, no-store` and range processing (`206` + `Content-Range`). It
+  does not redirect, and it exposes neither the storage key nor a permanent URL. The signed-URL
+  variant belongs to the Supabase Storage adapter (T18); the MVP local adapter is streamed by the API.
+- `DELETE /documents/{id}` requires `If-Match` with the current `rowVersion`: missing → **400**,
+  stale → **409 `concurrent_modification`**, current → **204**. The row is soft-deleted
+  (`deleted_at`) and its audit trail survives; the object is removed after the row is hidden. Every
+  read — list, metadata, text, download and extraction — then returns **404**.
+- Cross-company access is **404** on every one of these endpoints, not 403: a 403 would confirm the
+  document exists. The document is located before `If-Match` is read, so an omitted header cannot leak
+  existence either.
 
 ---
 
@@ -436,3 +461,7 @@ the community edition — S5/S10/S12 could use it).
 | **AC-A12** | `POST /documents/{id}/extract` returns `200` with the final state; a PDF with text becomes `Completed` and its stored `charCount` equals `length(content)` |
 | **AC-A13** | A PDF with no extractable text, or unreadable stored bytes, becomes `Failed` with a reason and creates **no** `document_text` row |
 | **AC-A14** | Re-extracting a `Completed` document and a fourth attempt both return `409`; `document.write` is required (`403`); another company's document is `404`; a failed attempt leaves no text behind |
+| **AC-A15** | `GET /documents` returns only the caller's company's documents and a `total` equal to the visible row count; a caller with no company sees none |
+| **AC-A16** | `GET /documents/{id}`, `/text`, `/download` and `DELETE` return `404` for another company's document; `/text` is `404` when no text exists; no response exposes `storage_path`, `checksum` or `uploaded_by` |
+| **AC-A17** | `GET /documents/{id}/download` returns the stored bytes (and `206` for a range) without a redirect, storage key or permanent URL |
+| **AC-A18** | `DELETE` requires the current `If-Match` (`400` missing, `409` stale, `204` success); a soft-deleted document is absent from the list and `404` everywhere, its object is removed, and its audit trail survives |
