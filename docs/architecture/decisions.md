@@ -449,6 +449,50 @@ land as a forward migration, not by editing applied migration files (constitutio
 
 ---
 
+---
+
+### ADR-026 — The public surface: allow-list projections, the `anon` database role, and news publication as a guarded transition *(T12)*
+**Context:** the schema already had `anon` policies and grants for published agreements, their clauses and
+news, but the API had no anonymous route. More importantly, an anonymous request ran with the *login's*
+privileges: `DatabaseSessionInterceptor` reset the role when no session was resolved, so the first public
+endpoint written the obvious way would have served drafts and bypassed every `anon` policy. News
+publication was also unguarded at the database: `news.write` is enough to UPDATE the row, so a writer
+without `news.publish` could publish with a direct statement. And the security model's AC-S10 had no
+implementation at all — no sanitiser existed anywhere in the API, so stored clause bodies were echoed raw.
+
+**Decision:**
+1. **Public reads are explicit projections.** Records, not serialised entities, for `/public/agreements`,
+   `/public/agreements/{id}`, `/public/news`, `/public/news/{id}` and the category list. The allow-list is
+   the type definition, so adding a field to the admin shape cannot leak it.
+2. **Anonymous data access runs on the `anon` role**, opted into by `ServesPublicData()`; the session
+   middleware sets the flag and the connection interceptor issues `set role anon`. Public handlers filter
+   by id or paging only — never by publication state — so the RLS policies are the guard and the leakage
+   test is meaningful. `AllowAnonymous()` alone does not switch the role: bootstrap is anonymous and needs
+   to write.
+3. **News publication is a database-guarded transition.** `app.guard_news_publication()` requires
+   `news.publish` on any state change, refuses an `INSERT` of a published article, and **assigns**
+   `published_by`/`published_at` on publish and clears them on unpublish — so the actor and the time are
+   the database's, not the caller's (T12 AC 3).
+4. **Rich text is sanitised on write with the allow-list library (A-33) and again in the public
+   projections.** The second pass exists because the portal may serve rows written before the rule. The
+   sanitiser is applied to clause bodies, annex bodies and news bodies, closing AC-S10 for the whole
+   product, not only for the new module.
+5. **News is not company-scoped.** The schema has no `company_id`, published news is public, and any
+   caller with `news.read` sees drafts. Categories are global reference data, created through
+   `POST /news/categories` because no legacy category rows were migrated.
+
+**Why not the alternatives:** serialising entities makes every future column a disclosure; enforcing the
+publication filter in the handler makes the `anon` policies decorative and lets a handler bug publish
+drafts; relying on the API capability lets a direct SQL statement publish; sanitising only at render makes
+the guarantee depend on every client; storing plain text loses legitimate legal formatting (A-33). The
+image columns stay out of the MVP: a public image would need a document download route, which is a
+disclosure decision nobody has taken.
+
+**Consequences:** one new dependency, `HtmlSanitizer` (the approach A-33 already accepted); `PatchField`
+moved from `Convenciones.Legal` to `Convenciones.Catalog`, so both modules share one partial-update type;
+the API login role must be allowed to `SET ROLE anon` (the `postgres`/`authenticator` logins Supabase uses are); agreement clause and annex bodies are now sanitised in T8's module, which is a security fix recorded here
+rather than a silent behaviour change. The public projections were verified field by field in
+`PublicApiTests`, and the database half in `constraint-tests` N1–N3 and `rls-tests` R41–R44.
 ## 5. Rejected alternatives
 
 | Alternative | Why rejected |
@@ -477,3 +521,4 @@ land as a forward migration, not by editing applied migration files (constitutio
 | 0.2 | ADR-015 annotated with what T10 implemented: the single labour statute is guarded by the partial unique index, `Kind` is immutable, and the article heading is mandatory while its classification stays optional (A-12). |
 | 0.3 | T10 review remediation: **ADR-023** records the two-headings rule so AC 3 and A-12 can both stand; **ADR-024** requires `comparison.read` **and** `statute.read` for the projection that returns statutory text; ADR-022 annotated with T10's query handler types and the remaining static-query exception. |
 | 0.4 | T11: **ADR-025** settles the negotiation state machine (create in `Open`, explicit transitions, read-only closure, atomic and terminal promotion, explicit petition outcomes), hardens `app.guard_case_promotion()` (INSERT, source state, capability, no re-pointing or clearing) and adds company scope to the six negotiation tables. INV-N1 stays unimplemented pending a decision. |
+| 0.5 | T12: **ADR-026** adds the public surface (allow-list projections, anonymous reads on the `anon` role), makes news publication a database-guarded transition that records its own actor and time, and applies A-33 sanitisation to clause, annex and news bodies. |

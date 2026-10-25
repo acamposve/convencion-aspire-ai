@@ -400,10 +400,22 @@ OCUPACIONAL) **[A-22]**.
 | `RoleCapability` | `(RoleId, CapabilityId)` unique | Legacy had no uniqueness (DS-04) |
 | `Document` | `Id`, `StoragePath`, `FileName`, `ContentType`, `SizeBytes`, `UploadedBy`, `UploadedAt`, `ExtractionStatus` | §7 of solution architecture |
 | `AuditEntry` | `Id`, `OccurredAt`, `ActorId`, `Module`, `EntityType`, `EntityId`, `Action`, `Changes jsonb` | Replaces the login log that never existed (DS-32) |
-| `NewsArticle` | `Id`, `Title`, `Summary`, `Body`, `State`, `PublishedAt?`, `CategoryId`, `Images` | |
+| `NewsArticle` | `Id`, `Title`, `Summary`, `Body`, `State`, `PublishedAt?`, `PublishedBy?`, `CategoryId` | Images stay out of the MVP: a public image needs a document download route (ADR-026) |
 
 ---
 
+### 3.7 `NewsArticle` / `NewsCategory`
+
+| ID | Invariant | Where enforced |
+|---|---|---|
+| INV-P1 | An article is `Published` if and only if `published_at` and `published_by` are set | database CHECK + `app.guard_news_publication()` |
+| INV-P2 | An article is created as `Draft`; only the publish operation changes the state, and it requires `news.publish` | `NewsArticle.Create`/`Publish` + the database guard |
+| INV-P3 | `published_by` and `published_at` are the database's values, never the caller's | `app.guard_news_publication()` assigns them |
+| INV-P4 | The body is sanitised rich text (A-33) | `RichText.Clean` on write, `RichText.Sanitize` again in the public projection |
+| INV-P5 | A category name is unique case-insensitively | `news_category_name_key` |
+
+`NewsCategory` is reference data: global, no company, read by the portal and written by administrators
+through `POST /news/categories` (no legacy category rows were migrated).
 ## 4. Application services (use-case catalogue)
 
 Each is a class with one public method returning `Result<T>`. No mediator, no dispatcher — endpoints
@@ -509,6 +521,18 @@ stateDiagram-v2
 
 ---
 
+### 5.4 `NewsArticle` publication
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft: Create()
+    Draft --> Published: Publish() · requires news.publish · the database assigns actor + time
+    Published --> Draft: Unpublish() · clears actor + time · public reads stop returning it
+```
+
+Publication is the only transition, it is guarded by `news.publish` in the API **and** by
+`app.guard_news_publication()` in the database, and an article cannot be inserted already published.
+Unpublishing keeps the row and its edit history; only the state and the publication columns change.
 ## 6. Cross-module contract: promotion
 
 The one place where two aggregates from different modules must change together.

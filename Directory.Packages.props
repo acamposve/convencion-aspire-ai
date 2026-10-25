@@ -23,6 +23,12 @@
     <PackageVersion Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
 
+  <ItemGroup Label="Rich text">
+    <!-- A-33: rich text is sanitised on write with a maintained allow-list library, not a
+         hand-rolled filter. MIT. Used for clause, annex and news bodies. -->
+    <PackageVersion Include="HtmlSanitizer" Version="9.2.1039" />
+  </ItemGroup>
+
   <ItemGroup Label="Identity">
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
   </ItemGroup>

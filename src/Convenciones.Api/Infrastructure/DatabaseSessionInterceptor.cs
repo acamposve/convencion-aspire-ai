@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 namespace Convenciones.Api.Infrastructure;
 
 /// <summary>
-/// Makes the database connection carry the authenticated caller's claims.
+/// Makes the database connection carry the caller's claims and the role the request must run as.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -17,20 +17,24 @@ namespace Convenciones.Api.Infrastructure;
 /// of what the API believed the caller could do.
 /// </para>
 /// <para>
-/// The interceptor switches the connection to <c>app_api</c> as well, so the database policies apply
-/// instead of being bypassed by a privileged login. Both values are written on <em>every</em> open:
-/// a session sets the claims and the role, an operation without a session resets both. A pooled
-/// connection therefore cannot carry one caller's claims into another caller's query, even if the
-/// provider's own pool reset did not run.
+/// The interceptor switches the connection's role as well, so the database policies apply instead of
+/// being bypassed by a privileged login. Both values are written on <em>every</em> open: a session sets
+/// the claims and <c>app_api</c>, a public request sets <c>anon</c>, and anything else resets both. A
+/// pooled connection therefore cannot carry one caller's identity into another caller's query.
+/// </para>
+/// <para>
+/// The <c>anon</c> role is opt-in through <see cref="PublicDataAttribute"/>: an anonymous endpoint that
+/// did not declare public data (the bootstrap endpoint, for example) keeps the login's privileges. That
+/// distinction matters, because "anonymous" describes the caller, not what the request may read.
 /// </para>
 /// </remarks>
 public sealed class DatabaseSessionInterceptor(ISessionAccessor accessor) : DbConnectionInterceptor
 {
     private const string ApiRole = "app_api";
 
-    private const string ClaimsSql = "select set_config('request.jwt.claims', @claims, false)";
+    private const string PublicRole = "anon";
 
-    private const string RoleSql = $"set role {ApiRole}";
+    private const string ClaimsSql = "select set_config('request.jwt.claims', @claims, false)";
 
     public override void ConnectionOpened(DbConnection connection, ConnectionEndEventData eventData)
     {
@@ -52,7 +56,7 @@ public sealed class DatabaseSessionInterceptor(ISessionAccessor accessor) : DbCo
         var session = accessor.Session;
 
         Execute(connection, ClaimsSql, session is null ? string.Empty : Claims(session));
-        Execute(connection, session is null ? "reset role" : RoleSql, null);
+        Execute(connection, RoleCommand(session, accessor.UseAnonymousDatabaseRole), null);
     }
 
     private async Task ApplyAsync(DbConnection connection, CancellationToken cancellationToken)
@@ -65,9 +69,22 @@ public sealed class DatabaseSessionInterceptor(ISessionAccessor accessor) : DbCo
             session is null ? string.Empty : Claims(session),
             cancellationToken).ConfigureAwait(false);
 
-        await ExecuteAsync(connection, session is null ? "reset role" : RoleSql, null, cancellationToken)
-            .ConfigureAwait(false);
+        await ExecuteAsync(
+            connection,
+            RoleCommand(session, accessor.UseAnonymousDatabaseRole),
+            null,
+            cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// An authenticated session runs as <c>app_api</c>; an anonymous request that declared public data
+    /// runs as <c>anon</c>, so the public policies are the only thing between it and a draft; anything
+    /// else resets the role.
+    /// </summary>
+    private static string RoleCommand(SessionContext? session, bool useAnonymousRole) =>
+        session is not null
+            ? $"set role {ApiRole}"
+            : useAnonymousRole ? $"set role {PublicRole}" : "reset role";
 
     private static string Claims(SessionContext session) =>
         JsonSerializer.Serialize(new

@@ -432,15 +432,51 @@ would be a new business rule. It is therefore **not enforced** yet; the decision
 | Method | Path | Cap | Purpose |
 |---|---|---|---|
 | `GET` | `/public/agreements` | `[public]` | Published agreements, paged |
-| `GET` | `/public/agreements/{id}` | `[public]` | Published agreement + clauses; `404` if unpublished |
-| `GET` | `/public/news` · `/public/news/{id}` | `[public]` | |
+| `GET` | `/public/agreements/{id}` | `[public]` | Published agreement + clauses + annexes; `404` if unpublished |
+| `GET` | `/public/news` · `/public/news/{id}` | `[public]` | Published news, paged / detail; `404` if unpublished |
+| `GET` | `/public/news/categories` | `[public]` | Active categories, for the portal navigation |
 | `GET` `POST` | `/news` | `news.read` / `.write` | Admin list / create |
-| `PATCH` | `/news/{id}` | `news.write` | |
-| `POST` | `/news/{id}/publish` · `/unpublish` | `news.publish` | |
+| `GET` | `/news/{id}` | `news.read` | Admin detail, drafts included |
+| `PATCH` | `/news/{id}` | `news.write` | Partial update |
+| `POST` | `/news/{id}/publish` · `/unpublish` | `news.publish` | Draft → Published / Published → Draft |
+| `GET` `POST` | `/news/categories` | `news.read` / `.write` | Category list (all) / create |
 
-The public endpoints are the **only** anonymous surface besides `/reference/*` and bootstrap. They
-return a projection that omits internal identifiers, publisher identity and any draft data.
+**The public surface is an allow-list, not a serialised entity.** The projections are explicit record
+types; a field added to the admin shape cannot reach the portal by accident. They contain:
 
+- agreement summary: `id`, `title` (composed, never stored), `companyName`, `validFrom`, `validTo`,
+  `scope`, `publishedAt`;
+- agreement detail: the same plus `clauses[{number, title, summary, body}]` and
+  `annexes[{name, description, body}]`;
+- news summary: `id`, `title`, `summary`, `categoryName`, `publishedAt`; detail adds `body`.
+
+No `companyId`, no internal identifiers beyond the resource id, no publisher identity, no audit columns,
+no heading or document ids, no storage paths, no draft content. A draft agreement read by id is **404**,
+indistinguishable from one that does not exist (AC-S7).
+
+**Anonymous reads run on the `anon` database role.** The routes declare `AllowAnonymous()` *and*
+`ServesPublicData()`. The second is what makes the request's connection run as `anon`, so the public RLS
+policies are the filter and the handlers need no publication predicate. An endpoint that is merely
+anonymous — bootstrap — keeps the login's privileges, because "anonymous" describes the caller, not what
+the request may read.
+
+**News publication is a privileged transition.** `POST /news/{id}/publish` requires `news.publish`;
+without it **403**, and `app.guard_news_publication()` refuses the same UPDATE with `42501` even for the
+API role. The database assigns `published_by` and `published_at` itself — the request has no such fields
+(T12 AC 3) — and clears them on unpublish, because the table's consistency CHECK requires exactly that.
+A news article is always created as a draft — the create route has no state field — and a direct
+`INSERT` of a published row is refused by the guard. Unpublishing removes the article from every public
+read immediately.
+
+**Rich text is sanitised twice.** On write, with the allow-list library (A-33, AC-S10), and again in the
+public projections, because the portal may serve rows written before that rule existed. Scripts, event
+handlers, `javascript:` URLs, images and inline styles are removed; formatting and `http`/`https`/`mailto`
+links survive, and links get `rel="nofollow noopener noreferrer"`.
+
+**News is not company-scoped.** The schema has no `company_id` on `news_article` or `news_category`,
+because published news is public. Any caller holding `news.read` sees every article, including drafts;
+`news.write` edits, `news.publish` publishes. Categories are global reference data; the create route
+enforces the case-insensitive unique name (**409**).
 ### 4.8 Documents and audit
 
 | Method | Path | Cap | Purpose |
