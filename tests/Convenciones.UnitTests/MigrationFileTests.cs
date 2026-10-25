@@ -32,6 +32,7 @@ public sealed class MigrationFileTests
         "20260101001000_rls_policies.sql",
         "20260102000000_align_product_decisions.sql",
         "20260102000100_document_processing.sql",
+        "20260103000000_document_pdf_only.sql",
     ];
 
     [Fact]
