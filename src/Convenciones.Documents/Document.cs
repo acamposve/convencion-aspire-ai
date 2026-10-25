@@ -1,0 +1,80 @@
+using Convenciones.Catalog;
+
+namespace Convenciones.Documents;
+
+/// <summary>
+/// A stored document. Mirrors <c>platform.document</c>.
+/// </summary>
+public sealed class Document : IAuditable
+{
+    private Document()
+    {
+    }
+
+    public Guid Id { get; private set; }
+
+    /// <summary>Server-generated. Never the client filename.</summary>
+    public string StoragePath { get; private set; } = string.Empty;
+
+    /// <summary>Metadata only. Never used as a path.</summary>
+    public string FileName { get; private set; } = string.Empty;
+
+    public string ContentType { get; private set; } = string.Empty;
+
+    public long SizeBytes { get; private set; }
+
+    public string? ChecksumSha256 { get; private set; }
+
+    public Guid? UploadedBy { get; private set; }
+
+    public Guid? CompanyId { get; private set; }
+
+    /// <summary>
+    /// Processing status. Not mapped: T4 only creates documents, so the column keeps its database
+    /// default (<c>NotRequested</c>). Writing and reading it needs the PostgreSQL enum mapped — see
+    /// the blocked-mapping note in docs/tasks/task-04-document-upload.md.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public ExtractionStatus ExtractionStatus => ExtractionStatus.NotRequested;
+
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    public string AuditModule => "documents";
+
+    public string AuditEntityType => "document";
+
+    public string AuditEntityId => Id.ToString();
+
+    public static Document Register(
+        Guid id,
+        string storagePath,
+        string fileName,
+        long sizeBytes,
+        string checksumSha256,
+        Guid uploadedBy,
+        Guid companyId) =>
+        new()
+        {
+            Id = id,
+            StoragePath = storagePath,
+            FileName = fileName,
+            ContentType = "application/pdf",
+            SizeBytes = sizeBytes,
+            ChecksumSha256 = checksumSha256,
+            UploadedBy = uploadedBy,
+            CompanyId = companyId,
+
+        };
+}
+
+/// <summary>
+/// Produces the storage key. Server-generated, derived from the company and a new document id, so no
+/// client-supplied text can reach a path.
+/// </summary>
+public static class DocumentKeys
+{
+    public static string For(Guid companyId, Guid documentId, DateTimeOffset now) =>
+        string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{companyId:N}/{now:yyyy}/{now:MM}/{documentId:N}.pdf");
+}

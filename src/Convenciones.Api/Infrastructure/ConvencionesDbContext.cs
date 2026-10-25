@@ -1,4 +1,5 @@
 using Convenciones.Catalog;
+using Convenciones.Documents;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Infrastructure;
@@ -21,15 +22,19 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
+    public DbSet<Document> Documents => Set<Document>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
         modelBuilder.HasDefaultSchema("app");
 
+
         // Catalog owns app.company. Later modules register their own configurations the same way.
         modelBuilder.ApplyConfiguration(new CompanyConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new DocumentConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

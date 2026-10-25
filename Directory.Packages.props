@@ -27,6 +27,12 @@
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
   </ItemGroup>
 
+  <ItemGroup Label="Documents">
+    <!-- Structural PDF validation (T4) and text extraction (T5) use the same parser, so the two
+         cannot disagree about what a valid PDF is. Apache-2.0, managed, no native dependency. -->
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
+  </ItemGroup>
+
   <ItemGroup Label="Observability (ServiceDefaults)">
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
