@@ -354,7 +354,7 @@ geography and links tables (DS-30).
 | Agreement published / unpublished | actor, timestamp, previous state |
 | Clause created / updated / removed / reclassified | actor, clause number, changed field names |
 | Agreement annex added / removed | actor |
-| Negotiation state transitions (open/close/reopen/promote) | actor, from → to |
+| Negotiation state transitions (open/close/reopen/promote) | actor, from → to. Promotion keeps the case `Closed`, so its row carries the link in `changes` and no from/to pair |
 | Petition state change | actor |
 | Statute / statute article create / update / delete | actor |
 | User created / blocked / roles changed | actor, target |
