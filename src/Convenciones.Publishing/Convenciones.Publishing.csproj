@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Convenciones.Publishing</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Convenciones.Agreements\Convenciones.Agreements.csproj" />
+    <ProjectReference Include="..\Convenciones.Catalog\Convenciones.Catalog.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Convenciones.IntegrationTests" />
+    <InternalsVisibleTo Include="Convenciones.UnitTests" />
+  </ItemGroup>
+
+</Project>

@@ -3,6 +3,7 @@ using Convenciones.Catalog;
 using Convenciones.Documents;
 using Convenciones.Legal;
 using Convenciones.Negotiation;
+using Convenciones.Publishing;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Infrastructure;
@@ -57,6 +58,11 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<MeetingAgreement> MeetingAgreements => Set<MeetingAgreement>();
 
+    // Publishing: news is global (no company) because published news is public.
+    public DbSet<NewsArticle> NewsArticles => Set<NewsArticle>();
+
+    public DbSet<NewsCategory> NewsCategories => Set<NewsCategory>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -88,6 +94,10 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         modelBuilder.ApplyConfiguration(new EmployerOfferConfiguration());
         modelBuilder.ApplyConfiguration(new NegotiationMeetingConfiguration());
         modelBuilder.ApplyConfiguration(new MeetingAgreementConfiguration());
+
+        // Publishing owns app.news_article and app.news_category.
+        modelBuilder.ApplyConfiguration(new NewsArticleConfiguration());
+        modelBuilder.ApplyConfiguration(new NewsCategoryConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

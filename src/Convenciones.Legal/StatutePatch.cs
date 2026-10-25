@@ -1,3 +1,5 @@
+using Convenciones.Catalog;
+
 namespace Convenciones.Legal;
 
 /// <summary>The values a partial statute update resolves to: sent fields replaced, omitted ones kept.</summary>

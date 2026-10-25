@@ -586,6 +586,42 @@ begin
     end;
 end $$;
 
+-- --- F. publishing (T12) -------------------------------------------------------------------------
+
+-- The news publication guard: an article is created as a draft, and changing the publication state
+-- requires news.publish even for the API role.
+do $$
+declare
+    category uuid;
+begin
+    insert into app.news_category (name) values ('T12 constraint category') returning id into category;
+
+    begin
+        insert into app.news_article (category_id, title, body, state, published_at, published_by)
+        values (category, 'Título', 'Cuerpo', 'Published', now(),
+                '20000000-0000-0000-0000-000000000001');
+        raise notice 'FAIL: N1 a news article was inserted already published';
+    exception when invalid_parameter_value then
+        raise notice 'PASS: N1 a news article is created as a draft (T12 guard)';
+    end;
+
+    insert into app.news_article (category_id, title, body) values (category, 'Título', 'Cuerpo');
+
+    begin
+        update app.news_article set state = 'Published' where category_id = category;
+        raise notice 'FAIL: N2 publishing without news.publish was accepted';
+    exception when insufficient_privilege then
+        raise notice 'PASS: N2 publishing requires news.publish at the database';
+    end;
+
+    begin
+        update app.news_article set state = 'Draft' where category_id = category and state = 'Published';
+        raise notice 'PASS: N3 a no-op state write on a draft is not a transition';
+    exception when insufficient_privilege then
+        raise notice 'FAIL: N3 a no-op state write was treated as a transition';
+    end;
+end $$;
+
 rollback;
 
 \echo ''
