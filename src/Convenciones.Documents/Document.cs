@@ -36,6 +36,18 @@ public sealed class Document : IAuditable
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>When the object was accepted into storage. The list is ordered by this column.</summary>
+    public DateTimeOffset UploadedAt { get; private set; }
+
+    /// <summary>
+    /// Soft delete marker. A non-null value makes the document invisible to every read, including
+    /// download and text retrieval; the row and its audit trail remain.
+    /// </summary>
+    public DateTimeOffset? DeletedAt { get; private set; }
+
+    /// <summary>Row version (PostgreSQL <c>xmin</c>), used as the optimistic concurrency token.</summary>
+    public uint RowVersion { get; private set; }
+
     public int ExtractionAttempts { get; private set; }
 
     public DateTimeOffset? ExtractionStartedAt { get; private set; }
@@ -74,6 +86,20 @@ public sealed class Document : IAuditable
 
     public void SetExtractionStatus(ExtractionStatus status) => ExtractionStatus = status;
 
+    /// <summary>
+    /// Marks the document deleted without removing the row. The bytes are removed separately by the
+    /// caller; the record and its audit trail stay for history.
+    /// </summary>
+    public void SoftDelete(DateTimeOffset now)
+    {
+        if (DeletedAt is not null)
+        {
+            throw new InvalidOperationException("The document is already deleted.");
+        }
+
+        DeletedAt = now;
+    }
+
     public string AuditModule => "documents";
 
     public string AuditEntityType => "document";
@@ -87,7 +113,8 @@ public sealed class Document : IAuditable
         long sizeBytes,
         string checksumSha256,
         Guid uploadedBy,
-        Guid companyId) =>
+        Guid companyId,
+        DateTimeOffset uploadedAt) =>
         new()
         {
             Id = id,
@@ -98,7 +125,8 @@ public sealed class Document : IAuditable
             ChecksumSha256 = checksumSha256,
             UploadedBy = uploadedBy,
             CompanyId = companyId,
-
+            CreatedAt = uploadedAt,
+            UploadedAt = uploadedAt,
         };
 }
 

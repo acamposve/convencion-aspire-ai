@@ -87,7 +87,14 @@ public sealed class DocumentsFixture : IAsyncLifetime
             insert into platform.user_account (id, email, display_name, is_blocked, expires_on) values
                 ('b1000000-0000-0000-0000-000000000001', 'docs.a@example.test', 'Docs Editor A', false, null),
                 ('b1000000-0000-0000-0000-000000000002', 'docs.b@example.test', 'Docs Editor B', false, null),
-                ('b1000000-0000-0000-0000-000000000003', 'docs.n@example.test', 'Docs Reader',   false, null);
+                ('b1000000-0000-0000-0000-000000000003', 'docs.n@example.test', 'Docs Reader',   false, null),
+                -- Read-only and deliberately without a company profile: the list must fail closed
+                -- rather than treat "no company" as "all companies".
+                ('b1000000-0000-0000-0000-000000000004', 'docs.nc@example.test', 'Docs No Company', false, null),
+                -- Holds no capability at all, which is the 403 side of the retrieval matrix.
+                ('b1000000-0000-0000-0000-000000000005', 'docs.nr@example.test', 'Docs No Read', false, null),
+                -- Holds company.read_all, which must widen the document list across companies.
+                ('b1000000-0000-0000-0000-000000000006', 'docs.admin@example.test', 'Docs Admin', false, null);
 
             insert into platform.user_role (user_id, role_id)
             select u.id, r.id
@@ -100,12 +107,26 @@ public sealed class DocumentsFixture : IAsyncLifetime
             select u.id, r.id
             from platform.user_account u
             join platform.role r on r.key = 'negotiator'
-            where u.id = 'b1000000-0000-0000-0000-000000000003';
+            where u.id in ('b1000000-0000-0000-0000-000000000003',
+                           'b1000000-0000-0000-0000-000000000004');
+
+            insert into platform.user_role (user_id, role_id)
+            select u.id, r.id
+            from platform.user_account u
+            join platform.role r on r.key = 'analyst'
+            where u.id = 'b1000000-0000-0000-0000-000000000005';
+
+            insert into platform.user_role (user_id, role_id)
+            select u.id, r.id
+            from platform.user_account u
+            join platform.role r on r.key = 'administrator'
+            where u.id = 'b1000000-0000-0000-0000-000000000006';
 
             insert into platform.user_profile (user_id, company_id) values
                 ('b1000000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001'),
                 ('b1000000-0000-0000-0000-000000000002', 'b2000000-0000-0000-0000-000000000002'),
-                ('b1000000-0000-0000-0000-000000000003', 'b2000000-0000-0000-0000-000000000001');
+                ('b1000000-0000-0000-0000-000000000003', 'b2000000-0000-0000-0000-000000000001'),
+                ('b1000000-0000-0000-0000-000000000006', 'b2000000-0000-0000-0000-000000000001');
             """;
 
         await using var connection = new NpgsqlConnection(ConnectionString);
