@@ -22,7 +22,7 @@ run, the file says so.
 
 ## The plan
 
-18 tasks. The MVP is complete when T1–T14 are done and T15–T18 have made it operable, safe and
+19 tasks. The MVP is complete when T1–T14 are done and T15–T19 have made it operable, safe and
 deployable.
 
 ### Phase A — Security foundation *(nothing ships before this)*
@@ -61,7 +61,8 @@ deployable.
 | T15 | [CI pipeline](task-15-ci.md) | T2 | planned |
 | T16 | [Legacy removal and credential rotation](task-16-legacy-removal.md) | — · **needs approval** | planned |
 | T17 | [Aspire investigation](task-17-aspire-investigation.md) | — | planned |
-| T18 | [Production readiness](task-18-production-readiness.md) | T14, T15 · **needs approval** | planned |
+| T18 | [Deployment](task-18-deployment.md) | T3, T7, T15 · **needs decisions + approval** | planned |
+| T19 | [Operations: keep it running](task-19-production-readiness.md) | T18 | planned |
 
 ---
 
@@ -76,6 +77,11 @@ T1 (done) → T2 → T3 → T4 → T5 → T6 → T7    ← first usable product
 
 T15, T16 and T17 are independent and can run in parallel with any of it. **T16 should not wait** — the
 credentials are exposed today.
+
+**T18 is the answer to "when do you need Supabase?"** Sign-in (T7) needs a real project to be
+*demonstrable*; deployment needs it outright. The complete list of what is required, and how sensitive
+each item is, is in [task-18 §2](task-18-deployment.md). T3–T6 keep running on the disposable container
+and the local storage adapter, so nothing before T7 is blocked on it.
 
 ## Definition of done for the MVP
 
@@ -94,7 +100,8 @@ credentials are exposed today.
 | Decision | Blocks | Question |
 |---|---|---|
 | **Q-4 interpretation** | T11 | Is `Agreed` the terminal state before promotion, or does promotion happen from `Closed`? The schema currently enforces "promotion implies `Closed`" |
-| **Supabase project** | T18, and the production storage adapter in T4 | Provision it now, or keep the local adapter until production readiness? |
+| **Supabase project** | T7 (demonstration), T18 (deployment), production storage in T4 | Credentials and plan tier are listed in [task-18 §2–3](task-18-deployment.md). The local adapter keeps T3–T6 runnable without it |
+| **Hosting, environments, domain, plan tier** | T18 | Five decisions in [task-18 §3](task-18-deployment.md) — cost and ownership choices, not technical ones |
 | **Legacy removal** | T16 | Remove the tree and dump, or keep them out of the build only? Removing is irreversible for the dump |
 | **CI enforcement** | T15 | Branch protection is unavailable on a private repo on the Free plan (HTTP 403). Upgrade, or accept the local hook as the only gate |
 
