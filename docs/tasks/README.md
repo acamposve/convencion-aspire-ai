@@ -40,7 +40,7 @@ deployable.
 | T4 | [Document upload and private storage](task-04-document-upload.md) | T3 | planned |
 | T5 | [Document processing and extraction](task-05-document-processing.md) | T4 | **implemented** (#18) |
 | T6 | [Document retrieval API](task-06-document-retrieval.md) | T5 | **implemented** (#19) |
-| T7 | [Web: authentication and document workflow](task-07-web-documents.md) | T6 | planned |
+| T7 | [Web: authentication and document workflow](task-07-web-documents.md) | T6 | **implemented** (#20) |
 
 ### Phase C — The business domain *(F-01 … F-16)*
 
@@ -113,3 +113,4 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T1 | [task-01](task-01-document-isolation.md) | Two migrations, 32 + 30 assertions green, tenant rule corrected to `company.read_all` |
 | T5 | [task-05](task-05-document-processing.md) | Synchronous extraction (`200`, not `202`) with 9 acceptance tests; the async design is recorded as deferred, not omitted |
 | T6 | [task-06](task-06-document-retrieval.md) | Company-scoped list, metadata, text, streamed range download and `If-Match` soft delete; 13 acceptance tests |
+| T7 | [task-07](task-07-web-documents.md) | Vite/React/MUI document workflow: memory-only Supabase session, honest synchronous processing, retry and text viewer; 44 web tests |

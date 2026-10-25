@@ -47,6 +47,11 @@ public sealed class DocumentRetrievalTests(DocumentsFixture fixture)
         var second = await UploadAsync(editorA, PdfSamples.TextPdf(), "listado-a-2.pdf");
         var companyB = await UploadAsync(editorB, PdfSamples.TextPdf(), "listado-b.pdf");
 
+        // The documents screen shows why a document failed without a request per row, so the list
+        // projection carries the server-authored error.
+        var failed = await UploadAsync(editorA, PdfSamples.BlankPdf(), "listado-fallido.pdf");
+        (await ExtractAsync(editorA, failed.Id)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
         var idsA = await ActiveDocumentIdsAsync(CompanyA);
         var idsB = await ActiveDocumentIdsAsync(CompanyB);
 
@@ -69,6 +74,10 @@ public sealed class DocumentRetrievalTests(DocumentsFixture fixture)
         listed.ShouldContain(second.Id);
         listed.ShouldNotContain(companyB.Id, "company B's document must not appear in company A's list");
         listed.ShouldNotContain(id => idsB.Contains(id));
+
+        var failedSummary = page.Items.Single(item => item.Id == failed.Id);
+        failedSummary.ExtractionStatus.ShouldBe("Failed");
+        failedSummary.ExtractionError.ShouldNotBeNullOrWhiteSpace();
 
         var summary = page.Items.Single(item => item.Id == first.Id);
         summary.FileName.ShouldBe("listado-a-1.pdf");
