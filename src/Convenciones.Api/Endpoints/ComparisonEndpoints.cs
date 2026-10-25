@@ -3,6 +3,7 @@ using Convenciones.Api.Infrastructure;
 using Convenciones.Catalog;
 using Convenciones.Comparison;
 using Convenciones.Identity;
+using Convenciones.Legal;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Endpoints;
@@ -186,6 +187,16 @@ public static class ComparisonEndpoints
             return NotFoundHeading(headingId);
         }
 
+        // The legal side of the workspace: every statute article classified under this heading.
+        // Statutes are company-independent reference data, so this query carries no company filter —
+        // that is the deliberate difference from the agreements beside it. An excluded heading yields
+        // no statute articles either, exactly as it yields no clauses.
+        var statuteArticles = heading.IsExcluded
+            ? new StatuteArticlePage([], 0)
+            : await StatuteQueries
+                .ForComparisonAsync(db.StatuteArticles, db.Statutes, headingId, cancellationToken)
+                .ConfigureAwait(false);
+
         var agreements = await db.Agreements
             .AsNoTracking()
             .Include(agreement => agreement.Clauses)
@@ -265,7 +276,18 @@ public static class ComparisonEndpoints
 
         return Results.Ok(new ComparisonView(
             heading,
-            [],
+            statuteArticles.Items
+                .Select(row => new ComparisonStatuteArticleView(
+                    row.StatuteId,
+                    row.StatuteName,
+                    row.StatuteKind,
+                    row.ArticleId,
+                    row.Number,
+                    row.Title,
+                    row.Body,
+                    row.EconomicComparisonNote))
+                .ToArray(),
+            statuteArticles.Total,
             views,
             unpublishedRequested,
             page,

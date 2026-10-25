@@ -1,6 +1,7 @@
 using Convenciones.Agreements;
 using Convenciones.Catalog;
 using Convenciones.Documents;
+using Convenciones.Legal;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Infrastructure;
@@ -37,6 +38,11 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<ComparisonHeadingGroup> ComparisonHeadingGroups => Set<ComparisonHeadingGroup>();
 
+    // The legal library. Company-independent reference data: no company column, by design.
+    public DbSet<Statute> Statutes => Set<Statute>();
+
+    public DbSet<StatuteArticle> StatuteArticles => Set<StatuteArticle>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -56,6 +62,10 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         modelBuilder.ApplyConfiguration(new AgreementAnnexConfiguration());
         modelBuilder.ApplyConfiguration(new ComparisonHeadingGroupConfiguration());
         modelBuilder.ApplyConfiguration(new ComparisonHeadingConfiguration());
+
+        // Legal owns app.statute and app.statute_article.
+        modelBuilder.ApplyConfiguration(new StatuteConfiguration());
+        modelBuilder.ApplyConfiguration(new StatuteArticleConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

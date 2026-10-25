@@ -3,6 +3,7 @@ using Convenciones.Api.Endpoints;
 using Convenciones.Api.Infrastructure;
 using Convenciones.Documents;
 using Convenciones.Identity;
+using Convenciones.Legal;
 using Convenciones.ServiceDefaults;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
@@ -43,7 +44,8 @@ builder.Services.AddScoped<DatabaseSessionInterceptor>();
 builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) => options
     .UseNpgsql(connectionString, npgsql => npgsql
         .MapEnum<ExtractionStatus>("extraction_status", "platform", ExactNameTranslator.Instance)
-        .MapEnum<PublicationState>("publication_state", "app", ExactNameTranslator.Instance))
+        .MapEnum<PublicationState>("publication_state", "app", ExactNameTranslator.Instance)
+        .MapEnum<StatuteKind>("statute_kind", "app", ExactNameTranslator.Instance))
     .AddInterceptors(
         serviceProvider.GetRequiredService<AuditInterceptor>(),
         serviceProvider.GetRequiredService<DatabaseSessionInterceptor>()));
@@ -79,6 +81,17 @@ if (string.IsNullOrWhiteSpace(storageRoot))
 }
 
 builder.Services.AddSingleton<IDocumentStorage>(_ => new LocalDocumentStorage(storageRoot));
+
+// ---- Legal library ------------------------------------------------------------------------------
+// Statutes are company-independent reference data. The module owns its commands and queries; it
+// reaches persistence only through IStatuteStore, implemented here, so it never sees the DbContext.
+builder.Services.AddScoped<IStatuteStore, StatuteStore>();
+builder.Services.AddScoped<CreateStatuteHandler>();
+builder.Services.AddScoped<UpdateStatuteHandler>();
+builder.Services.AddScoped<AddStatuteArticleHandler>();
+builder.Services.AddScoped<UpdateStatuteArticleHandler>();
+builder.Services.AddScoped<DeleteStatuteArticleHandler>();
+
 
 // ---- CORS ---------------------------------------------------------------------------------------
 // No wildcard and no default origin: the browser client is served from a known host, and a policy of
@@ -126,6 +139,7 @@ app.MapDocumentExtractionEndpoints();
 app.MapAgreementEndpoints();
 app.MapComparisonHeadingEndpoints();
 app.MapComparisonEndpoints();
+app.MapStatuteEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is
