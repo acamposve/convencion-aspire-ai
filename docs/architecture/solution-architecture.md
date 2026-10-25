@@ -312,7 +312,8 @@ omission, and follows from the requirements:
 
 | Candidate async work | Why it is not needed in the MVP |
 |---|---|
-| PDF text extraction | Deferred to FUT-01; MVP clause entry is manual |
+| PDF text extraction | **Synchronous in the request (T5).** The text layer of a ≤ 20 MiB PDF is extracted in-process; the endpoint returns `200` with the final state rather than `202` plus a poll |
+| Clause parsing/classification (FUT-01) | Deferred; MVP clause entry is manual |
 | Comparison document export | Browser print in MVP (R2-04) |
 | Notifications | No requirement exists |
 | Bulk import | Not in MVP (R2-07) |
@@ -320,11 +321,15 @@ omission, and follows from the requirements:
 Everything in W1 and W2 completes within one HTTP request. Adding a broker now would be the exact
 "unnecessary complexity" the constitution forbids (Art. IV.5).
 
-**The seam for later**, recorded so it is not designed twice: document extraction (FUT-01) is the
-first genuinely asynchronous workload. The designed path is
+**The seam for later**, recorded so it is not designed twice: document extraction (FUT-01, including
+OCR and AI classification) is the first genuinely asynchronous workload. The designed path is
 `Document` uploaded → `POST /documents/{id}/extract` returns `202 Accepted` with an extraction id →
-the SPA polls `GET /documents/{id}/extraction`. The MVP stores an `ExtractionStatus` column on
-`Document` (unused, `NotRequested`) so the state model exists without the machinery. **[A-10]**
+the SPA polls `GET /documents/{id}/extraction`. **T5 deliberately does not use that shape yet:** the
+text extraction it ships runs synchronously and answers `200 OK` with the final state, because returning
+`202` for work already finished would misreport the document (see
+[task-05 §2](../tasks/task-05-document-processing.md#2-architecture-decision-synchronous-extraction-200-ok)
+and ADR-018). The state model and the status endpoint are in place, so moving to `202` later changes the
+trigger's response, not the data model. **[A-10]**
 
 ---
 

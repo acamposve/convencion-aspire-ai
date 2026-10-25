@@ -38,7 +38,7 @@ deployable.
 | # | Task | Depends on | Status |
 |---|---|---|---|
 | T4 | [Document upload and private storage](task-04-document-upload.md) | T3 | planned |
-| T5 | [Document processing and extraction](task-05-document-processing.md) | T4 | planned |
+| T5 | [Document processing and extraction](task-05-document-processing.md) | T4 | **implemented** (#18) |
 | T6 | [Document retrieval API](task-06-document-retrieval.md) | T5 | planned |
 | T7 | [Web: authentication and document workflow](task-07-web-documents.md) | T6 | planned |
 
@@ -111,3 +111,4 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 |---|---|---|
 | T0 | audit of `92dfa3d` | `NOT RELEASABLE` — 8 blocking, 5 high findings ([report](../operations/release-readiness-audit.md)) |
 | T1 | [task-01](task-01-document-isolation.md) | Two migrations, 32 + 30 assertions green, tenant rule corrected to `company.read_all` |
+| T5 | [task-05](task-05-document-processing.md) | Synchronous extraction (`200`, not `202`) with 9 acceptance tests; the async design is recorded as deferred, not omitted |

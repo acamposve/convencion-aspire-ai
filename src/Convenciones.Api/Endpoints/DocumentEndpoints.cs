@@ -13,7 +13,7 @@ namespace Convenciones.Api.Endpoints;
 /// the contract. The order of checks matters: nothing reaches storage until the bytes have been proven
 /// to be a PDF and the caller has been proven to have a company.
 /// </remarks>
-public static class DocumentEndpoints
+public static partial class DocumentEndpoints
 {
     /// <summary>20 MiB, exactly the value of the <c>document_size_within_limit</c> constraint.</summary>
     public const long MaxDocumentBytes = 20L * 1024 * 1024;

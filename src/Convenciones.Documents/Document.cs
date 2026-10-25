@@ -36,7 +36,42 @@ public sealed class Document : IAuditable
 
     public DateTimeOffset CreatedAt { get; private set; }
 
-    /// <summary>Moves the document to a new processing state. T5 owns the legal transitions.</summary>
+    public int ExtractionAttempts { get; private set; }
+
+    public DateTimeOffset? ExtractionStartedAt { get; private set; }
+
+    public DateTimeOffset? ExtractionCompletedAt { get; private set; }
+
+    public string? ExtractionError { get; private set; }
+
+    /// <summary>Starts an attempt. Called only after the retry limit has been checked.</summary>
+    public void BeginExtraction(DateTimeOffset now)
+    {
+        ExtractionAttempts++;
+        ExtractionStartedAt = now;
+        ExtractionCompletedAt = null;
+        ExtractionError = null;
+        ExtractionStatus = ExtractionStatus.InProgress;
+    }
+
+    public void CompleteExtraction(DateTimeOffset now)
+    {
+        ExtractionStatus = ExtractionStatus.Completed;
+        ExtractionCompletedAt = now;
+        ExtractionError = null;
+    }
+
+    /// <summary>
+    /// Records a failure. The reason is kept because an operator needs to tell "no text" from
+    /// "damaged", and the API never reports a failure as a success.
+    /// </summary>
+    public void FailExtraction(string reason, DateTimeOffset now)
+    {
+        ExtractionStatus = ExtractionStatus.Failed;
+        ExtractionCompletedAt = now;
+        ExtractionError = reason;
+    }
+
     public void SetExtractionStatus(ExtractionStatus status) => ExtractionStatus = status;
 
     public string AuditModule => "documents";
