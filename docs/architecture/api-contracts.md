@@ -267,10 +267,18 @@ return a projection that omits internal identifiers, publisher identity and any 
 | `DELETE` | `/documents/{id}` | `document.write` | Soft delete + storage removal |
 | `GET` | `/audit` | `audit.read` | Paged; `entityType`, `entityId`, `actorId`, date range |
 
-**Upload contract:** `multipart/form-data` with a single `file` part. The API validates the content type
-against an allow-list (`application/pdf`, `image/png`, `image/jpeg`) **by inspecting the bytes, not the
-declared header** — the legacy system trusted `$_FILES['type']` and wrote `chmod 0777` files into a
-web-served directory (Phase 1 §S7). Size limit `20 MB` **[A-28]**. Downloads are always served through a
+**Upload contract:** `multipart/form-data` with a single `file` part. **PDF only.** Every other format —
+JPEG, PNG, Word, text, archives — is rejected with **415 Unsupported Media Type**, including when the
+request declares `application/pdf` and names the file `.pdf`. The format is decided by parsing the bytes,
+never by the `Content-Type` header, the extension or the filename: the legacy system trusted
+`$_FILES['type']` and wrote `chmod 0777` files into a web-served directory (Phase 1 §S7).
+
+A `%PDF-` signature is not sufficient evidence. The bytes must parse as a PDF with a readable
+cross-reference table and at least one page; a malformed, truncated or empty file is rejected with **400
+`validation_failed`**.
+
+Maximum size is **20 MiB (20,971,520 bytes)**, enforced server-side while receiving the request; anything
+larger is **413 Content Too Large** and nothing is written to storage. Downloads are always served through a
 short-lived signed URL, never from a public bucket path.
 
 ---
