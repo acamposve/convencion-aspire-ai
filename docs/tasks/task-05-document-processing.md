@@ -38,20 +38,12 @@ bounded and observable.
 6. A retry after failure is permitted up to the configured limit and then refused with **409**.
 7. Nothing claims "processed" for a document that was only stored.
 
-## Blocker inherited from T4
+## Predecessor note
 
-Writing `extraction_status` fails with:
-
-```
-42804: column "extraction_status" is of type platform.extraction_status but expression is of type integer
-```
-
-EF Core applies its own enum-to-integer conversion, and registering the type with
-`NpgsqlDataSourceBuilder.MapEnum` plus `HasPostgresEnum` did not override it in the current configuration.
-T4 avoided the column entirely, letting PostgreSQL apply its default. **T5 cannot avoid it** — it must write
-`Requested`, `InProgress`, `Completed` and `Failed`. Resolve the mapping before starting; the candidate
-approaches are recorded in T4 §13.
-
+The `extraction_status` mapping blocker recorded here has been **resolved** before this task starts:
+EF Core 9+ requires `MapEnum` on the provider options, and Npgsql's default label translator had to be
+replaced with a pass-through one. All five statuses are written and read back by
+`ExtractionStatusMappingTests`, so this task can write statuses normally.
 ## Risks
 
 - **This is the task where a false success is easiest.** The legacy system's failure mode was silent

@@ -199,26 +199,43 @@ belongs to the caller's company); two companies each uploading into their own co
 Every rejection case also counts storage objects and database rows before and after, so "rejected" and
 "rejected without a side effect" are separate assertions.
 
-### Find: the PostgreSQL enum could not be mapped
+### Resolved: the PostgreSQL enum mapping
+
+The blocker is fixed. Two separate causes, found in order:
+
+1. **EF sent the enum as an integer.** EF Core 9+ configures PostgreSQL enums on the provider options,
+   not on a `NpgsqlDataSource`. The working form is
+   `UseNpgsql(connectionString, npgsql => npgsql.MapEnum<ExtractionStatus>("extraction_status", "platform"))`.
+   The data-source route leaves EF's built-in enum-to-integer conversion in place.
+2. **Npgsql then translated the labels.** Its default translator converts `NotRequested` to
+   `not_requested`, while the database defines PascalCase, producing
+   `22P02: invalid input value for enum platform.extraction_status: "not_requested"`. Fixed with a
+   pass-through `INpgsqlNameTranslator` (`ExactNameTranslator`): the schema is the authority, so the
+   mapping adapts to it rather than the reverse.
+
+Verified by `ExtractionStatusMappingTests`: all five statuses are written and read back, and a new
+document starts as `NotRequested`.
+
+### Database constraint (D2)
+
+`20260103000000_document_pdf_only.sql` replaces `document_content_type_allowed` with
+`document_content_type_pdf_only check (content_type = 'application/pdf')`.
+
+- **Existing data inspected first:** `select content_type, count(*) from platform.document group by 1`
+  returned **0 rows**, so nothing was modified or deleted.
+- **No silent data loss:** if a database did hold a non-PDF row, the constraint would fail to apply
+  rather than delete it. PostgreSQL validates existing rows, and the migration does not touch them.
+- **Reversible:** the exact reverse statements are in the migration header, since the runner is
+  forward-only.
+- **Proven at the database:** `B9` (PNG rejected), `B11` (JPEG rejected), `B10` (`application/pdf`
+  accepted).
+
+### Final verification
 
 ```
-42804: column "extraction_status" is of type platform.extraction_status but expression is of type integer
+14 migrations applied to an empty database  -> exit 0
+constraint suite                            -> 35 PASS, 0 FAIL  (was 32; +B9, B10, B11)
+RLS suite                                   -> 30 PASS, 0 FAIL
+dotnet build                                -> 0 warnings, 0 errors
+dotnet test                                 -> 10 unit + 52 integration, all passing
 ```
-
-EF Core applies its built-in enum-to-integer conversion, so the value is sent as `integer` and PostgreSQL
-rejects it. Registering the type with `NpgsqlDataSourceBuilder.MapEnum` and `HasPostgresEnum` did not
-override that conversion in this configuration (tried with and without a schema-qualified name and with an
-explicit `HasColumnType`).
-
-**What T4 does instead:** the column is not mapped, so PostgreSQL applies its own default
-(`NotRequested`), and the domain exposes the same value. Upload does not need to write the status.
-
-**This is a blocker for T5**, which must write and read it. The options are to register the enum through a
-data source whose search path includes `platform`, or to map the column as `text` with a generated cast.
-It must be solved before T5 starts, not discovered during it.
-
-### Also found: `NotSupported` does not exist
-
-The suggested status list included `NotSupported`, but `platform.extraction_status` defines only
-`NotRequested, Requested, InProgress, Completed, Failed`. Since the API rejects non-PDFs outright, no
-document is ever "unsupported" — such a file has no record at all. T5's criterion was corrected to match.
