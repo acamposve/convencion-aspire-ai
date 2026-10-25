@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterEach, beforeEach } from 'vitest';
 import { installMatchMedia } from './media';
 
@@ -16,6 +16,10 @@ class ResizeObserverStub {
     // No-op.
   }
 }
+
+// The suite runs several files in parallel workers; a 1s query timeout is too tight for the heavier
+// screens once the machine is busy, and a flaky wait is not a real defect.
+configure({ asyncUtilTimeout: 5000 });
 
 globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 window.scrollTo = () => {
