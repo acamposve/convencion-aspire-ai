@@ -52,7 +52,7 @@ deployable.
 | T11 | [Negotiation workflow](task-11-negotiation.md) | T8 | **implemented** |
 | T12 | [Publishing and public portal](task-12-publishing-portal.md) | T9, T10 | **implemented** |
 | T13 | [Administration and audit](task-13-administration-audit.md) | T2 | **implemented** |
-| T14 | [Web: core domain, admin and portal](task-14-web-core.md) | T9, T11, T12, T13 | planned |
+| T14 | [Web: core domain, admin and portal](task-14-web-core.md) | T9, T11, T12, T13 | **implemented** |
 
 ### Phase D — Operable and releasable
 
@@ -121,4 +121,5 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T11 | [task-11](task-11-negotiation.md) | Negotiation workflow: create in `Open`, explicit transitions, read-only closure, atomic and terminal promotion behind `negotiation.promote` (ADR-025), a hardened database guard and company-scoped RLS; 21 + 19 tests, D5/D8 + R36–R40 |
 | T12 | [task-12](task-12-publishing-portal.md) | Public portal: allow-list projections over `anon` RLS, news publication guarded in the database with a DB-recorded actor and time (ADR-026), A-33 sanitisation for clause/annex/news bodies; 10 + 10 tests, N1–N3 + R41–R44 |
 | T13 | [task-13](task-13-administration-audit.md) | Administration and audit: one locking bootstrap function with no credential in any endpoint (ADR-027), users with live blocking and the anti-lockout 409s, the role matrix read and the audit trail behind `audit.read`; 5 + 12 tests, G1–G2 + R45–R47 |
+| T14 | [task-14](task-14-web-core.md) | Web MVP: capability-gated navigation with the API as the guard (ADR-028), agreement and clause editor with the confirmed-unpublish gate, adjacency comparison that claims no alignment, legal library, negotiation stages, news, users/roles/audit, and a tokenless public portal; 44 + 15 web tests |
 | T16 | [task-16](task-16-legacy-removal.md) | Legacy removal: 1,869 tracked files (PHP tree + 48.9 MB dump) removed from the tree because they carried 4 credential sets and personal data; analysis retained in `docs/legacy`/`docs/database`; `tools/scan-secrets.ps1` returns CLEAN; the legacy material was then purged from every ref (filter-repo, force-push); constitution Art. IX.1 amended (v1.3.0); **rotation of the four credential sets is outstanding** |

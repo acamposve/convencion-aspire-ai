@@ -539,6 +539,44 @@ reads the matrix, `audit.read` reads history. An audit-only role would see the t
 names, because reading another account's row requires `user.manage`; no seeded role has that shape today.
 The function is the only writer of the first account, and `constraint-tests` G1–G2 plus `rls-tests`
 R45–R47 assert it.
+
+---
+
+### ADR-028 — The interface shows what the data supports, and hides what the caller cannot do *(T14)*
+**Context:** T14 is the first screen over every module. Three of its acceptance criteria are really
+product decisions: which controls a caller sees, what the comparison screen may claim, and whether a
+published agreement can be edited. Each has a failure mode that is invisible in a screenshot. A hidden
+button that a hand-typed URL still reaches teaches nothing; a column layout that lines clauses up reads
+as an equivalence claim the backend never made; an editor that lets someone change a published agreement
+in place destroys the record the portal serves.
+
+**Decision:**
+1. **Capabilities gate the interface, the API gates the data.** `useCapabilities()` reads `/me` on every
+   page load, navigation and controls are filtered by it, and the API remains the guard — the tests assert
+   both halves, including a screen that surfaces a 403 rather than pretending the call succeeded.
+2. **The comparison screen says adjacency and nothing more.** Clauses of one heading sit side by side
+   because they treat the same subject; the subtitle, the alerts and the empty states say *vecindad por
+   materia, sin alineación*, and a test forbids text that describes clauses as aligned.
+3. **A published agreement is read-only until it is explicitly unpublished.** The editor hides every
+   content control while `state === 'Published'`, explains why, and the `Despublicar` action is a
+   confirmed dialog. There is no in-place edit path.
+4. **The portal is a separate, tokenless client.** `/portal` renders outside `RequireSession` through
+   `HttpPublicApi`, which has no `AuthClient` at all. The server-side guarantee is T12's: `/public/*` runs
+   on the `anon` role and returns 404 for anything unpublished.
+5. **Every list pages and every form validates before it submits.** Validation lives in `lib/forms.ts`
+   and returns messages, so a form cannot call the API with an obviously invalid value.
+6. **Stored rich text is rendered as HTML only because the server sanitises it** (A-33, and again at the
+   public boundary in T12). The UI never composes HTML from its own inputs.
+
+**Why not the alternatives:** showing every control and letting the API refuse produces a screen full of
+buttons that fail; a comparison table that pairs clauses implies a judgement nobody made; an editor that
+silently publishes on save breaks the publication record; reusing the session client for the portal would
+ask an anonymous visitor for a token that does not exist.
+
+**Consequences:** the screen set is the MVP's (documents, agreements, comparison, legal library,
+negotiation, news, users/roles, audit, portal). Annex editing and news-category creation remain API-only
+until a screen is asked for. The comparison wording is asserted in a test because it is the control for
+the product's most over-claimable screen.
 ## 5. Rejected alternatives
 
 | Alternative | Why rejected |
@@ -569,3 +607,4 @@ R45–R47 assert it.
 | 0.4 | T11: **ADR-025** settles the negotiation state machine (create in `Open`, explicit transitions, read-only closure, atomic and terminal promotion, explicit petition outcomes), hardens `app.guard_case_promotion()` (INSERT, source state, capability, no re-pointing or clearing) and adds company scope to the six negotiation tables. INV-N1 stays unimplemented pending a decision. |
 | 0.5 | T12: **ADR-026** adds the public surface (allow-list projections, anonymous reads on the `anon` role), makes news publication a database-guarded transition that records its own actor and time, and applies A-33 sanitisation to clause, annex and news bodies. |
 | 0.6 | T13: **ADR-027** makes the bootstrap one locking database function with no credential in any endpoint, adds user/role/audit administration with the anti-lockout 409s, and moves `AuditEntry` to the shared kernel so the audit query can filter on columns. |
+| 0.7 | T14: **ADR-028** records the interface rules — capability-gated controls with the API as the guard, a comparison screen that claims adjacency and never alignment, a read-only published agreement behind a confirmed unpublish, and a portal that reads through a tokenless client. |
