@@ -220,6 +220,12 @@ agreement (BR-11).
 **Consequences:** labour-law articles get the FK they never had; the "exactly one row" fragility
 disappears.
 
+*Implemented in T10, with three refinements:* at most one `LabourLaw` is enforced by the partial unique
+index `statute_single_labour_law_key` (the rule spans rows, so the index is the guard and the API's 409
+names it); `Kind` is fixed at creation; and an article's own heading (`title`) is mandatory while its
+comparison classification (`heading_id`) stays nullable per A-12 — two different "headings" that the
+legacy tables conflated.
+
 ### ADR-016 — Company has a single identity; the legacy code becomes optional data
 **Context:** Phase 2 proved `id` (116–195) and `codigo_empresa` (2–115) never coincide, agreements join
 on the code, and one user row joins on the id.
@@ -365,3 +371,4 @@ land as a forward migration, not by editing applied migration files (constitutio
 | Version | Change |
 |---|---|
 | 0.1 | Initial architecture proposal from approved Phase 1 and Phase 2 findings. 42 approval items, 20 ADRs, 19 question resolutions. |
+| 0.2 | ADR-015 annotated with what T10 implemented: the single labour statute is guarded by the partial unique index, `Kind` is immutable, and the article heading is mandatory while its classification stays optional (A-12). |

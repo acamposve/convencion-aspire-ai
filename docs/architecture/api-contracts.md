@@ -221,7 +221,14 @@ every query is `AsNoTracking`.
     "id": "…", "groupId": "…", "groupName": "GENERALES", "name": "Salarios",
     "isExcluded": false, "requiresEconomicComparison": false, "sortOrder": 10
   },
-  "statuteArticles": [],              // T10; shape is stable now
+  "statuteArticles": [                 // T10; empty when no statute article is classified here
+    {
+      "statuteId": "…", "statuteName": "Código del Trabajo", "statuteKind": "LabourLaw",
+      "articleId": "…", "number": 12, "title": "Artículo 12 — Vacaciones",
+      "body": "…", "economicComparisonNote": null
+    }
+  ],
+  "statuteArticleTotal": 1,           // the real total; the array is bounded at 100
   "agreements": [
     {
       "agreementId": "…", "companyId": "…", "companyName": "…",
@@ -270,11 +277,49 @@ across companies.
 | Method | Path | Cap |
 |---|---|---|
 | `GET` `POST` | `/statutes` | `statute.read` / `.write` |
-| `GET` `PATCH` | `/statutes/{id}` | |
-| `GET` `POST` | `/statutes/{id}/articles` | |
-| `GET` `PATCH` `DELETE` | `/statutes/{id}/articles/{articleId}` | |
+| `GET` `PATCH` | `/statutes/{id}` | `statute.read` / `.write` |
+| `GET` `POST` | `/statutes/{id}/articles` | `statute.read` / `.write` |
+| `GET` `PATCH` `DELETE` | `/statutes/{id}/articles/{articleId}` | `statute.read` / `.write` |
 
-`statute.kind` is `LabourLaw` or `OtherStatute` — the fold of `ley_trabajo` and `otras_leyes`.
+`statute.kind` is `LabourLaw` or `OtherStatute` — the fold of `ley_trabajo` and `otras_leyes`. It is
+fixed at creation; `PATCH /statutes/{id}` covers name, publication date, source and document only.
+
+```jsonc
+// POST /statutes
+{ "kind": "LabourLaw", "name": "Código del Trabajo", "publishedOn": "2012-05-07",
+  "source": "Gaceta Oficial 6.076", "documentId": null }
+// 201 → { "id": "…", "kind": "LabourLaw", "name": "…", "articleCount": 0, "rowVersion": 1, … }
+
+// POST /statutes/{id}/articles
+{ "number": 12, "title": "Artículo 12 — Vacaciones", "summary": null, "body": "…",
+  "headingId": null, "economicComparisonNote": null }
+// 201 → { "id": "…", "number": 12, "title": "…", "body": "…", "headingId": null, … }
+```
+
+**Reference data, not tenant data.** No statute or article belongs to a company, and no endpoint
+applies a company filter: a caller of any company — and a caller with no company at all — reads the
+same library. This is the deliberate difference from agreements, and it is the reason `statute.read`
+exists separately from `agreement.read`. Writes require `statute.write`, enforced by the endpoint
+declaration and again by the RLS policy.
+
+**The single labour statute.** At most one `LabourLaw` statute exists. A second is **409 `conflict`**
+and the problem's `detail` names the partial unique index `statute_single_labour_law_key` that refused
+it; the request is not retried, de-dup'd or merged. The database, not the handler, is the guard,
+because the rule spans rows.
+
+**Article numbering.** `number` is an integer (`12`, never `"012"` or `"12-A"`), unique within a
+statute (**409 `conflict`**, naming `statute_article_number_key`) and ordered numerically on read.
+`number < 1` is **400 `validation_failed`**.
+
+**The heading.** `title` — the article's own heading — is **required**: an article with a blank or
+absent title is **400 `validation_failed`**, and the database CHECK refuses it too. `headingId` — the
+comparison classification — is **optional** (approval A-12): `null` means unclassified and is accepted.
+A supplied `headingId` must be an existing active heading, else **400**; an empty Guid is **400**, not
+`null`. A full replacement (`PATCH`) that omits `headingId` clears the classification.
+
+`PATCH` and `DELETE` require `If-Match` with the current `rowVersion` (**400** missing, **409
+`concurrent_modification`** stale). No statute deletion is exposed: a statute owns its articles by
+cascade.
 
 ### 4.6 Negotiation
 
@@ -526,3 +571,6 @@ the community edition — S5/S10/S12 could use it).
 | **AC-A24** | An unpublished agreement is never rendered; it appears in `unpublishedRequested` and becomes visible after publication |
 | **AC-A25** | The comparison is paged/bounded (candidate page ≤ 50, comparison page ≤ 10 agreements, ≤ 50 ids) and rejects invalid requests with `400`; the routes are GET-only (`405` otherwise) |
 | **AC-A26** | Another company's agreement id makes the comparison `404` with no partial data; clauses are adjacent, never paired, and ordered by numeric number |
+| **AC-A27** | A second `LabourLaw` statute is **409 `conflict`** whose `detail` names `statute_single_labour_law_key`, and the partial unique index refuses a direct insert with `23505` on that index |
+| **AC-A28** | A statute article with no title is **400 `validation_failed`**; article numbers are integers, unique within a statute (**409**), ordered numerically, and `< 1` is **400**; an unclassified article (`headingId: null`) is accepted |
+| **AC-A29** | An authenticated user of **any** company — and one with no company — reads every statute and article; without `statute.write` every write is **403**, and the RLS policy refuses the same write at the database |
