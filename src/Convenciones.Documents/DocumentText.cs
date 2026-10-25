@@ -1,3 +1,4 @@
+using System.Text;
 using Convenciones.Catalog;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -20,7 +21,7 @@ public sealed class DocumentText
 
     public DateTimeOffset ExtractedAt { get; private set; }
 
-    public static DocumentText For(Guid documentId, string content)
+    public static DocumentText For(Guid documentId, string content, DateTimeOffset extractedAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
 
@@ -28,7 +29,12 @@ public sealed class DocumentText
         {
             DocumentId = documentId,
             Content = content,
-            CharCount = content.Length,
+
+            // PostgreSQL's length(text) counts code points, while string.Length counts UTF-16 code
+            // units. Counting runes keeps char_count exactly equal to length(content) for text outside
+            // the BMP, so the database CHECK cannot reject a genuinely successful extraction.
+            CharCount = content.EnumerateRunes().Count(),
+            ExtractedAt = extractedAt,
         };
     }
 }

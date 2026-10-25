@@ -265,6 +265,8 @@ return a projection that omits internal identifiers, publisher identity and any 
 | `GET` | `/documents/{id}` | `document.read` | Metadata |
 | `GET` | `/documents/{id}/download` | `document.read` | `302` to a short-lived signed URL |
 | `DELETE` | `/documents/{id}` | `document.write` | Soft delete + storage removal |
+| `POST` | `/documents/{id}/extract` | `document.write` | Runs extraction synchronously; `200` with the final state |
+| `GET` | `/documents/{id}/extraction` | `document.read` | Extraction state: status, attempts, timestamps, error, `charCount` |
 | `GET` | `/audit` | `audit.read` | Paged; `entityType`, `entityId`, `actorId`, date range |
 
 **Upload contract:** `multipart/form-data` with a single `file` part. **PDF only.** Every other format —
@@ -280,6 +282,19 @@ cross-reference table and at least one page; a malformed, truncated or empty fil
 Maximum size is **20 MiB (20,971,520 bytes)**, enforced server-side while receiving the request; anything
 larger is **413 Content Too Large** and nothing is written to storage. Downloads are always served through a
 short-lived signed URL, never from a public bucket path.
+
+**Extraction contract (T5) — synchronous, `200 OK`.** `POST /documents/{id}/extract` performs the
+extraction inside the request and answers **`200 OK`** with the resulting state. The MVP has no queue or
+hosted worker, so it deliberately does **not** answer `202 Accepted` and there is nothing to poll for;
+`GET /documents/{id}/extraction` returns the stored state for later reads. `202` + polling remains the
+recorded design for a genuinely asynchronous extraction (FUT-01).
+
+- A PDF with text becomes `Completed` and its text is stored with `charCount = length(content)`.
+- A valid PDF with **no extractable text** becomes `Failed` with a reason and **no** text row; it is never
+  reported as an empty success. Stored bytes that cannot be read become `Failed` with a reason.
+- Re-extracting a `Completed` document is **`409 invalid_state`**, as is any attempt after the maximum of
+  three. A failed attempt deletes any text left by a previous attempt, so obsolete content cannot be read.
+- A caller without `document.write` gets **403**; a document belonging to another company gets **404**.
 
 ---
 
@@ -418,3 +433,6 @@ the community edition — S5/S10/S12 could use it).
 | **AC-A9** | `GET /public/agreements/{id}` returns `404` for a draft agreement, for an anonymous caller |
 | **AC-A10** | `POST /documents` rejects a `.exe` renamed `.pdf` (content-sniffed, not header-trusted) with `415` |
 | **AC-A11** | The emitted OpenAPI document validates and the generated client compiles |
+| **AC-A12** | `POST /documents/{id}/extract` returns `200` with the final state; a PDF with text becomes `Completed` and its stored `charCount` equals `length(content)` |
+| **AC-A13** | A PDF with no extractable text, or unreadable stored bytes, becomes `Failed` with a reason and creates **no** `document_text` row |
+| **AC-A14** | Re-extracting a `Completed` document and a fourth attempt both return `409`; `document.write` is required (`403`); another company's document is `404`; a failed attempt leaves no text behind |

@@ -231,11 +231,18 @@ on the code, and one user row joins on the id.
 short-lived URLs, no public bucket.
 **Consequences:** closes §S7 fully; requires the API to mediate all file access.
 
-### ADR-018 — No asynchronous processing in the MVP; extraction seam reserved
-**Decision:** no queue, no broker, no background worker. `Document.ExtractionStatus` exists, always
-`NotRequested`.
-**Consequences:** the first async workload (FUT-01) has a designed entry point (202 + polling) without
-paying for it now.
+### ADR-018 — No asynchronous processing in the MVP; extraction is synchronous
+**Decision:** no queue, no broker, no background worker. T5 extracts PDF text inside
+`POST /documents/{id}/extract` and answers **`200 OK`** with the final state; `Document.ExtractionStatus`
+is written by that request (`InProgress` → `Completed` or `Failed`).
+**Amendment (T5, approved):** the original wording reserved `ExtractionStatus` as always `NotRequested`
+and described the future entry point as `202 Accepted` + polling. The MVP deviation is synchronous:
+returning `202` for work the request has already finished would report a state that no longer exists and
+force a pointless poll. The 202 + polling shape remains the design for FUT-01, when extraction becomes
+genuinely asynchronous (OCR/AI at volume); the state model and the status endpoint already support it.
+See [task-05 §2](../tasks/task-05-document-processing.md#2-architecture-decision-synchronous-extraction-200-ok).
+**Consequences:** the first async workload (FUT-01) still has a designed entry point without paying for a
+broker now, and the MVP reports the extraction outcome in the response that caused it.
 
 ### ADR-019 — Audit is written in the same transaction, append-only
 **Decision:** audit columns on every business table via interceptor; `audit_entries` for state changes,

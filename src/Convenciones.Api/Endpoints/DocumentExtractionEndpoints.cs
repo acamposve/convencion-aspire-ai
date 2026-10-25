@@ -7,18 +7,17 @@ using Microsoft.EntityFrameworkCore;
 namespace Convenciones.Api.Endpoints;
 
 /// <summary>
-/// Document upload and text extraction. PDF only, 20 MiB maximum, private storage, server-generated keys.
+/// Document text extraction and extraction status.
 /// </summary>
 /// <remarks>
-/// <c>docs/architecture/api-contracts.md §4.8</c> and <c>docs/tasks/task-04</c>/<c>task-05</c> are the
-/// contract. Extraction is performed synchronously inside the request: there is no queue in the MVP, and
-/// returning 202 for work already finished would be a lie about the state of the document.
+/// <c>docs/architecture/api-contracts.md §4.8</c> and <c>docs/tasks/task-05-document-processing.md</c>
+/// are the contract. Extraction is performed synchronously inside the request and answers <c>200 OK</c>
+/// with the final state: there is no queue or hosted worker in the MVP, so returning 202 for work that
+/// has already finished would misreport the document. The 202 + polling design remains the documented
+/// path for when extraction becomes genuinely asynchronous.
 /// </remarks>
 public static class DocumentExtractionEndpoints
 {
-    /// <summary>20 MiB, exactly the value of the <c>document_size_within_limit</c> constraint.</summary>
-    
-
     /// <summary>Bounded retries: an unbounded loop would look like activity and hide a broken document.</summary>
     public const int MaxExtractionAttempts = 3;
 
@@ -61,12 +60,13 @@ public static class DocumentExtractionEndpoints
             return Forbidden("No session was resolved for this request.");
         }
 
-        if (!CanAccess(session, id, db, out var document))
+        if (await FindAccessibleAsync(session, id, db, cancellationToken).ConfigureAwait(false)
+            is not { } document)
         {
             return NotFound(id);
         }
 
-        if (document!.ExtractionStatus is ExtractionStatus.Completed)
+        if (document.ExtractionStatus is ExtractionStatus.Completed)
         {
             return State("This document has already been processed.");
         }
@@ -86,6 +86,7 @@ public static class DocumentExtractionEndpoints
         if (stream is null)
         {
             document.FailExtraction("The stored file could not be found.", DateTimeOffset.UtcNow);
+            await RemoveExtractedTextAsync(db, document.Id, cancellationToken).ConfigureAwait(false);
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Results.Ok(ToExtraction(document, null));
         }
@@ -100,20 +101,24 @@ public static class DocumentExtractionEndpoints
         {
             document.FailExtraction(result.FailureReason!, DateTimeOffset.UtcNow);
 
-            // A failure must not leave stale text behind from a previous attempt.
-            await db.DocumentTexts
-                .Where(text => text.DocumentId == document.Id)
-                .ExecuteDeleteAsync(cancellationToken)
-                .ConfigureAwait(false);
+            // A failure must not leave stale text behind from a previous attempt, and a missing file
+            // is a failure like any other: otherwise obsolete content would still be readable.
+            await RemoveExtractedTextAsync(db, document.Id, cancellationToken).ConfigureAwait(false);
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             return Results.Ok(ToExtraction(document, null));
         }
 
-        var text = DocumentText.For(document.Id, result.Text!);
+        var completedAt = DateTimeOffset.UtcNow;
+
+        // One document has one text row. Replacing any existing row keeps that invariant even when an
+        // operator requeued a completed document; inserting would otherwise fail on the primary key.
+        await RemoveExtractedTextAsync(db, document.Id, cancellationToken).ConfigureAwait(false);
+
+        var text = DocumentText.For(document.Id, result.Text!, completedAt);
         db.DocumentTexts.Add(text);
 
-        document.CompleteExtraction(DateTimeOffset.UtcNow);
+        document.CompleteExtraction(completedAt);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return Results.Ok(ToExtraction(document, text.CharCount));
@@ -131,7 +136,8 @@ public static class DocumentExtractionEndpoints
             return Forbidden("No session was resolved for this request.");
         }
 
-        if (!CanAccess(session, id, db, out var document))
+        if (await FindAccessibleAsync(session, id, db, cancellationToken).ConfigureAwait(false)
+            is not { } document)
         {
             return NotFound(id);
         }
@@ -143,33 +149,40 @@ public static class DocumentExtractionEndpoints
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return Results.Ok(ToExtraction(document!, charCount));
+        return Results.Ok(ToExtraction(document, charCount));
     }
+
+    /// <summary>Removes any previously extracted text, so an obsolete result cannot be returned.</summary>
+    private static Task<int> RemoveExtractedTextAsync(
+        ConvencionesDbContext db,
+        Guid documentId,
+        CancellationToken cancellationToken) =>
+        db.DocumentTexts
+            .Where(text => text.DocumentId == documentId)
+            .ExecuteDeleteAsync(cancellationToken);
 
     /// <summary>
     /// Loads a document the caller may touch: their company's, or any company's when they hold
     /// <c>company.read_all</c>. A document belonging to another company is reported as not found.
     /// </summary>
-    private static bool CanAccess(
+    private static async Task<Document?> FindAccessibleAsync(
         SessionContext session,
         Guid documentId,
         ConvencionesDbContext db,
-        out Document? document)
+        CancellationToken cancellationToken)
     {
-        document = db.Documents.SingleOrDefault(candidate => candidate.Id == documentId);
+        var document = await db.Documents
+            .SingleOrDefaultAsync(candidate => candidate.Id == documentId, cancellationToken)
+            .ConfigureAwait(false);
 
         if (document is null)
         {
-            return false;
+            return null;
         }
 
-        if (document.CompanyId is { } companyId && TenantScope.CanAccess(session, companyId))
-        {
-            return true;
-        }
-
-        document = null;
-        return false;
+        return document.CompanyId is { } companyId && TenantScope.CanAccess(session, companyId)
+            ? document
+            : null;
     }
 
     private static ExtractionResponse ToExtraction(Document document, int? charCount) =>
