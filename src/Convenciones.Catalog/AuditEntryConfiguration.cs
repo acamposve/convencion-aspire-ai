@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Convenciones.Api.Infrastructure;
+namespace Convenciones.Catalog;
 
 public sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEntry>
 {

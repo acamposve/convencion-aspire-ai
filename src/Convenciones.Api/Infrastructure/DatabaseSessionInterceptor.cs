@@ -56,7 +56,7 @@ public sealed class DatabaseSessionInterceptor(ISessionAccessor accessor) : DbCo
         var session = accessor.Session;
 
         Execute(connection, ClaimsSql, session is null ? string.Empty : Claims(session));
-        Execute(connection, RoleCommand(session, accessor.UseAnonymousDatabaseRole), null);
+        Execute(connection, RoleCommand(session, accessor.DatabaseRole), null);
     }
 
     private async Task ApplyAsync(DbConnection connection, CancellationToken cancellationToken)
@@ -71,7 +71,7 @@ public sealed class DatabaseSessionInterceptor(ISessionAccessor accessor) : DbCo
 
         await ExecuteAsync(
             connection,
-            RoleCommand(session, accessor.UseAnonymousDatabaseRole),
+            RoleCommand(session, accessor.DatabaseRole),
             null,
             cancellationToken).ConfigureAwait(false);
     }
@@ -81,10 +81,15 @@ public sealed class DatabaseSessionInterceptor(ISessionAccessor accessor) : DbCo
     /// runs as <c>anon</c>, so the public policies are the only thing between it and a draft; anything
     /// else resets the role.
     /// </summary>
-    private static string RoleCommand(SessionContext? session, bool useAnonymousRole) =>
+    private static string RoleCommand(SessionContext? session, RequestDatabaseRole requestRole) =>
         session is not null
             ? $"set role {ApiRole}"
-            : useAnonymousRole ? $"set role {PublicRole}" : "reset role";
+            : requestRole switch
+            {
+                RequestDatabaseRole.Api => $"set role {ApiRole}",
+                RequestDatabaseRole.Anonymous => $"set role {PublicRole}",
+                _ => "reset role",
+            };
 
     private static string Claims(SessionContext session) =>
         JsonSerializer.Serialize(new

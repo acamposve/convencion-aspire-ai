@@ -954,6 +954,74 @@ begin
     end if;
 end $$;
 
+-- --- Administration and audit (T13) ---------------------------------------------------------------
+
+-- One audit row written as the owner, so the visibility tests have something to look at.
+insert into platform.audit_entry (actor_id, module, entity_type, entity_id, action, changes)
+values ('20000000-0000-0000-0000-000000000001', 'identity', 'user_account',
+        '20000000-0000-0000-0000-000000000002', 'updated', '{"isBlocked": {"to": true}}'::jsonb);
+
+-- R45 — the audit trail is invisible without audit.read, and visible with it.
+do $$
+declare
+    editor_rows int;
+    admin_rows  int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    select count(*) into editor_rows from platform.audit_entry;
+    execute 'reset role';
+
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000001"}', true);
+    execute 'set local role app_api';
+    select count(*) into admin_rows from platform.audit_entry;
+    execute 'reset role';
+
+    if editor_rows = 0 and admin_rows >= 1 then
+        raise notice 'PASS: R45 audit.read gates the audit trail (editor=0, administrator=%)', admin_rows;
+    else
+        raise notice 'FAIL: R45 audit rows editor=% administrator=%', editor_rows, admin_rows;
+    end if;
+end $$;
+
+-- R46 — user.manage widens user_account; without it a caller sees only their own row.
+do $$
+declare
+    editor_rows int;
+    admin_rows  int;
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000002"}', true);
+    execute 'set local role app_api';
+    select count(*) into editor_rows from platform.user_account;
+    execute 'reset role';
+
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000001"}', true);
+    execute 'set local role app_api';
+    select count(*) into admin_rows from platform.user_account;
+    execute 'reset role';
+
+    if editor_rows = 1 and admin_rows >= 6 then
+        raise notice 'PASS: R46 user.manage widens user_account (editor=1, administrator=%)', admin_rows;
+    else
+        raise notice 'FAIL: R46 user rows editor=% administrator=%', editor_rows, admin_rows;
+    end if;
+end $$;
+
+-- R47 — the bootstrap function is inert once accounts exist, whatever the caller holds.
+do $$
+begin
+    perform set_config('request.jwt.claims', '{"sub":"20000000-0000-0000-0000-000000000001"}', true);
+    execute 'set local role app_api';
+    begin
+        perform platform.bootstrap_first_admin(
+            '20000000-0000-0000-0000-0000000000ff', 'late@example.test', 'Late SuperAdmin');
+        raise notice 'FAIL: R47 the bootstrap ran on a configured database';
+    exception when invalid_parameter_value then
+        raise notice 'PASS: R47 the bootstrap function refuses once an account exists';
+    end;
+    execute 'reset role';
+end $$;
+
 rollback;
 
 \echo ''
