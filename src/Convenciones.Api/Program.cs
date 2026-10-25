@@ -1,3 +1,4 @@
+using Convenciones.Agreements;
 using Convenciones.Api.Endpoints;
 using Convenciones.Api.Infrastructure;
 using Convenciones.Documents;
@@ -30,15 +31,22 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 // The audit interceptor reads the change tracker, so a change cannot be saved without its audit row.
+// The session interceptor puts the caller's claims on the business connection, so RLS policies and
+// capability guard triggers evaluate the real caller rather than an anonymous pooled connection.
 builder.Services.AddScoped<AuditInterceptor>();
+builder.Services.AddScoped<DatabaseSessionInterceptor>();
 
 // EF Core 9+ maps PostgreSQL enums through the provider options. Doing it on a NpgsqlDataSource
 // instead leaves EF's built-in enum-to-integer conversion in place, and the database then rejects the
 // insert with "column extraction_status is of type platform.extraction_status but expression is of
 // type integer". The schema must be named because the type lives in platform, not public.
 builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) => options
-    .UseNpgsql(connectionString, npgsql => npgsql.MapEnum<ExtractionStatus>("extraction_status", "platform", ExactNameTranslator.Instance))
-    .AddInterceptors(serviceProvider.GetRequiredService<AuditInterceptor>()));
+    .UseNpgsql(connectionString, npgsql => npgsql
+        .MapEnum<ExtractionStatus>("extraction_status", "platform", ExactNameTranslator.Instance)
+        .MapEnum<PublicationState>("publication_state", "app", ExactNameTranslator.Instance))
+    .AddInterceptors(
+        serviceProvider.GetRequiredService<AuditInterceptor>(),
+        serviceProvider.GetRequiredService<DatabaseSessionInterceptor>()));
 
 // ---- Request limits -----------------------------------------------------------------------------
 // Documents are capped at 20 MiB by a database constraint; the transport limit sits just above it so
@@ -115,6 +123,8 @@ app.MapMeEndpoints();
 app.MapCompanyEndpoints();
 app.MapDocumentEndpoints();
 app.MapDocumentExtractionEndpoints();
+app.MapAgreementEndpoints();
+app.MapComparisonHeadingEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is

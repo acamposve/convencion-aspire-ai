@@ -46,7 +46,7 @@ deployable.
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| T8 | [Agreements and clauses](task-08-agreements-clauses.md) | T3 | planned |
+| T8 | [Agreements and clauses](task-08-agreements-clauses.md) | T3 | **implemented** (#21) |
 | T9 | [Comparison](task-09-comparison.md) | T8 | planned |
 | T10 | [Legal library](task-10-legal-library.md) | T3 | planned |
 | T11 | [Negotiation workflow](task-11-negotiation.md) | T8 | planned |
@@ -114,3 +114,4 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T5 | [task-05](task-05-document-processing.md) | Synchronous extraction (`200`, not `202`) with 9 acceptance tests; the async design is recorded as deferred, not omitted |
 | T6 | [task-06](task-06-document-retrieval.md) | Company-scoped list, metadata, text, streamed range download and `If-Match` soft delete; 13 acceptance tests |
 | T7 | [task-07](task-07-web-documents.md) | Vite/React/MUI document workflow: memory-only Supabase session, honest synchronous processing, retry and text viewer; 44 web tests |
+| T8 | [task-08](task-08-agreements-clauses.md) | Agreement aggregate, integer clause numbering, publication with audit, composed title and tenant RLS; 12 acceptance tests |

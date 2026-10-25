@@ -1,3 +1,4 @@
+using Convenciones.Agreements;
 using Convenciones.Catalog;
 using Convenciones.Documents;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,16 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<DocumentText> DocumentTexts => Set<DocumentText>();
 
+    public DbSet<Agreement> Agreements => Set<Agreement>();
+
+    public DbSet<AgreementClause> AgreementClauses => Set<AgreementClause>();
+
+    public DbSet<AgreementAnnex> AgreementAnnexes => Set<AgreementAnnex>();
+
+    public DbSet<ComparisonHeading> ComparisonHeadings => Set<ComparisonHeading>();
+
+    public DbSet<ComparisonHeadingGroup> ComparisonHeadingGroups => Set<ComparisonHeadingGroup>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -38,6 +49,13 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         modelBuilder.ApplyConfiguration(new AuditEntryConfiguration());
         modelBuilder.ApplyConfiguration(new DocumentConfiguration());
         modelBuilder.ApplyConfiguration(new DocumentTextConfiguration());
+
+        // Agreements owns app.agreement and its children, plus the read-only heading taxonomy.
+        modelBuilder.ApplyConfiguration(new AgreementConfiguration());
+        modelBuilder.ApplyConfiguration(new AgreementClauseConfiguration());
+        modelBuilder.ApplyConfiguration(new AgreementAnnexConfiguration());
+        modelBuilder.ApplyConfiguration(new ComparisonHeadingGroupConfiguration());
+        modelBuilder.ApplyConfiguration(new ComparisonHeadingConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }
