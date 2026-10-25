@@ -4,8 +4,9 @@ A **contract intelligence platform** for collective bargaining agreements (*conv
 colectivas*): authoring agreement clauses, comparing them across agreements and against labour
 legislation, tracking the negotiation that produced them, and publishing the results.
 
-> **Status: pre-alpha — rebuild in progress.** No application code exists yet. The current
-> deliverables are project governance and analysis. Nothing in this repository is runnable.
+> **Status: pre-alpha — the document workflow is implemented and tested.** The API (T1–T6) and the
+> first web slice (T7) build and run locally. Real sign-in needs the Supabase project that T18
+> provisions, and nothing is deployed yet.
 
 ---
 
@@ -38,6 +39,8 @@ docs/                     Governance and analysis
   constitution.md         Authoritative engineering rules — start here
   tasks/                  One record per implementation task
   legacy/README.md        Archived description of the legacy tree
+src/                      ASP.NET Core API, modules, migrator, AppHost, web client
+tests/                    .NET unit and integration tests
 admin/ lib/ plantillas/   Legacy PHP application — READ ONLY
   css/ img/ new_img/ ...
 index.html                Legacy public portal — READ ONLY
@@ -80,14 +83,28 @@ Out of scope: data migration from MySQL, microservices, mobile apps, offline mod
 
 ## Prerequisites
 
-Not yet installable — these are the platforms the stack will target:
-
 - .NET SDK **10**
-- Node.js **22+**
+- Node.js **22+** and **pnpm**
 - Docker (local PostgreSQL via Aspire)
 
-Setup instructions will be added with the solution skeleton. They are deliberately omitted rather
-than guessed.
+## Running it locally
+
+```bash
+# API + PostgreSQL + migrations, orchestrated by Aspire
+dotnet run --project src/Convenciones.AppHost
+
+# Web client, in a second terminal
+cd src/Convenciones.Web
+pnpm install
+cp .env.example .env.local    # set VITE_API_BASE_URL to the API address
+pnpm dev                      # http://localhost:5173
+```
+
+The API validates JWTs on every request; `Jwt:Issuer`, `Jwt:Audience` and a signing key or JWKS
+metadata must be configured (T2). Until T18 provisions the Supabase project, the sign-in screen
+reports `auth_not_configured` rather than pretending to authenticate. See the
+[web README](src/Convenciones.Web/README.md) for the client's configuration, security notes and
+limitations.
 
 ## Working in this repository
 
