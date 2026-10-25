@@ -1,5 +1,8 @@
+using Convenciones.Api.Endpoints;
 using Convenciones.Api.Infrastructure;
+using Convenciones.Identity;
 using Convenciones.ServiceDefaults;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +28,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<ConvencionesDbContext>(options => options.UseNpgsql(connectionString));
 
+// ---- Authentication and authorization ---------------------------------------------------------
+// Fail fast again: without a way to validate signatures there is no authentication, only a claim
+// that there is. See docs/architecture/security-model.md.
+builder.Services.AddConvencionesIdentity(builder.Configuration, connectionString);
+
 builder.Services
     .AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
@@ -33,9 +41,44 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Resolves the caller's session from the database and enforces the endpoint's declared capability.
+app.UseMiddleware<SessionResolutionMiddleware>();
+
 app.MapDefaultEndpoints();
+app.MapMeEndpoints();
+
+// ---- Startup gate -----------------------------------------------------------------------------
+// An endpoint that does not declare its security requirement stops the host from starting. This is
+// deliberate: a missed declaration is a data leak, and finding it here means the person who wrote it
+// finds it, not whoever notices the hole later.
+//
+// The endpoints come from the application's own data sources. Resolving EndpointDataSource from DI
+// returns nothing at this point, and a validator that inspects nothing reports success for a
+// pipeline it never looked at — so the validator itself refuses an empty set.
+var routes = ((IEndpointRouteBuilder)app).DataSources
+    .SelectMany(source => source.Endpoints)
+    .OfType<RouteEndpoint>()
+    .ToArray();
+
+EndpointSecurityValidator.Validate(routes);
+
+// Exposed so the tests can assert the enumeration is real rather than trust it.
+Program.ValidatedRoutes = routes;
 
 app.Run();
 
 /// <summary>Entry point marker so integration tests can host the real pipeline.</summary>
-public partial class Program;
+public partial class Program
+{
+    /// <summary>
+    /// The routed endpoints that passed the startup security gate on this host.
+    /// </summary>
+    /// <remarks>
+    /// Populated at startup so a test can verify that every route declares its requirement against
+    /// the real route table, instead of against an empty list that would pass for the wrong reason.
+    /// </remarks>
+    internal static IReadOnlyList<RouteEndpoint> ValidatedRoutes { get; set; } = [];
+}
