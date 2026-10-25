@@ -358,7 +358,7 @@ the API's responsibility and should be asserted by an integration test.
 
 ## 12. Amendments applied after this document was written
 
-Two forward migrations were added for the first vertical slice. This section is the authoritative
+The forward migrations added after the base set are recorded here. This section is the authoritative
 delta; the tables above describe migration set 20260101000000–20260101001000 and are otherwise
 unchanged.
 
@@ -381,7 +381,27 @@ umber_suffix dropped from greement_clause, statute_article, union_petition, emp
 | platform.current_company_id(), platform.can_access_company(uuid) | Tenant predicates, SECURITY DEFINER with a pinned search_path |
 | platform.document read/insert/update/delete policies replaced with company-scoped ones; document_text policies added | Cross-tenant denial |
 
-**Measured after these migrations:** 32 tables, **163** RLS policies (was 160), 23 capabilities, 5 roles, 0 users.
+**20260103000000_document_pdf_only.sql — the PDF-only constraint**
+
+| Change | Purpose |
+|---|---|
+| `document_content_type_allowed` replaced by `document_content_type_pdf_only check (content_type = 'application/pdf')` | The database refuses a non-PDF row even if an API check is bypassed (T4 D2) |
+
+**20260104000000_audit_writer_read_policy.sql — the audit writer can read back its row**
+
+| Change | Purpose |
+|---|---|
+| `audit_entry_api_read` allows `audit.read` **or** `actor_id = current_user_id()` | EF's `INSERT ... RETURNING` applies SELECT policies; without this an editor could not write the audit row for their own change (T8) |
+
+**20260104000100_agreement_tenant_rls.sql — company-scoped agreement policies**
+
+| Change | Purpose |
+|---|---|
+| agreement, agreement_clause and agreement_annex read/write policies add `platform.can_access_company()` | The capability alone no longer authorises another company's agreement; documents already had this predicate (T8) |
+
+**Measured after the document-processing migration (20260102000100):** 32 tables, **163** RLS
+policies (was 160), 23 capabilities, 5 roles, 0 users. The T8 policy migrations above were not
+re-counted.
 
 **Careful note on the unlocking capability.** company.read is granted to every role and means
 "read the company catalogue"; using it as the cross-company unlock made the tenant predicate always
