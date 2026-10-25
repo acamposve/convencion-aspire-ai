@@ -38,4 +38,23 @@ public sealed record CompanyDetail(
     DateTimeOffset UpdatedAt,
     uint RowVersion);
 
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize);
+public sealed record CompanyListResponse(
+    IReadOnlyList<CompanySummary> Items,
+    int Page,
+    int PageSize,
+    int Total);
+
+public sealed record CreateCompanyRequest(
+    string? Name,
+    string? LegalName,
+    string? TaxId,
+    string? ContactEmail,
+    string? City);
+
+/// <summary>A partial update: a null field means "leave unchanged".</summary>
+public sealed record UpdateCompanyRequest(
+    string? Name,
+    string? LegalName,
+    string? TaxId,
+    string? ContactEmail,
+    string? City);

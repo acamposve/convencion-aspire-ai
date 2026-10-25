@@ -83,7 +83,11 @@ public sealed class TenantScopingTests(IdentityFixture fixture)
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var page = await response.Content.ReadFromJsonAsync<CompanyListResponse>();
         page.ShouldNotBeNull();
-        page!.Items.Count.ShouldBe(2, "an administrator holds company.read_all");
+
+        // Not an exact count: other tests create companies, and the assertion must not depend on
+        // execution order.
+        page!.Items.Count.ShouldBeGreaterThanOrEqualTo(2, "an administrator holds company.read_all");
+        page.Items.Select(item => item.Id).ShouldContain(CompanyA);
         page.Items.Select(item => item.Id).ShouldContain(CompanyB);
     }
 

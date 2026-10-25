@@ -19,6 +19,8 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 {
     public DbSet<Company> Companies => Set<Company>();
 
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -27,6 +29,7 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
         // Catalog owns app.company. Later modules register their own configurations the same way.
         modelBuilder.ApplyConfiguration(new CompanyConfiguration());
+        modelBuilder.ApplyConfiguration(new AuditEntryConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

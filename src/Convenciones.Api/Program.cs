@@ -26,7 +26,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "ConnectionStrings__convenciones; outside Aspire set it in configuration or environment.");
 }
 
-builder.Services.AddDbContext<ConvencionesDbContext>(options => options.UseNpgsql(connectionString));
+// The audit interceptor reads the change tracker, so a change cannot be saved without its audit row.
+builder.Services.AddScoped<AuditInterceptor>();
+
+builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) => options
+    .UseNpgsql(connectionString)
+    .AddInterceptors(serviceProvider.GetRequiredService<AuditInterceptor>()));
 
 // ---- Request limits -----------------------------------------------------------------------------
 // Documents are capped at 20 MiB by a database constraint; the transport limit sits just above it so

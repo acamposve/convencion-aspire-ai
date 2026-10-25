@@ -42,6 +42,8 @@ public sealed class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(company => company.LogoDocumentId).HasColumnName("logo_document_id");
         builder.Property(company => company.ArchivedAt).HasColumnName("archived_at");
 
+        builder.Property(company => company.CreatedBy).HasColumnName("created_by");
+        builder.Property(company => company.UpdatedBy).HasColumnName("updated_by");
         builder.Property(company => company.CreatedAt).HasColumnName("created_at");
         builder.Property(company => company.UpdatedAt).HasColumnName("updated_at");
 
