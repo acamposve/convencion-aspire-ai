@@ -342,6 +342,63 @@ integration test with a transient role that has exactly that shape.
 
 ---
 
+### ADR-025 — The negotiation workflow: explicit transitions, read-only closure, atomic promotion *(T11)*
+**Context:** Q-4 settled *which* states exist and that `Promoted` is not one of them, but not how the
+intermediate states are entered, whether a closed case can be edited, or what promotion does. The
+legacy application answered some of it in the wrong place: `cerrar_discusion.php` set the state to
+`10` by hand and inserted a contract with placeholder dates (`*Inicio`, `*Fin`, `*Duración`,
+`*Ambito`), copied every clause into it, deleted the originals and made `mkdir(0777)`. The schema's
+guards were also incomplete: the promotion trigger fired only on `UPDATE` and only when the previous
+link was null, so a case could be inserted already promoted, re-pointed, promoted twice, or closed and
+promoted in one statement. Nothing enforced the company boundary on the negotiation tables.
+
+**Decision:**
+1. **A case is created in `Open`.** Q-4 removed `Draft`, so there is no pre-open state and no `/open`
+   operation; the three middle states are entered by explicit operations (`/in-progress`, `/pending`,
+   `/agree`) whose only precondition is the source state. `Agreed` is an explicit act — no invented rule.
+2. **`close` requires at least one meeting agreement.** The rule is stated by the API contract ("close
+   without agreements") and by INV-N2; the legacy application only displayed the message and never
+   refused the write. Recorded here as: the rule is the contract's and the invariant's, not a Q
+   resolution.
+3. **A closed case is read-only.** Every child write requires `state <> Closed`; reopening is the only
+   way back. The legacy handlers checked nothing, and a closed case remained editable and deletable.
+4. **A promoted case is terminal.** `Reopen` is refused once `PromotedAgreementId` is set; the link is
+   never cleared and the case never leaves `Closed` (A-21, ADR-014). This is also the only reading
+   compatible with `negotiation_case_promoted_consistency`, which forbids a link on a non-`Closed` row.
+5. **Promotion is separate, authorised, atomic and header-only.** It is `POST …/promote` gated by
+   `negotiation.promote`, it creates the agreement through the agreement aggregate's own rules
+   (reusing `POST /agreements`), and it writes the agreement and the case link in **one transaction**.
+   Meeting agreements are not copied into clauses: the case is the negotiation record, and clause text is
+   authored in the agreement workspace. Legacy's placeholder values and clause copying are not carried
+   over.
+6. **Petition outcomes are explicit.** Recording a meeting agreement does not change a petition's state;
+   the outcome is set through `PUT …/petitions/{id}/state`. Q-5 names the outcomes but not the graph, so
+   the minimum graph is implemented: `Open → Agreed | Rejected | Withdrawn` and `Agreed → Open` (the
+   legacy reopen). `Rejected` and `Withdrawn` are terminal. Documented as provisional until Q-5 grows a
+   transition list.
+7. **The database enforces what the aggregate enforces.** `app.guard_case_promotion()` now fires on
+   `INSERT` and on any `UPDATE`, refuses a non-`Closed` source, a missing capability, a second
+   promotion, and any change to a promoted row's state or link — with distinct SQLSTATEs (`42501`,
+   `22023`, `23505`) so the API can answer 403/409 without parsing messages. Company-scoped RLS covers
+   the six negotiation tables, and the agreement insert policy admits `negotiation.promote` only for a
+   `Draft` header, because the seeded negotiator deliberately does not hold `agreement.write`.
+
+**Why not the alternatives:** a `Draft` state (or an `/open` operation with no observable effect) adds a
+state with no business meaning and was removed by Q-4; allowing edits to a closed case would make
+promotion non-reproducible and contradicts the read-only record the contract describes; copying meeting
+agreements into clauses re-creates the legacy duplication defect; auto-setting a petition to `Agreed`
+when a meeting agreement is recorded would write a business decision the user never made.
+
+**Consequences:** the negotiation API's contract is <code>api-contracts.md §4.6</code>; the aggregate is
+in `src/Convenciones.Negotiation/`, persistence in `NegotiationStore` and the promoted agreement is
+created by `PromotedAgreementFactory`. The database half is asserted by
+`supabase/tests/constraint-tests.sql` (D5, D8) and `rls-tests.sql` (R36–R40) and, through Npgsql with the
+API bypassed, by the integration tests. **INV-N1 (parties before opening) remains unimplemented:** no
+state precedes `Open`, so enforcing it at creation would be a new business rule; the decision is open.
+
+
+---
+
 ## 4. Resolutions of the Phase 1 open questions
 
 | Question | Resolution | Decided |
@@ -419,3 +476,4 @@ land as a forward migration, not by editing applied migration files (constitutio
 | 0.1 | Initial architecture proposal from approved Phase 1 and Phase 2 findings. 42 approval items, 20 ADRs, 19 question resolutions. |
 | 0.2 | ADR-015 annotated with what T10 implemented: the single labour statute is guarded by the partial unique index, `Kind` is immutable, and the article heading is mandatory while its classification stays optional (A-12). |
 | 0.3 | T10 review remediation: **ADR-023** records the two-headings rule so AC 3 and A-12 can both stand; **ADR-024** requires `comparison.read` **and** `statute.read` for the projection that returns statutory text; ADR-022 annotated with T10's query handler types and the remaining static-query exception. |
+| 0.4 | T11: **ADR-025** settles the negotiation state machine (create in `Open`, explicit transitions, read-only closure, atomic and terminal promotion, explicit petition outcomes), hardens `app.guard_case_promotion()` (INSERT, source state, capability, no re-pointing or clearing) and adds company scope to the six negotiation tables. INV-N1 stays unimplemented pending a decision. |

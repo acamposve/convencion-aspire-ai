@@ -49,7 +49,7 @@ deployable.
 | T8 | [Agreements and clauses](task-08-agreements-clauses.md) | T3 | **implemented** (#21) |
 | T9 | [Comparison](task-09-comparison.md) | T8 | **implemented** (#22) |
 | T10 | [Legal library](task-10-legal-library.md) | T3 | **implemented** (#23) |
-| T11 | [Negotiation workflow](task-11-negotiation.md) | T8 | planned |
+| T11 | [Negotiation workflow](task-11-negotiation.md) | T8 | **implemented** |
 | T12 | [Publishing and public portal](task-12-publishing-portal.md) | T9, T10 | planned |
 | T13 | [Administration and audit](task-13-administration-audit.md) | T2 | planned |
 | T14 | [Web: core domain, admin and portal](task-14-web-core.md) | T9, T11, T12, T13 | planned |
@@ -99,7 +99,7 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 
 | Decision | Blocks | Question |
 |---|---|---|
-| **Q-4 interpretation** | T11 | Is `Agreed` the terminal state before promotion, or does promotion happen from `Closed`? The schema currently enforces "promotion implies `Closed`" |
+| **Q-4 interpretation** | T11 | **Resolved by ADR-025:** promotion is a separate operation for a `Closed` case and is terminal; a promoted case cannot be reopened. INV-N1 (parties before opening) is still open — no state precedes `Open`. |
 | **Supabase project** | T7 (demonstration), T18 (deployment), production storage in T4 | Credentials and plan tier are listed in [task-18 §2–3](task-18-deployment.md). The local adapter keeps T3–T6 runnable without it |
 | **Hosting, environments, domain, plan tier** | T18 | Five decisions in [task-18 §3](task-18-deployment.md) — cost and ownership choices, not technical ones |
 | **Legacy removal** | T16 | Remove the tree and dump, or keep them out of the build only? Removing is irreversible for the dump |
@@ -117,3 +117,4 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T8 | [task-08](task-08-agreements-clauses.md) | Agreement aggregate, integer clause numbering, publication with audit, composed title and tenant RLS; 12 acceptance tests |
 | T9 | [task-09](task-09-comparison.md) | Read-only adjacency comparison: heading exclusion, published-only, economic note, bounded paging and cross-company 404; 7 acceptance tests |
 | T10 | [task-10](task-10-legal-library.md) | Legal library: one labour statute guarded by the partial unique index, integer article numbering, mandatory article heading with an optional classification (ADR-023), company-independent reference data and statute articles in the comparison behind `statute.read` (ADR-024). Review remediation: partial `PATCH` semantics, `malformed_request` for unreadable bodies, agreement tenancy assertions R34–R35; 20 + 13 + 5 tests |
+| T11 | [task-11](task-11-negotiation.md) | Negotiation workflow: create in `Open`, explicit transitions, read-only closure, atomic and terminal promotion behind `negotiation.promote` (ADR-025), a hardened database guard and company-scoped RLS; 21 + 19 tests, D5/D8 + R36–R40 |
