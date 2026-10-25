@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
 
   <!--
     Central package management. One version per package for the whole solution, so a module cannot
@@ -21,6 +21,10 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup Label="Identity">
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup Label="Observability (ServiceDefaults)">
