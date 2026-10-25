@@ -1,9 +1,12 @@
 using Convenciones.Api.Endpoints;
 using Convenciones.Api.Infrastructure;
+using Convenciones.Documents;
 using Convenciones.Identity;
 using Convenciones.ServiceDefaults;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,8 +32,18 @@ if (string.IsNullOrWhiteSpace(connectionString))
 // The audit interceptor reads the change tracker, so a change cannot be saved without its audit row.
 builder.Services.AddScoped<AuditInterceptor>();
 
+// PostgreSQL enum types must be registered on the data source as well as in the model. Without this,
+// EF sends the CLR enum as an integer and the database rejects it — which is exactly how this was
+// found: "column extraction_status is of type platform.extraction_status but expression is of type
+// integer".
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+dataSourceBuilder.MapEnum<ExtractionStatus>("platform.extraction_status");
+var dataSource = dataSourceBuilder.Build();
+
+builder.Services.AddSingleton(dataSource);
+
 builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) => options
-    .UseNpgsql(connectionString)
+    .UseNpgsql(dataSource)
     .AddInterceptors(serviceProvider.GetRequiredService<AuditInterceptor>()));
 
 // ---- Request limits -----------------------------------------------------------------------------
@@ -38,7 +51,32 @@ builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) 
 // an oversized upload is refused while reading, not after the whole body has been buffered. The
 // framework default (30 MB) would let a request through that the database must then reject.
 builder.WebHost.ConfigureKestrel(options =>
-    options.Limits.MaxRequestBodySize = (21L * 1024 * 1024));
+    options.Limits.MaxRequestBodySize = (22L * 1024 * 1024));
+
+// The three limits must agree, or the rejection happens at the wrong layer: 20 MiB is the business
+// rule, the multipart limit adds headroom for part headers and boundaries, and the transport limit
+// must exceed the multipart one so the parse fails first with a message we control. A small memory
+// threshold keeps a 20 MiB upload out of the managed heap.
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 22L * 1024 * 1024;
+    options.MultipartHeadersLengthLimit = 16 * 1024;
+    options.MemoryBufferThreshold = 64 * 1024;
+});
+
+// ---- Document storage ----------------------------------------------------------------------------
+// The local adapter is a development substitute for Supabase Storage, which is T18 and needs an
+// approved project. Failing fast on a missing root keeps a misconfigured deployment from writing
+// documents somewhere unintended.
+var storageRoot = builder.Configuration["Documents:StorageRoot"];
+if (string.IsNullOrWhiteSpace(storageRoot))
+{
+    throw new InvalidOperationException(
+        "Documents:StorageRoot is not configured. Documents are kept in a private directory until "
+        + "Supabase Storage is approved in T18.");
+}
+
+builder.Services.AddSingleton<IDocumentStorage>(_ => new LocalDocumentStorage(storageRoot));
 
 // ---- CORS ---------------------------------------------------------------------------------------
 // No wildcard and no default origin: the browser client is served from a known host, and a policy of
@@ -81,6 +119,7 @@ app.UseMiddleware<SessionResolutionMiddleware>();
 app.MapDefaultEndpoints();
 app.MapMeEndpoints();
 app.MapCompanyEndpoints();
+app.MapDocumentEndpoints();
 
 // ---- Startup gate -----------------------------------------------------------------------------
 // An endpoint that does not declare its security requirement stops the host from starting. This is
