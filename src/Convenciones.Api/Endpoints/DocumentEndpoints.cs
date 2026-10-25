@@ -550,7 +550,8 @@ public static partial class DocumentEndpoints
             document.SizeBytes,
             document.ExtractionStatus.ToString(),
             document.ExtractionAttempts,
-            document.UploadedAt);
+            document.UploadedAt,
+            document.ExtractionError);
 
     private static DocumentDetail ToDetail(Document document) =>
         new(
@@ -623,6 +624,10 @@ public sealed record DocumentResponse(
     DateTimeOffset CreatedAt);
 
 /// <summary>List projection: enough for the documents screen, no storage or uploader internals.</summary>
+/// <remarks>
+/// <c>ExtractionError</c> is included because the documents screen must show why a document failed
+/// without a request per row. It is a server-authored explanation, not an exception message.
+/// </remarks>
 public sealed record DocumentSummary(
     Guid Id,
     string FileName,
@@ -630,7 +635,8 @@ public sealed record DocumentSummary(
     long SizeBytes,
     string ExtractionStatus,
     int ExtractionAttempts,
-    DateTimeOffset UploadedAt);
+    DateTimeOffset UploadedAt,
+    string? ExtractionError);
 
 /// <summary>One document's metadata, extraction state and concurrency token.</summary>
 public sealed record DocumentDetail(

@@ -29,10 +29,16 @@ TestResults/
 *.suo
 .vs/
 
-# Node / Vite (la SPA llega en una tarea posterior)
+# Node / Vite (T7)
 node_modules/
 dist/
 .vite/
+
+# Web environment files. `.env.example` is the committed template; real values never are.
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
 
 # Aspire local
 .aspire/

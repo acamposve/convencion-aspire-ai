@@ -37,7 +37,9 @@ uses — `items`, `page`, `pageSize`, `total` — rather than introducing a seco
 concept.
 
 The company filter is part of the SQL query, so `total` is the number of rows the caller may see, not
-the number of rows that exist. Two edge cases are deliberate:
+the number of rows that exist. Each summary carries the extraction status, attempt count, upload time
+and the server-authored `extractionError`; the documents screen must show why a document failed
+without a request per row. Two edge cases are deliberate:
 
 - A caller with no company and without `company.read_all` gets an **empty page**, never an unfiltered
   one. "No company" must not mean "all companies".

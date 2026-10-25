@@ -1,0 +1,59 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+/* Keyboard users get a visible way to skip the application bar. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 2000;
+  padding: 0.6rem 1rem;
+  background: #173f5f;
+  color: #ffffff;
+  border-radius: 0 0 8px 0;
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+/* A visible focus ring on the drop zone and any element that is not a native control. */
+.focus-ring:focus-visible {
+  outline: 3px solid #0b5cad;
+  outline-offset: 3px;
+}
+
+/* Extracted text keeps its line breaks and scrolls instead of widening the page. */
+.extracted-text {
+  margin: 0;
+  padding: 1rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+@media (max-width: 360px) {
+  /* At the narrowest supported width the page keeps its gutters and never scrolls sideways. */
+  .page-container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
