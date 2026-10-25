@@ -4,6 +4,7 @@
     <Project Path="src/Convenciones.Agreements/Convenciones.Agreements.csproj" />
     <Project Path="src/Convenciones.AppHost/Convenciones.AppHost.csproj" />
     <Project Path="src/Convenciones.Catalog/Convenciones.Catalog.csproj" />
+    <Project Path="src/Convenciones.Comparison/Convenciones.Comparison.csproj" />
     <Project Path="src/Convenciones.Documents/Convenciones.Documents.csproj" />
     <Project Path="src/Convenciones.Identity/Convenciones.Identity.csproj" />
     <Project Path="src/Convenciones.Migrator/Convenciones.Migrator.csproj" />

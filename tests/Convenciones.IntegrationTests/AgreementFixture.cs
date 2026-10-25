@@ -191,6 +191,26 @@ public sealed class AgreementFixture : IAsyncLifetime
         return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
     }
 
+    public async Task<int> PublishedCandidateCountAsync(Guid companyId, Guid headingId)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            """
+            select count(distinct a.id)
+            from app.agreement a
+            join app.agreement_clause c on c.agreement_id = a.id
+            where a.company_id = @company
+              and a.state = 'Published'
+              and c.heading_id = @heading
+            """, connection);
+        command.Parameters.AddWithValue("company", companyId);
+        command.Parameters.AddWithValue("heading", headingId);
+
+        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+    }
+
     public async Task<int> AgreementColumnCountAsync(params string[] names)
     {
         await using var connection = new NpgsqlConnection(ConnectionString);
@@ -254,6 +274,15 @@ public sealed class AgreementFixture : IAsyncLifetime
               and not exists (
                   select 1 from app.comparison_heading h
                   where h.group_id = g.id and lower(h.name) = lower(v.name)
+              );
+
+            insert into app.comparison_heading (group_id, name, description, is_excluded, sort_order)
+            select g.id, 'Bono de alimentación', 'Economic benefit clauses', false, 10
+            from app.comparison_heading_group g
+            where g.name = 'ECONOMICO'
+              and not exists (
+                  select 1 from app.comparison_heading h
+                  where h.group_id = g.id and lower(h.name) = lower('Bono de alimentación')
               );
             """;
 
