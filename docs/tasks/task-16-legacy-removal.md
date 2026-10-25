@@ -42,3 +42,30 @@ authorisation.
   so they must be verified complete first.
 - Removing files from the working tree does **not** remove them from history. Any claim of safety that
   ignores this is false, and this task must not make one.
+
+## Progress log
+
+### 2026-10-24 — dead vendor assets removed (partial)
+
+Commit `a65fcd0` removed **22 files**: `SpryAssets/` (21), including a stale nested copy at
+`SpryAssets/SpryAssets/`, and `Scripts/AC_RunActiveContent.js`.
+
+Verified after removal:
+
+```
+dotnet build → Compilación correcta. 0 Advertencias, 0 Errores
+dotnet test  → 10/10 passing
+```
+
+Nothing in `src/`, `tests/`, `supabase/` or `docs/` references them.
+
+**What this did not fix.** The credential scan still reports **17** hardcoded `mysql_connect` sites,
+because they live in `admin/modulos/settings.php` and `lib/objetos/*.php` — files that were not removed.
+The dump (`presenci_ccol.sql`, 51 MB) is also still present and still tracked.
+
+So: no credential has been removed, and none has been rotated. The exposure is unchanged.
+
+**Side effect, recorded deliberately.** Twelve legacy PHP pages still reference the removed assets, so
+they no longer render as they once did. They remain readable as source, which is what the analysis needs;
+nothing in the new stack depended on them.
+
