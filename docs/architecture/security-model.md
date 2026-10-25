@@ -270,20 +270,62 @@ Legacy contains identifiable representatives, contacts and contract holders. Rul
 
 ## 6. Multi-tenancy
 
-**The MVP is single-tenant.** Decision and evidence:
+**The company is the tenant boundary.** This supersedes the earlier "single-tenant MVP" position
+(**[A-04]**), which was written before the Product Owner answered A-37 and before the document workflow
+introduced documents that belong to a company.
 
-- The legacy schema has **no tenancy dimension** — no tenant id, no owner column, no partitioning (Phase 2 §7).
-- The only scoping is `usuarios.Codigo_empresa`, applied in one screen as a list filter
-  (`discusion_contratos_listar.php:8`), not as an authorisation control.
-- Inventing a tenancy model now would impose a cost on every table and every policy for a requirement
-  nobody has stated.
+### 6.1 The rule
 
-There is exactly **one organisation per deployment** **[A-04]**. Company-level scoping exists as a
-*permission scope* for negotiators (§3.3 layer 4), not as tenant isolation.
+Membership constrains **every** user. Cross-company access is not a consequence of having no company; it
+is an explicit grant:
 
-If multi-tenancy is ever required, the designed path is: add `tenant_id` to every table, add it to the
-JWT as a custom claim, and extend every RLS policy with `tenant_id = auth.jwt()->>'tenant_id'`. That is
-a schema-wide change, so it must be decided deliberately rather than half-built now.
+| Capability | Held by | Effect |
+|---|---|---|
+| `company.read` | every role | Read the company catalogue for the caller's own company |
+| `company.read_all` | SuperAdmin, Admin only | Read **any** company's data |
+
+`company.read` deliberately does **not** unlock cross-company access, although the original decision named
+it. It already meant "read the company catalogue" and was granted to all five roles, so using it as the
+unlock made the tenant predicate always true. The cross-tenant tests caught that on their first run — 7 of
+8 isolation assertions failed — and the capability was split.
+
+### 6.2 Two enforcement layers, both load-bearing
+
+1. **The application**, in one place: `TenantScope` decides what a caller may see, and the filter is
+   applied **inside the query**. Filtering afterwards reads every row and then relies on the mapping to
+   hide the rest.
+2. **The database**, as the last line: `platform.can_access_company(uuid)` in every policy, failing closed
+   on a null company so an unattributed document is visible to nobody.
+
+The second layer is not a substitute for the first. RLS filters **silently**: a cross-tenant write affects
+0 rows and returns no error, so an endpoint that trusts the policy alone can report success for a write
+that never happened.
+
+### 6.3 Creating a company requires both capabilities
+
+`POST /companies` requires **`company.write` AND `company.read_all`**.
+
+`company.write` alone would let a user create a company and thereby gain a tenant they could then read —
+privilege escalation through a side door. Requiring `company.read_all` means only a caller who already has
+cross-company visibility can add a company, and creating one grants nothing new.
+
+Creating a company **does not attach it to the creator**: `user_profile.company_id` is unchanged, so the
+caller's visibility after the operation is exactly what it was before.
+
+Both requirements are enforced server-side by the endpoint's capability declaration, and tested for all
+four combinations — `company.write` only, `company.read_all` only, both, and neither.
+
+### 6.4 What is *not* tenant-scoped
+
+Reference data is deliberately global and readable by any active user: countries, states, municipalities,
+sectors, types, categories, economic activities, heading groups, statutes and their articles. Applying a
+company predicate to these by reflex would make the legal library invisible to everyone; omitting it
+everywhere would leak tenant data. The distinction is explicit and tested (`StatuteTests` asserts a user of
+any company can read statutes).
+
+If true multi-tenant isolation (separate deployments per organisation) is ever required, the path is
+documented in ADR-009: a `tenant_id` on every table and in the token. That is a schema-wide change and must
+be decided deliberately, not half-built.
 
 ---
 
