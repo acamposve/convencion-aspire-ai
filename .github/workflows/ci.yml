@@ -76,15 +76,18 @@ jobs:
           MIGRATIONS_PATH: ${{ github.workspace }}/supabase/migrations
 
       - name: Verify the schema exists
+        env:
+          PGPASSWORD: postgres
         run: |
           set -euo pipefail
-          psql "postgresql://postgres:postgres@localhost:5432/convenciones" -v ON_ERROR_STOP=1 -c "
+          DSN="host=localhost port=5432 user=postgres dbname=convenciones"
+          psql "$DSN" -v ON_ERROR_STOP=1 -c "
             select count(*) as app_platform_tables
             from information_schema.tables
             where table_schema in ('app', 'platform');"
-          psql "postgresql://postgres:postgres@localhost:5432/convenciones" -v ON_ERROR_STOP=1 -c "
+          psql "$DSN" -v ON_ERROR_STOP=1 -c "
             select count(*) as rls_policies from pg_policies;"
-          psql "postgresql://postgres:postgres@localhost:5432/convenciones" -v ON_ERROR_STOP=1 -c "
+          psql "$DSN" -v ON_ERROR_STOP=1 -c "
             select count(*) as capabilities from platform.capability;"
 
   web:
