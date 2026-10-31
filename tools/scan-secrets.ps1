@@ -91,17 +91,20 @@ $files = @(Get-TargetFiles)
 $findings = New-Object System.Collections.Generic.List[object]
 
 foreach ($file in $files) {
-    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+    # Resolve and stat through .NET rather than Get-Item: the PowerShell provider behaves
+    # differently for bare dotfiles on Linux, which is where CI runs.
+    $resolved = Resolve-Path -LiteralPath $file -ErrorAction SilentlyContinue
+    if (-not $resolved) {
         continue
     }
 
-    $info = Get-Item -LiteralPath $file
-    if ($info.Length -gt 2MB) {
+    $path = $resolved.Path
+    if ([System.IO.FileInfo]::new($path).Length -gt 2MB) {
         if (-not $Quiet) { Write-Host "skipped (larger than 2 MB): $file" -ForegroundColor DarkGray }
         continue
     }
 
-    $text = [System.IO.File]::ReadAllText((Resolve-Path -LiteralPath $file).Path, [System.Text.Encoding]::UTF8)
+    $text = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
     $lineNumber = 0
 
     foreach ($line in ($text -split "`r?`n")) {

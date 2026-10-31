@@ -58,7 +58,7 @@ deployable.
 
 | # | Task | Depends on | Status |
 |---|---|---|---|
-| T15 | [CI pipeline](task-15-ci.md) | T2 | planned |
+| T15 | [CI pipeline](task-15-ci.md) | T2 | **implemented** (#30) |
 | T16 | [Legacy removal and credential disposition](task-16-legacy-removal.md) | — | **implemented** (infrastructure decommissioned; rotation N/A) |
 | T17 | [Aspire investigation](task-17-aspire-investigation.md) | — | planned |
 | T18 | [Deployment](task-18-deployment.md) | T3, T7, T15 · **needs decisions + approval** | planned |
@@ -122,4 +122,5 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T12 | [task-12](task-12-publishing-portal.md) | Public portal: allow-list projections over `anon` RLS, news publication guarded in the database with a DB-recorded actor and time (ADR-026), A-33 sanitisation for clause/annex/news bodies; 10 + 10 tests, N1–N3 + R41–R44 |
 | T13 | [task-13](task-13-administration-audit.md) | Administration and audit: one locking bootstrap function with no credential in any endpoint (ADR-027), users with live blocking and the anti-lockout 409s, the role matrix read and the audit trail behind `audit.read`; 5 + 12 tests, G1–G2 + R45–R47 |
 | T14 | [task-14](task-14-web-core.md) | Web MVP: capability-gated navigation with the API as the guard (ADR-028), agreement and clause editor with the confirmed-unpublish gate, adjacency comparison that claims no alignment, legal library, negotiation stages, news, users/roles/audit, and a tokenless public portal; 44 + 15 web tests |
+| T15 | [task-15](task-15-ci.md) | CI gate: four jobs (Release build with warnings as errors + 64 unit/154 integration tests, 19 migrations applied to PostgreSQL 17 and verified by query, web typecheck/59 tests/production build with bundle scan, secret scan); ~5.1 min; vitest per-test timeout raised to 20 s after CI exposed the flake |
 | T16 | [task-16](task-16-legacy-removal.md) | Legacy removal: 1,869 tracked files (PHP tree + 48.9 MB dump) removed from the tree because they carried 4 credential sets and personal data; analysis retained in `docs/legacy`/`docs/database`; `tools/scan-secrets.ps1` returns CLEAN; the legacy material was then purged from every ref (filter-repo, force-push); constitution Art. IX.1 amended (v1.3.1); the MySQL infrastructure was decommissioned, so rotation is not applicable |
