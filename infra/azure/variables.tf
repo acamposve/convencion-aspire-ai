@@ -11,13 +11,13 @@ variable "prefix" {
 }
 
 variable "model_name" {
-  description = "Foundry model name to deploy (must exist in the chosen region)."
+  description = "Foundry model name to deploy. gpt-4o-mini is the regional mini with Standard quota in eastus."
   type        = string
-  default     = "gpt-4.1-mini"
+  default     = "gpt-4o-mini"
 }
 
 variable "model_version" {
-  description = "Exact model version from the Foundry catalog (for example 2025-04-14). Required."
+  description = "Exact model version from the Foundry catalog (for example 2024-07-18). Required."
   type        = string
   default     = ""
 
