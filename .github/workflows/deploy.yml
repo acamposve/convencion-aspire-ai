@@ -102,7 +102,7 @@ jobs:
             printf 'Database__PasswordBase64=%s\n' "$password_b64"
             printf 'Jwt__Issuer=%s/auth/v1\n' "$SUPABASE_URL"
             printf 'Jwt__Audience=authenticated\n'
-            printf 'Jwt__MetadataAddress=%s/auth/v1/.well-known/jwks.json\n' "$SUPABASE_URL"
+            printf 'Jwt__MetadataAddress=%s/auth/v1/.well-known/openid-configuration\n' "$SUPABASE_URL"
             printf 'Cors__AllowedOrigins__0=%s\n' "$PUBLIC_BASE_URL"
             printf 'Documents__SupabaseUrl=%s\n' "$SUPABASE_URL"
             printf 'Documents__SupabaseSecretKey=%s\n' "$SECRET_KEY"

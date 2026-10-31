@@ -31,7 +31,7 @@
 | Reverse proxy | nginx, inside the `web` image (`deploy/nginx.conf`) |
 | API | `Dockerfile` image (API + migrator), non-root (`uid 1654`), read-only root filesystem |
 | Database | Supabase PostgreSQL via the **session pooler** (IPv4, port 5432) |
-| Auth | Supabase Auth; the API validates JWTs against the project JWKS |
+| Auth | Supabase Auth; the API validates JWTs through the project OIDC discovery document (which points at the JWKS) |
 | Storage | Supabase Storage, private bucket `documents`, server-side secret key only |
 | Images | GHCR, tagged with the commit SHA, pulled by the droplet |
 | Migrations | `Convenciones.Migrator` inside the API image, run as a one-shot service before `up` |
