@@ -71,7 +71,7 @@ resource "azurerm_cognitive_deployment" "clauses" {
   }
 
   sku {
-    name     = "Standard"
+    name     = var.model_sku
     capacity = var.model_capacity
   }
 }
