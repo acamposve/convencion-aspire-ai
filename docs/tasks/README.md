@@ -61,7 +61,7 @@ deployable.
 | T15 | [CI pipeline](task-15-ci.md) | T2 | **implemented** (#30) |
 | T16 | [Legacy removal and credential disposition](task-16-legacy-removal.md) | — | **implemented** (infrastructure decommissioned; rotation N/A) |
 | T17 | [Aspire investigation](task-17-aspire-investigation.md) | — | planned |
-| T18 | [Deployment](task-18-deployment.md) | T3, T7, T15 · **needs decisions + approval** | planned |
+| T18 | [Deployment](task-18-deployment.md) | T3, T7, T15 | **implemented** — live at `http://138.197.15.40` |
 | T19 | [Operations: keep it running](task-19-production-readiness.md) | T18 | planned |
 
 ---
@@ -124,3 +124,4 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T14 | [task-14](task-14-web-core.md) | Web MVP: capability-gated navigation with the API as the guard (ADR-028), agreement and clause editor with the confirmed-unpublish gate, adjacency comparison that claims no alignment, legal library, negotiation stages, news, users/roles/audit, and a tokenless public portal; 44 + 15 web tests |
 | T15 | [task-15](task-15-ci.md) | CI gate: four jobs (Release build with warnings as errors + 64 unit/154 integration tests, 19 migrations applied to PostgreSQL 17 and verified by query, web typecheck/59 tests/production build with bundle scan, secret scan); ~5.1 min; vitest per-test timeout raised to 20 s after CI exposed the flake |
 | T16 | [task-16](task-16-legacy-removal.md) | Legacy removal: 1,869 tracked files (PHP tree + 48.9 MB dump) removed from the tree because they carried 4 credential sets and personal data; analysis retained in `docs/legacy`/`docs/database`; `tools/scan-secrets.ps1` returns CLEAN; the legacy material was then purged from every ref (filter-repo, force-push); constitution Art. IX.1 amended (v1.3.1); the MySQL infrastructure was decommissioned, so rotation is not applicable |
+| T18 | [task-18](task-18-deployment.md) | Staging on a DigitalOcean droplet + Supabase (session pooler, Auth, private Storage bucket): Docker images, compose, nginx, deploy workflow with migration and rollback; verified sign-in, upload + extraction (27 KB PDF, 470 chars), cross-tenant 404, firewall 22/80 only, reboot recovery, no secret in the bundle. $12/month. HTTP only (no IP certificates) |
