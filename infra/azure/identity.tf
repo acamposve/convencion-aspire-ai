@@ -17,12 +17,13 @@ resource "azuread_service_principal" "runtime" {
 }
 
 locals {
-  runtime_principal_id = var.create_runtime_app ? azuread_service_principal.runtime[0].object_id : var.runtime_app_object_id
+  runtime_principal_id    = var.create_runtime_app ? azuread_service_principal.runtime[0].object_id : var.runtime_app_object_id
+  manage_role_assignments = var.create_runtime_app || var.runtime_app_object_id != null
 }
 
 # Least privilege: the runtime principal may call the two AI services, nothing else.
 resource "azurerm_role_assignment" "di_user" {
-  count = local.runtime_principal_id != null ? 1 : 0
+  count = local.manage_role_assignments ? 1 : 0
 
   scope                = azurerm_cognitive_account.di.id
   role_definition_name = "Cognitive Services User"
@@ -30,7 +31,7 @@ resource "azurerm_role_assignment" "di_user" {
 }
 
 resource "azurerm_role_assignment" "foundry_user" {
-  count = local.runtime_principal_id != null ? 1 : 0
+  count = local.manage_role_assignments ? 1 : 0
 
   scope                = azurerm_cognitive_account.foundry.id
   role_definition_name = "Cognitive Services User"

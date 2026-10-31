@@ -1,4 +1,6 @@
 resource "azurerm_consumption_budget_resource_group" "ai" {
+  count = (var.budget_alert_email == null || var.budget_alert_email == "") ? 0 : 1
+
   name              = "budget-${var.prefix}-ai"
   resource_group_id = azurerm_resource_group.ai.id
   amount            = var.budget_amount_usd
@@ -9,7 +11,7 @@ resource "azurerm_consumption_budget_resource_group" "ai" {
   }
 
   dynamic "notification" {
-    for_each = (var.budget_alert_email == null || var.budget_alert_email == "") ? [] : [50, 80, 100]
+    for_each = [50, 80, 100]
 
     content {
       enabled        = true
