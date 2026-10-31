@@ -41,6 +41,16 @@ if (string.IsNullOrWhiteSpace(connectionString))
     var databaseHost = builder.Configuration["Database:Host"];
     var databaseUser = builder.Configuration["Database:User"];
     var databasePassword = builder.Configuration["Database:Password"];
+    if (string.IsNullOrWhiteSpace(databasePassword))
+    {
+        // The deployment mounts the password as a file: it never passes through env-file quoting,
+        // which would mangle a "$", "#" or ";" in the value.
+        var passwordFile = builder.Configuration["Database:PasswordFile"];
+        if (!string.IsNullOrWhiteSpace(passwordFile) && File.Exists(passwordFile))
+        {
+            databasePassword = File.ReadAllText(passwordFile).Trim();
+        }
+    }
     if (!string.IsNullOrWhiteSpace(databaseHost)
         && !string.IsNullOrWhiteSpace(databaseUser)
         && !string.IsNullOrWhiteSpace(databasePassword))

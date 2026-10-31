@@ -44,3 +44,6 @@ dist/
 
 # Aspire local
 .aspire/
+
+# Deployment secret mounted into the containers by the deploy workflow; never committed.
+/secrets/

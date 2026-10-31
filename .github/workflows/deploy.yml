@@ -86,7 +86,7 @@ jobs:
             printf 'Database__Port=%s\n' "$DB_PORT"
             printf 'Database__Name=%s\n' "$DB_NAME"
             printf 'Database__User=%s\n' "$DB_USER"
-            printf 'Database__Password=%s\n' "$DB_PASSWORD"
+            printf 'Database__PasswordFile=/run/secrets/db_password\n'
             printf 'Jwt__Issuer=%s/auth/v1\n' "$SUPABASE_URL"
             printf 'Jwt__Audience=authenticated\n'
             printf 'Jwt__MetadataAddress=%s/auth/v1/.well-known/jwks.json\n' "$SUPABASE_URL"
@@ -97,17 +97,21 @@ jobs:
             printf 'Api__PathBase=/api\n'
             printf 'ASPNETCORE_URLS=http://+:8080\n'
           } > .env
+          install -d -m 700 secrets
+          printf '%s' "$DB_PASSWORD" > secrets/db_password
+          chmod 600 secrets/db_password .env
 
       - name: Keep the previous environment for rollback
         run: |
           ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" \
-            'mkdir -p /opt/convenciones && cd /opt/convenciones && if [ -f .env ]; then cp .env .env.previous; fi'
+            'mkdir -p /opt/convenciones /opt/convenciones/secrets && chmod 700 /opt/convenciones/secrets && cd /opt/convenciones && if [ -f .env ]; then cp .env .env.previous; fi'
 
       - name: Upload compose and environment
         run: |
           set -euo pipefail
           scp deploy/docker-compose.yml .env "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}:/opt/convenciones/"
-          ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" 'chmod 600 /opt/convenciones/.env'
+          scp secrets/db_password "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}:/opt/convenciones/secrets/db_password"
+          ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" 'chmod 600 /opt/convenciones/.env /opt/convenciones/secrets/db_password'
 
       - name: Log in to GHCR on the droplet
         run: |
