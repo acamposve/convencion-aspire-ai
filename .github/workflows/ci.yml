@@ -1,0 +1,132 @@
+name: CI
+
+# The gate the constitution (Art. VII.3) requires: build and tests on every pull request and on
+# main. Nothing here deploys; deployment is T18 and lives in its own workflow.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Read-only: CI needs the code, never the ability to write to the repository.
+permissions:
+  contents: read
+
+# A new push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Build and test (.NET)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Convenciones.slnx
+
+      # TreatWarningsAsErrors is already on in Directory.Build.props; -warnaserror makes the gate
+      # explicit so a warning cannot pass because a project forgot the property.
+      - name: Build
+        run: dotnet build Convenciones.slnx --no-restore --configuration Release -warnaserror
+
+      # The integration suite spins real PostgreSQL containers through Testcontainers; the runners
+      # provide Docker, so this is a real database, not a substitute.
+      - name: Test
+        run: dotnet test Convenciones.slnx --no-build --configuration Release --logger "console;verbosity=normal"
+
+  migrations:
+    name: Apply migrations to PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: convenciones
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Applies every supabase/migrations/*.sql in order, then supabase/seed.sql, exactly as the
+      # deployed migrator will. No manual schema recreation.
+      - name: Apply migrations and seed
+        run: dotnet run --project src/Convenciones.Migrator --configuration Release
+        env:
+          ConnectionStrings__convenciones: Host=localhost;Port=5432;Database=convenciones;Username=postgres;Password=postgres
+          MIGRATIONS_PATH: ${{ github.workspace }}/supabase/migrations
+
+      - name: Verify the schema exists
+        run: |
+          set -euo pipefail
+          psql "postgresql://postgres:postgres@localhost:5432/convenciones" -v ON_ERROR_STOP=1 -c "
+            select count(*) as app_platform_tables
+            from information_schema.tables
+            where table_schema in ('app', 'platform');"
+          psql "postgresql://postgres:postgres@localhost:5432/convenciones" -v ON_ERROR_STOP=1 -c "
+            select count(*) as rls_policies from pg_policies;"
+          psql "postgresql://postgres:postgres@localhost:5432/convenciones" -v ON_ERROR_STOP=1 -c "
+            select count(*) as capabilities from platform.capability;"
+
+  web:
+    name: Typecheck, test and build (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src/Convenciones.Web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: src/Convenciones.Web/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # Production build plus the bundle scan: the build fails if a service-role key, a database URL
+      # or another server-only marker reaches the browser bundle.
+      - name: Build
+        run: pnpm build
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan tracked files
+        run: pwsh ./tools/scan-secrets.ps1
