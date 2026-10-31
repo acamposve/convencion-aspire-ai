@@ -100,27 +100,29 @@ match. It has **no allowlist**.
 
 ```
 PS> pwsh ./tools/scan-secrets.ps1
-Secret scan - 276 files, 5 patterns
+Secret scan - 288 files, 5 patterns
 CLEAN: no credential-shaped string found.
 exit code: 0
 
 PS> pwsh ./tools/scan-secrets.ps1 -IncludeWorkingTree
-Secret scan - 276 files, 5 patterns
+Secret scan - 288 files, 5 patterns
 CLEAN: no credential-shaped string found.
 exit code: 0
 ```
 
 The first run, made immediately after the deletion and before the new documents existed, scanned 273
-tracked files. The final tree has 276: the removal record, the scanner itself, and `.githooks/pre-push`
+tracked files. The rebased branch has 288 after T13 merged: the removal record, the scanner, `.githooks/pre-push`
 (a shell script with no extension, which the first filter skipped and the filter now includes).
 
-Two test fixtures were reshaped to make that true without an exception, because both contained
+Three test fixtures were reshaped to make that true without an exception, because each contained
 credential-shaped strings that were not secrets:
 
 - `src/Convenciones.Web/src/features/auth/LoginPage.test.tsx` asserted the typed value with a literal;
   it now uses a variable, so the file contains no credential-shaped assignment.
 - `src/Convenciones.Web/scripts/check-bundle.test.ts` built a database URL carrying a user and a
   password to test the bundle scanner; it now assembles both at run time.
+- `tests/Convenciones.IntegrationTests/AdministrationTests.cs` sent a literal in the "password field
+  is ignored" test (inherited from T13); it now uses a variable.
 
 The scanner itself is ASCII-only (a UTF-8 em dash read as CP1252 became a smart quote and broke
 PowerShell 5.1 parsing), and it assembles the private-key marker and the scheme separator at run time

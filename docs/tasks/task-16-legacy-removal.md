@@ -30,7 +30,7 @@ authorisation.
 
 | AC | Evidence |
 |---|---|
-| 1. A secret scan across the whole repository returns **zero** credential-shaped matches — proven by running it | `pwsh ./tools/scan-secrets.ps1` → `Secret scan - 273 files, 5 patterns` / `CLEAN`, exit 0. With `-IncludeWorkingTree` → `274 files` / `CLEAN`, exit 0. No allowlist; two test fixtures were reshaped instead |
+| 1. A secret scan across the whole repository returns **zero** credential-shaped matches — proven by running it | `pwsh ./tools/scan-secrets.ps1` → `CLEAN`, exit 0 (288 files on the rebased branch). No allowlist; three test fixtures were reshaped instead |
 | 2. Every behaviour the new system depends on is traceable to `docs/legacy/*`; nothing is lost by removing the code | No file in `src/`, `tests/`, `supabase/` or `tools/` referenced a legacy path (0 matches after the seed comment was updated). The analysis is committed: 6 documents in `docs/legacy` (**40** `BR-` rules, **15** `S-` sections) and 7 in `docs/database` (**57** `DS-` findings) |
 | 3. The rotation checklist names each credential, the system it belongs to, and who must rotate it | [legacy-removal.md §4](../operations/legacy-removal.md): four credential sets (A–D) with host/database, account, historical file:line, system, owner and status **OUTSTANDING** |
 | 4. Deleting files is **not** described as making credentials safe | [legacy-removal.md §4 and §6](../operations/legacy-removal.md) state that the credentials are still valid and still in history, and that rotation is the only remedy |
@@ -84,7 +84,7 @@ Art. XIV requires **and the constitution is amended in this same change** (v1.3.
 | Archive outside Git | `C:\proyectos\convenciones-legacy-archive` — tree, dump (48.9 MB), `local/`, and a provenance README; 1,915 files, 201.3 MB |
 | Removal | 6 directories + `index.html` deleted from the working tree; the dump deleted with a wildcard (literal-path access fails on this machine — recorded in the removal §1); `git add -A` staged **1,869 deletions**, `97,616` lines, nothing else |
 | Rule cleanup | `.gitattributes`: `*.php` and the dump rule removed. `.gitignore`: legacy block replaced by an explicit "removed" note and the dump patterns. `README.md`, `docs/legacy/README.md`, `docs/database/legacy-schema-inventory.md`, `docs/operations/repository-settings.md` and `supabase/seed.sql` updated so no document claims the tree is present |
-| Secret scan | `pwsh ./tools/scan-secrets.ps1` → **CLEAN** (exit 0); 273 tracked files at the moment of deletion, 276 in the final tree (the record, the scanner and the pre-push hook were added); `-IncludeWorkingTree` also CLEAN |
+| Secret scan | `pwsh ./tools/scan-secrets.ps1` → **CLEAN** (exit 0); 273 tracked files at the moment of deletion, 288 on the rebased branch after T13 merged; `-IncludeWorkingTree` also CLEAN |
 | Scanner | `tools/scan-secrets.ps1` written: five patterns, redacted output, no allowlist, exit code 1 on any match. Two test fixtures were reshaped so the repository contains no credential-shaped string at all |
 | Build | `dotnet build Convenciones.slnx` → **0 warnings, 0 errors** |
 | .NET tests | **59 unit + 142 integration passed** (this branch is from `main`; T13/T14 add 5 + 12 more on their branches) |
