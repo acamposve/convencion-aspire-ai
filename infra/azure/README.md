@@ -90,6 +90,13 @@ az cognitiveservices model list --location eastus \
 Model availability and quota are not guaranteed by the module: if the region lacks the model or the
 TPM quota, the `plan`/`apply` fails and the values must be adjusted (or a quota request raised).
 
+### Current staging deployment (temporary)
+
+Azure OpenAI deployment creation is currently blocked for this subscription with `715-123420`
+("unusual activity"). Until support lifts it, the staging deployment uses `Phi-4-mini-instruct`
+(format `Microsoft`, SKU `GlobalStandard`, capacity 1) so the rest of the platform can be validated.
+Restore the OpenAI model (`gpt-5.4-mini`, `DataZoneStandard`) once the block is removed.
+
 ## Flow
 
 1. Open a PR that changes `infra/azure/**`. CI runs `plan` and uploads the plan artifact.

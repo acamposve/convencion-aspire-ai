@@ -32,6 +32,7 @@ env:
   TF_STATE_KEY: convenciones-ai.tfstate
   TF_VAR_model_name: ${{ vars.TF_MODEL_NAME || 'gpt-5.4-mini' }}
   TF_VAR_model_version: ${{ vars.TF_MODEL_VERSION }}
+  TF_VAR_model_format: ${{ vars.TF_MODEL_FORMAT || 'OpenAI' }}
   TF_VAR_model_sku: ${{ vars.TF_MODEL_SKU || 'DataZoneStandard' }}
   TF_VAR_model_capacity: ${{ vars.TF_MODEL_CAPACITY || '10' }}
   TF_VAR_budget_alert_email: ${{ vars.TF_BUDGET_ALERT_EMAIL }}
