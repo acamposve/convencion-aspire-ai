@@ -4,6 +4,7 @@ using Convenciones.Documents;
 using Convenciones.Legal;
 using Convenciones.Negotiation;
 using Convenciones.Publishing;
+using Convenciones.Administration;
 using Microsoft.EntityFrameworkCore;
 
 namespace Convenciones.Api.Infrastructure;
@@ -63,6 +64,13 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<NewsCategory> NewsCategories => Set<NewsCategory>();
 
+    // Administration: identity tables in the platform schema.
+    public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+
+    public DbSet<Role> Roles => Set<Role>();
+
+    public DbSet<Capability> Capabilities => Set<Capability>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -98,6 +106,14 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         // Publishing owns app.news_article and app.news_category.
         modelBuilder.ApplyConfiguration(new NewsArticleConfiguration());
         modelBuilder.ApplyConfiguration(new NewsCategoryConfiguration());
+
+        // Administration reads and writes the identity tables; the same RLS policies guard them.
+        modelBuilder.ApplyConfiguration(new UserAccountConfiguration());
+        modelBuilder.ApplyConfiguration(new UserProfileConfiguration());
+        modelBuilder.ApplyConfiguration(new UserRoleConfiguration());
+        modelBuilder.ApplyConfiguration(new RoleConfiguration());
+        modelBuilder.ApplyConfiguration(new RoleCapabilityConfiguration());
+        modelBuilder.ApplyConfiguration(new CapabilityConfiguration());
 
         base.OnModelCreating(modelBuilder);
     }

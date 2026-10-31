@@ -416,6 +416,18 @@ OCUPACIONAL) **[A-22]**.
 
 `NewsCategory` is reference data: global, no company, read by the portal and written by administrators
 through `POST /news/categories` (no legacy category rows were migrated).
+### 3.8 `UserAccount` / `Role` / `Capability`
+
+| ID | Invariant | Where enforced |
+|---|---|---|
+| INV-U1 | The database contains exactly one account until the bootstrap has run, and the bootstrap runs at most once | `platform.bootstrap_first_admin` (exclusive lock + refusal) |
+| INV-U2 | An account's id is the subject of the tokens Supabase Auth issues for it, and no account carries a credential | `UserAccount.Create`, the schema (no password column) |
+| INV-U3 | An administrator cannot block, delete or de-admin their own account | `UpdateUserHandler`, `ReplaceUserRolesHandler`, `DeleteUserHandler` (409) |
+| INV-U4 | Every account change writes an audit row with the actor and the time | `IAuditTrail`, same transaction |
+
+`Role` and `Capability` are reference data: seeded roles, a capability catalogue, and the
+`role_capability` grants that define the matrix. The MVP reads them (`GET /roles`, `GET /capabilities`);
+writing roles or grants is deferred.
 ## 4. Application services (use-case catalogue)
 
 Each is a class with one public method returning `Result<T>`. No mediator, no dispatcher — endpoints

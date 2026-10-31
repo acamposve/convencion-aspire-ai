@@ -66,6 +66,17 @@ public sealed class RequiresCapabilityAttribute : Attribute
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public sealed class PublicDataAttribute : Attribute;
 
+/// <summary>
+/// Declares that an anonymous endpoint must run its database work as the API role (<c>app_api</c>) with no
+/// claims, so RLS applies without a session.
+/// </summary>
+/// <remarks>
+/// Bootstrap is the only user of this: it has to insert the first account while the one-time window
+/// (no user exists) is open, and that window is a row-level policy on <c>platform.user_account</c>. Running
+/// as <c>anon</c> would have no INSERT grant, and resetting the role would bypass the policy entirely.
+/// </remarks>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public sealed class ApiRoleDataAttribute : Attribute;
 public static class EndpointSecurityExtensions
 {
     public static TBuilder RequiresCapability<TBuilder>(this TBuilder builder, params string[] capabilities)
@@ -100,5 +111,16 @@ public static class EndpointSecurityExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         return builder.WithMetadata(new PublicDataAttribute());
+    }
+
+    /// <summary>
+    /// Marks an anonymous endpoint that must run as <c>app_api</c> with no claims. Used by bootstrap, whose
+    /// one-time window is an RLS policy rather than a capability.
+    /// </summary>
+    public static TBuilder ServesApiRole<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return builder.WithMetadata(new ApiRoleDataAttribute());
     }
 }

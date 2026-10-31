@@ -12,6 +12,42 @@
 
 begin;
 
+\echo '--- G. the one-time bootstrap function (T13) ---'
+
+-- Runs first, while the transaction still has no accounts: the function is the only path that creates
+-- the first user, and it writes the account, profile, role grant and audit row together.
+do $$
+declare
+    v_id         uuid;
+    v_created_at timestamptz;
+    v_profiles   int;
+    v_grants     int;
+    v_audited    int;
+begin
+    select f.id, f.created_at into v_id, v_created_at
+    from platform.bootstrap_first_admin(
+        'aaaaaaaa-1111-1111-1111-111111111111', 'first@example.test', 'First SuperAdmin') as f;
+
+    select count(*) into v_profiles from platform.user_profile where user_id = v_id;
+    select count(*) into v_grants   from platform.user_role    where user_id = v_id;
+    select count(*) into v_audited  from platform.audit_entry
+     where entity_type = 'user_account' and entity_id = v_id::text and action = 'created';
+
+    if v_id is null or v_created_at is null or v_profiles <> 1 or v_grants <> 1 or v_audited <> 1 then
+        raise notice 'FAIL: G1 bootstrap incomplete (profile=%, grants=%, audit=%)', v_profiles, v_grants, v_audited;
+    else
+        raise notice 'PASS: G1 the bootstrap creates the first SuperAdmin with profile, role and audit atomically';
+    end if;
+
+    begin
+        perform platform.bootstrap_first_admin(
+            'bbbbbbbb-2222-2222-2222-222222222222', 'second@example.test', 'Second');
+        raise notice 'FAIL: G2 a second bootstrap succeeded';
+    exception when invalid_parameter_value then
+        raise notice 'PASS: G2 the bootstrap is inert once an account exists';
+    end;
+end $$;
+
 \echo ''
 \echo '--- fixtures (rolled back at the end) ---'
 

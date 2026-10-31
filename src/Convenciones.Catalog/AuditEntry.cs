@@ -1,4 +1,4 @@
-namespace Convenciones.Api.Infrastructure;
+namespace Convenciones.Catalog;
 
 /// <summary>
 /// An append-only record of a change. Mirrors <c>platform.audit_entry</c>.
