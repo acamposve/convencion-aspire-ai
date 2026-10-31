@@ -51,6 +51,17 @@ if (string.IsNullOrWhiteSpace(connectionString))
             databasePassword = File.ReadAllText(passwordFile).Trim();
         }
     }
+
+    if (string.IsNullOrWhiteSpace(databasePassword))
+    {
+        // Base64 carries no "$", "#" or ";" so neither the env file nor compose interpolation can
+        // corrupt the value. The deployment writes Database__PasswordBase64.
+        var encodedPassword = builder.Configuration["Database:PasswordBase64"];
+        if (!string.IsNullOrWhiteSpace(encodedPassword))
+        {
+            databasePassword = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedPassword));
+        }
+    }
     if (!string.IsNullOrWhiteSpace(databaseHost)
         && !string.IsNullOrWhiteSpace(databaseUser)
         && !string.IsNullOrWhiteSpace(databasePassword))

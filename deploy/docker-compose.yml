@@ -13,8 +13,6 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    volumes:
-      - ./secrets:/run/secrets:ro
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -42,12 +40,10 @@ services:
   # One-shot: applies supabase/migrations in order, then the seed. Never started by `up`.
   migrator:
     image: ${API_IMAGE:?API_IMAGE is required}
-    command: ["dotnet", "Convenciones.Migrator.dll"]
+    entrypoint: ["dotnet", "Convenciones.Migrator.dll"]
     env_file: [.env]
     environment:
       MIGRATIONS_PATH: /app/supabase/migrations
-    volumes:
-      - ./secrets:/run/secrets:ro
     profiles: ["tools"]
     restart: "no"
     networks:
