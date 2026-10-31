@@ -11,13 +11,13 @@ variable "prefix" {
 }
 
 variable "model_name" {
-  description = "Foundry model name to deploy. gpt-4o-mini is the regional mini with Standard quota in eastus."
+  description = "Foundry model name to deploy. gpt-5.4-mini is the current mini with DataZoneStandard quota in eastus."
   type        = string
-  default     = "gpt-4o-mini"
+  default     = "gpt-5.4-mini"
 }
 
 variable "model_version" {
-  description = "Exact model version from the Foundry catalog (for example 2024-07-18). Required."
+  description = "Exact model version from the Foundry catalog (for example 2026-03-17). Required."
   type        = string
   default     = ""
 
@@ -25,6 +25,12 @@ variable "model_version" {
     condition     = length(var.model_version) > 0
     error_message = "Set model_version to a version that exists in the Foundry catalog for the chosen region."
   }
+}
+
+variable "model_sku" {
+  description = "Deployment SKU. DataZoneStandard keeps processing inside the geography; GlobalStandard may process anywhere."
+  type        = string
+  default     = "DataZoneStandard"
 }
 
 variable "model_capacity" {

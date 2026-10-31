@@ -74,8 +74,9 @@ uses `use_azuread_auth = true`; no account keys).
 | `TF_STATE_RG` | `rg-convenciones-tfstate` | yes |
 | `TF_STATE_SA` | `<globally-unique-name>` | yes |
 | `TF_STATE_CONTAINER` | `tfstate` | yes |
-| `TF_MODEL_NAME` | `gpt-4o-mini` | yes |
-| `TF_MODEL_VERSION` | `2024-07-18` | yes |
+| `TF_MODEL_NAME` | `gpt-5.4-mini` | yes |
+| `TF_MODEL_VERSION` | `2026-03-17` | yes |
+| `TF_MODEL_SKU` | `DataZoneStandard` | yes |
 | `TF_MODEL_CAPACITY` | `10` | yes |
 | `TF_BUDGET_ALERT_EMAIL` | your email | optional |
 
@@ -83,7 +84,7 @@ Find a valid model and version in the region before setting them:
 
 ```bash
 az cognitiveservices model list --location eastus \
-  --query "[?model.name=='gpt-4o-mini'].{name:model.name, version:model.version, format:model.format}" -o table
+  --query "[?model.name=='gpt-5.4-mini'].{name:model.name, version:model.version, skus:model.skus[].name}" -o table
 ```
 
 Model availability and quota are not guaranteed by the module: if the region lacks the model or the
