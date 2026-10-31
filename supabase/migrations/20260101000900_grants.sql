@@ -27,6 +27,14 @@ begin
     if not exists (select 1 from pg_roles where rolname = 'app_api') then
         create role app_api nologin noinherit;
     end if;
+    -- The API connects as postgres through the session pooler and switches role per request.
+    -- On PostgreSQL 16+ a role that creates another is not guaranteed SET membership, so grant it
+    -- explicitly when it is missing. Harmless where postgres already has it.
+    if exists (select 1 from pg_roles where rolname = 'postgres') then
+        if not pg_has_role('postgres', 'app_api', 'MEMBER') then
+            execute 'grant app_api to postgres';
+        end if;
+    end if;
 end $$;
 
 -- -------------------------------------------------------------------------------------

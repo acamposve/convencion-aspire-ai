@@ -1,0 +1,54 @@
+name: convenciones
+
+# Single droplet, single published port (80). The API is reachable only on the internal network;
+# nginx is the only process exposed to the internet.
+
+services:
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    env_file: [.env]
+    restart: unless-stopped
+    expose:
+      - "8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    networks:
+      - internal
+
+  web:
+    image: ${WEB_IMAGE:?WEB_IMAGE is required}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
+
+  # One-shot: applies supabase/migrations in order, then the seed. Never started by `up`.
+  migrator:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    command: ["dotnet", "Convenciones.Migrator.dll"]
+    env_file: [.env]
+    environment:
+      MIGRATIONS_PATH: /app/supabase/migrations
+    profiles: ["tools"]
+    restart: "no"
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
