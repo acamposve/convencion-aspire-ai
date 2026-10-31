@@ -1,6 +1,6 @@
 # Constitution — Convenciones
 
-**Version:** 1.3.0
+**Version:** 1.3.1
 **Status:** Ratified
 **Ratified:** Task 1 (`task/1-project-constitution`)
 **Amended:** 1.1.0 — Task 1, second review. Resolved D-1 (reference catalog seed) and D-2 (root
@@ -10,6 +10,8 @@ repository** (they carried committed credentials and personal data); Art. IX.1 n
 committed analysis is the retained evidence and that the removed material is archived outside Git.
 See the [amendment log](#amendment-log) and
 [operations/legacy-removal.md](operations/legacy-removal.md).
+**Amended:** 1.3.1 — T16 follow-up. The Product Owner confirmed the original MySQL infrastructure was
+decommissioned; Art. IX.1 now records that rotation is not applicable, and the archive was deleted.
 **Supersedes:** the legacy `constitucion.md` referenced by the historical README, which does not exist in this repository and is treated as withdrawn.
 
 This document is the highest authority for engineering decisions in this project. Any
@@ -133,10 +135,12 @@ it (Art. XII.1).
    repository. They were removed from it in T16 (2026-10-31)**, because they carried committed
    database credentials (Art. VI.3) and personal data (Art. VI.5, Art. VII.4) that must not be
    versioned. The retained evidence is the committed analysis under `docs/legacy/` and
-   `docs/database/`; the removed material is archived outside Git and is never a build input. The
-   dump is never altered. The material was purged from this repository's history on 2026-10-31 (every
-   ref rewritten and force-pushed), but pull-request refs, existing clones and the off-repository
-   archive may still contain it, so the credentials must still be rotated (see
+   `docs/database/`; the removed material was archived outside Git and then deleted at the owner's
+   instruction on 2026-10-31, and it is never a build input. The dump is never altered. The material
+   was purged from this repository's history on 2026-10-31 (every
+   ref rewritten and force-pushed), but pull-request refs, existing clones and the pre-rewrite backup
+   may still contain it. The Product Owner confirmed on 2026-10-31 that the MySQL
+   infrastructure was decommissioned, so rotation is not applicable (see
    [operations/legacy-removal.md](operations/legacy-removal.md)).
 2. **No PHP code is reused as production implementation.** No file is copied, transliterated, or mechanically translated into C#. Behavior is understood, then independently redesigned.
 3. Legacy data may be inspected to understand the data model and to design better test fixtures. It is not migrated (Art. V.2).
@@ -220,3 +224,4 @@ No open decisions at this time.
 | 1.2.0 | `main` protection defined as an enforced rule with a local-hook fallback when the hosting plan cannot enforce it; Product Owner is the sole merge/override authority | **Art. VIII.1**, Art. VIII.3, Art. VIII.6 | Product Owner |
 | 1.1.0 | Added SuperAdmin first-run bootstrap; all other accounts in-app | Art. II.6–7, **Art. VI.6 (new)** | Product Owner |
 | 1.3.0 | Legacy tree and MySQL dump removed from the repository (T16); Art. IX.1 amended so the committed analysis is the retained evidence and the removed material is archived outside Git. Reason: committed credentials (Art. VI.3) and personal data (Art. VI.5, Art. VII.4, Art. XI.2). Deletion does not rotate credentials; rotation is outstanding | **Art. IX.1**, Art. VI.3, Art. VI.5 | Product Owner (T16 approval) |
+| 1.3.1 | Recorded the Product Owner's decommissioning decision: the legacy MySQL servers no longer exist, sets A–D belonged only to them, and rotation is not applicable. The legacy archive and `local/` configuration were deleted as valueless | **Art. IX.1** | Product Owner (decision 2026-10-31) |

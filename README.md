@@ -52,8 +52,8 @@ the repository in T16** because they carried committed database credentials and 
 analysis under [docs/legacy](docs/legacy/README.md) and [docs/database](docs/database/) is the
 retained evidence, and the removed material is archived outside Git.
 
-Removing the files did **not** make the credentials safe: they remain in every earlier commit, so
-they must be rotated, and that is still outstanding. See
+The credentials belonged to MySQL infrastructure the Product Owner confirmed decommissioned on 2026-10-31,
+so rotation is not applicable. The values survive in the pre-rewrite backup and GitHub's PR refs. See
 [docs/operations/legacy-removal.md](docs/operations/legacy-removal.md).
 
 ## Product scope (MVP)
@@ -117,5 +117,5 @@ limitations.
 The legacy tree is no longer in the repository. [docs/legacy/README.md](docs/legacy/README.md)
 describes what it contained and why the analysis is retained;
 [docs/operations/legacy-removal.md](docs/operations/legacy-removal.md) records the removal, the
-credential inventory, the rotation checklist (outstanding) and what deletion does not fix.
+credential inventory, the decommissioning decision and what deletion does not fix.
 

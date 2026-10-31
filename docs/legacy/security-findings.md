@@ -47,10 +47,8 @@ Two aggravating details:
 - `lib/funciones/php/contratos/comparacion/conexion.php` is a standalone second connection
   file with the same production credentials, bypassing the `$LibSite` abstraction entirely.
 
-**Required action regardless of this project:** rotate all four credentials. The `root`-with-empty-
-password set is the default of several packaged local web stacks, which suggests developers ran
-against a root DB and that credential reached committed code by copy-paste. Whether the servers are
-still reachable is unknown and should be assumed yes.
+**Update 2026-10-31 (T16):** the Product Owner confirmed the MySQL infrastructure was decommissioned and no
+other system used these accounts; rotation is not applicable. See [../operations/legacy-removal.md](../operations/legacy-removal.md). The finding above is kept as the historical record.
 
 ---
 

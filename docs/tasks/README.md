@@ -59,7 +59,7 @@ deployable.
 | # | Task | Depends on | Status |
 |---|---|---|---|
 | T15 | [CI pipeline](task-15-ci.md) | T2 | planned |
-| T16 | [Legacy removal and credential rotation](task-16-legacy-removal.md) | — | **implemented** (rotation outstanding) |
+| T16 | [Legacy removal and credential disposition](task-16-legacy-removal.md) | — | **implemented** (infrastructure decommissioned; rotation N/A) |
 | T17 | [Aspire investigation](task-17-aspire-investigation.md) | — | planned |
 | T18 | [Deployment](task-18-deployment.md) | T3, T7, T15 · **needs decisions + approval** | planned |
 | T19 | [Operations: keep it running](task-19-production-readiness.md) | T18 | planned |
@@ -76,7 +76,7 @@ T1 (done) → T2 → T3 → T4 → T5 → T6 → T7    ← first usable product
 ```
 
 T15, T16 and T17 are independent and can run in parallel with any of it. **T16 is done** (legacy
-tree and dump removed; the credentials still need rotation — see
+tree and dump removed; the MySQL infrastructure was decommissioned, so rotation is not applicable — see
 [operations/legacy-removal.md](../operations/legacy-removal.md) §4).
 
 **T18 is the answer to "when do you need Supabase?"** Sign-in (T7) needs a real project to be
@@ -94,7 +94,7 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 5. An anonymous visitor reads published agreements and news, and nothing else.
 6. A user of one company cannot read or write another company's data — proven over HTTP, not only in SQL.
 7. CI runs build and tests on every pull request.
-8. The repository contains no credential, and the exposed ones have been rotated.
+8. The repository contains no credential; the legacy credentials belonged to decommissioned infrastructure and need no rotation.
 
 ## Open decisions blocking specific tasks
 
@@ -103,7 +103,7 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | **Q-4 interpretation** | T11 | **Resolved by ADR-025:** promotion is a separate operation for a `Closed` case and is terminal; a promoted case cannot be reopened. INV-N1 (parties before opening) is still open — no state precedes `Open`. |
 | **Supabase project** | T7 (demonstration), T18 (deployment), production storage in T4 | Credentials and plan tier are listed in [task-18 §2–3](task-18-deployment.md). The local adapter keeps T3–T6 runnable without it |
 | **Hosting, environments, domain, plan tier** | T18 | Five decisions in [task-18 §3](task-18-deployment.md) — cost and ownership choices, not technical ones |
-| ~~**Legacy removal**~~ | ~~T16~~ | **Resolved 2026-10-31** — approved: the tree and dump were removed (archived outside Git); the credentials still require rotation, which is outstanding |
+| ~~**Legacy removal**~~ | ~~T16~~ | **Resolved 2026-10-31** — approved: the tree and dump were removed (archive deleted); the Product Owner confirmed the MySQL infrastructure decommissioned, so rotation is not applicable |
 | **CI enforcement** | T15 | Branch protection is unavailable on a private repo on the Free plan (HTTP 403). Upgrade, or accept the local hook as the only gate |
 
 ## History
@@ -122,4 +122,4 @@ and the local storage adapter, so nothing before T7 is blocked on it.
 | T12 | [task-12](task-12-publishing-portal.md) | Public portal: allow-list projections over `anon` RLS, news publication guarded in the database with a DB-recorded actor and time (ADR-026), A-33 sanitisation for clause/annex/news bodies; 10 + 10 tests, N1–N3 + R41–R44 |
 | T13 | [task-13](task-13-administration-audit.md) | Administration and audit: one locking bootstrap function with no credential in any endpoint (ADR-027), users with live blocking and the anti-lockout 409s, the role matrix read and the audit trail behind `audit.read`; 5 + 12 tests, G1–G2 + R45–R47 |
 | T14 | [task-14](task-14-web-core.md) | Web MVP: capability-gated navigation with the API as the guard (ADR-028), agreement and clause editor with the confirmed-unpublish gate, adjacency comparison that claims no alignment, legal library, negotiation stages, news, users/roles/audit, and a tokenless public portal; 44 + 15 web tests |
-| T16 | [task-16](task-16-legacy-removal.md) | Legacy removal: 1,869 tracked files (PHP tree + 48.9 MB dump) removed from the tree because they carried 4 credential sets and personal data; analysis retained in `docs/legacy`/`docs/database`; `tools/scan-secrets.ps1` returns CLEAN; the legacy material was then purged from every ref (filter-repo, force-push); constitution Art. IX.1 amended (v1.3.0); **rotation of the four credential sets is outstanding** |
+| T16 | [task-16](task-16-legacy-removal.md) | Legacy removal: 1,869 tracked files (PHP tree + 48.9 MB dump) removed from the tree because they carried 4 credential sets and personal data; analysis retained in `docs/legacy`/`docs/database`; `tools/scan-secrets.ps1` returns CLEAN; the legacy material was then purged from every ref (filter-repo, force-push); constitution Art. IX.1 amended (v1.3.1); the MySQL infrastructure was decommissioned, so rotation is not applicable |

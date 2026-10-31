@@ -119,5 +119,5 @@ action on the remote database that you have not explicitly approved.
 
 ## 8. What this task does **not** claim
 
-Deploying does not make the credentials in T16 safe, and it does not rotate them. Those stay live until
-someone rotates them, and the git history keeps them retrieveable.
+The T16 credentials belonged to infrastructure the Product Owner confirmed decommissioned on 2026-10-31;
+deploying neither revives them nor requires rotating them. The values remain in the pre-rewrite backup and GitHub's PR refs.
