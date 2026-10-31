@@ -154,7 +154,9 @@ was rewritten to purge the legacy material from every ref.
   - the dump blob `322d113c...` is no longer retrievable (`git cat-file -s` fails);
   - `git log -S 'mysql_connect('` matches **no** commit, so no literal connection call survives;
   - the pack dropped from 150.9 MB to under 1 MB of objects.
-- **Remote.** Every branch was force-pushed with the rewritten history; `main` is `95004ae`.
+- **Remote.** Every branch was force-pushed with the rewritten history; `main` is `95004ae`. The local
+  pre-push guard was overridden once for the `main` push with `CONVENCIONES_ALLOW_MAIN_PUSH=1`, the
+  mechanism the guard itself documents for the Product Owner; the override is recorded here.
 
 **What this achieves, and what it does not.** It removes the material from this repository's history
 and from every branch on GitHub. It does **not** reach GitHub's pull-request refs (#6-#26), which

@@ -1,6 +1,6 @@
 # T16 — Legacy tree removal and credential rotation
 
-**Status:** implemented (removal, history purge) — **credential rotation outstanding** · **Requires:** your approval before executing
+**Status:** implemented (removal, history purge) — **PR #27 open**, credential rotation outstanding · **Requires:** your approval before executing
 **Branch:** `task/29-legacy-removal` (from `main` at `28b89be`)
 
 ## Objective
