@@ -14,6 +14,12 @@ Changes from the original, recorded for provenance:
   No such file existed in the repository. The current authority is
   [../constitution.md](../constitution.md), which preserves both article anchors.
 
+**The tree itself is no longer in the repository.** In T16 (2026-10-31) the legacy PHP application and
+the MySQL dump were removed because they carried committed database credentials and personal data; the
+analysis documents in this directory are the retained evidence, and the removed material is archived
+outside Git. See [../operations/legacy-removal.md](../operations/legacy-removal.md), including the
+rotation checklist, which is outstanding.
+
 Content below is the original, in Spanish as written.
 
 ---

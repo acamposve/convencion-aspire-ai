@@ -38,24 +38,23 @@ no microservices for the MVP (constitution Art. IV).
 docs/                     Governance and analysis
   constitution.md         Authoritative engineering rules — start here
   tasks/                  One record per implementation task
-  legacy/README.md        Archived description of the legacy tree
+  legacy/                 Archived analysis of the legacy system (the tree itself was removed)
 src/                      ASP.NET Core API, modules, migrator, AppHost, web client
 tests/                    .NET unit and integration tests
-admin/ lib/ plantillas/   Legacy PHP application — READ ONLY
-  css/ img/ new_img/ ...
-index.html                Legacy public portal — READ ONLY
-presenci_ccol.sql         Legacy MySQL dump — analysis only, never migrated
+supabase/                 Migrations, seed and the disposable-database test suites
+tools/                    Developer scripts: secret scan, git hooks installer
 ```
 
-The legacy PHP application and the dump are **evidence, not a codebase**. They are never
-modified, and **no PHP code is ported** (constitution Art. IX). The legacy tree is expected to be
-removed from the repository once the functional analysis is complete; until then it stays
-untouched at the root.
 
-**T16 is in progress.** The dead vendor assets (`SpryAssets/`, `Scripts/`) were removed: nothing in the
-new stack referenced them, and `SpryAssets/` contained a stale nested copy of itself. Twelve legacy PHP
-pages still reference those assets, so those pages no longer render as they once did — they remain
-readable as code, which is all the analysis needs from them.
+The legacy PHP application and its MySQL dump were **evidence, not a codebase**. They were never
+modified as a codebase and no PHP code was ported (constitution Art. IX). **They were removed from
+the repository in T16** because they carried committed database credentials and personal data; the
+analysis under [docs/legacy](docs/legacy/README.md) and [docs/database](docs/database/) is the
+retained evidence, and the removed material is archived outside Git.
+
+Removing the files did **not** make the credentials safe: they remain in every earlier commit, so
+they must be rotated, and that is still outstanding. See
+[docs/operations/legacy-removal.md](docs/operations/legacy-removal.md).
 
 ## Product scope (MVP)
 
@@ -115,5 +114,8 @@ limitations.
 
 ## Legacy reference
 
-See [docs/legacy/README.md](docs/legacy/README.md) for what the legacy tree contains and why it is
-retained. Credentials in `local/` are excluded from version control and must never be reused.
+The legacy tree is no longer in the repository. [docs/legacy/README.md](docs/legacy/README.md)
+describes what it contained and why the analysis is retained;
+[docs/operations/legacy-removal.md](docs/operations/legacy-removal.md) records the removal, the
+credential inventory, the rotation checklist (outstanding) and what deletion does not fix.
+

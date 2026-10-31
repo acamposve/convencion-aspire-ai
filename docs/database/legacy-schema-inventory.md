@@ -1,6 +1,7 @@
 # Legacy schema inventory — MySQL dump `presenci_cccol`
 
-Static analysis of [presenci_cccol.sql](../../presenci_cccol.sql). The dump was **not restored**,
+Static analysis of the legacy MySQL dump (removed from the repository in T16; see
+[legacy-removal.md](../operations/legacy-removal.md)). The dump was **not restored**,
 **not imported**, and **not modified**. Nothing was executed against any database.
 
 Companion documents: [legacy-relationships.md](legacy-relationships.md) ·
