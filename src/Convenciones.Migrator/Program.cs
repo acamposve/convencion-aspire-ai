@@ -24,6 +24,15 @@ if (string.IsNullOrWhiteSpace(connectionString))
             password = File.ReadAllText(passwordFile).Trim();
         }
     }
+
+    if (string.IsNullOrWhiteSpace(password))
+    {
+        var encodedPassword = Environment.GetEnvironmentVariable("Database__PasswordBase64");
+        if (!string.IsNullOrWhiteSpace(encodedPassword))
+        {
+            password = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedPassword));
+        }
+    }
     if (!string.IsNullOrWhiteSpace(host)
         && !string.IsNullOrWhiteSpace(user)
         && !string.IsNullOrWhiteSpace(password))
