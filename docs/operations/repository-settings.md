@@ -1,4 +1,4 @@
-﻿# Repository settings â€” required configuration and current status
+# Repository settings — required configuration and current status
 
 Owner: Product Owner. Constitution Art. VIII.1 makes `main` protection an enforcement obligation,
 not an intention.
@@ -27,17 +27,19 @@ Both GitHub mechanisms answer **HTTP 403** on this repository:
 ```
 GET  /repos/acamposve/convencion-aspire-ai/branches/main/protection
 POST /repos/acamposve/convencion-aspire-ai/rulesets
-â†’ { "message": "Upgrade to GitHub Pro or make this repository public to enable this feature.",
+→ { "message": "Upgrade to GitHub Pro or make this repository public to enable this feature.",
     "status": 403 }
 ```
 
 Branch protection and repository rulesets are not available for **private repositories on the
-GitHub Free plan**. The repository is private and must stay private: it still contains the legacy
-PHP tree and `presenci_cccol.sql`, which holds personal data of identifiable individuals. Making it
-public to obtain a feature would be a serious data exposure, so it is not an option.
+GitHub Free plan**. The repository is private and must stay private. T16 removed the legacy
+tree and the dump from the working tree and, with explicit authorisation, purged them from this
+repository's history on 2026-10-31 (every ref rewritten and force-pushed). Pull-request refs,
+pre-rewrite clones and the off-repository archive may still contain the credentials and personal data,
+which is why the repository stays private.
 
 **Consequence:** the rule is currently enforced by a committed **pre-push hook** instead
-(Â§3). This satisfies the Art. VIII.1 fallback: *a hosting limitation changes where the rule is
+(§3). This satisfies the Art. VIII.1 fallback: *a hosting limitation changes where the rule is
 enforced; it never relaxes the rule.*
 
 ---
@@ -59,8 +61,8 @@ CONVENCIONES_ALLOW_MAIN_PUSH=1 git push origin main
 ```
 
 **Honest assessment of this control.** It runs on the developer machine, so it is bypassable with
-`git push --no-verify` or by clearing `core.hooksPath`. It prevents accidental direct pushes â€” the
-realistic failure mode for an agent or a distracted human â€” and it does not prevent a determined
+`git push --no-verify` or by clearing `core.hooksPath`. It prevents accidental direct pushes — the
+realistic failure mode for an agent or a distracted human — and it does not prevent a determined
 one. It is a stopgap, not the enforcement the constitution asks for.
 
 ---
@@ -69,7 +71,7 @@ one. It is a stopgap, not the enforcement the constitution asks for.
 
 Either condition unblocks the hosting-level ruleset:
 
-1. **Upgrade the account to GitHub Pro** (the repository stays private â€” recommended), or
+1. **Upgrade the account to GitHub Pro** (the repository stays private — recommended), or
 2. Make the repository public **after** the legacy tree and dump are removed from the repository and
    from history. That is a separate, deliberate decision and is not recommended before the legacy
    tree is retired.
@@ -108,8 +110,8 @@ JSON
 
 `actor_id: 5` selects the **repository admin** role, which is the Product Owner's account. This is
 the value documented for `RepositoryRole` in the rulesets API at the time of writing; confirm it in
-*Settings â†’ Rules â†’ Rulesets* after applying, because this payload could not be executed against
-this repository to verify it (Â§2).
+*Settings → Rules → Rulesets* after applying, because this payload could not be executed against
+this repository to verify it (§2).
 
 Verify afterwards:
 
@@ -128,5 +130,5 @@ These hold whether or not the platform can enforce them:
 2. Never pushes to `main`; pushes only the task branch.
 3. Never merges a pull request, including its own.
 4. Never force-pushes, amends shared history, or deletes a branch on the remote.
-5. One task, one branch, one PR (Art. VIII.2â€“3).
+5. One task, one branch, one PR (Art. VIII.2–3).
 

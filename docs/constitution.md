@@ -1,13 +1,15 @@
 # Constitution — Convenciones
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Status:** Ratified
 **Ratified:** Task 1 (`task/1-project-constitution`)
 **Amended:** 1.1.0 — Task 1, second review. Resolved D-1 (reference catalog seed) and D-2 (root
 README); added Art. V.3 and Art. VI.6.
-**Amended:** 1.2.0 — Task 6. Domain-Driven Design and CQRS are now **mandatory** (Art. IV.3, Art.
-IV.4), reversing the earlier rejection of CQRS; `main` protection is now an enforcement obligation
-with a stated fallback (Art. VIII.1). See the [amendment log](#amendment-log).
+**Amended:** 1.3.0 — T16. The legacy PHP tree and the MySQL dump were **removed from the
+repository** (they carried committed credentials and personal data); Art. IX.1 now records that the
+committed analysis is the retained evidence and that the removed material is archived outside Git.
+See the [amendment log](#amendment-log) and
+[operations/legacy-removal.md](operations/legacy-removal.md).
 **Supersedes:** the legacy `constitucion.md` referenced by the historical README, which does not exist in this repository and is treated as withdrawn.
 
 This document is the highest authority for engineering decisions in this project. Any
@@ -127,7 +129,15 @@ it (Art. XII.1).
 
 ## Art. IX — The legacy codebase (reference only)
 
-1. The legacy PHP application and the MySQL dump are **read-only evidence**. They are never modified, moved, or deleted, and the dump is never altered.
+1. **The legacy PHP application and the MySQL dump were read-only evidence while they were in the
+   repository. They were removed from it in T16 (2026-10-31)**, because they carried committed
+   database credentials (Art. VI.3) and personal data (Art. VI.5, Art. VII.4) that must not be
+   versioned. The retained evidence is the committed analysis under `docs/legacy/` and
+   `docs/database/`; the removed material is archived outside Git and is never a build input. The
+   dump is never altered. The material was purged from this repository's history on 2026-10-31 (every
+   ref rewritten and force-pushed), but pull-request refs, existing clones and the off-repository
+   archive may still contain it, so the credentials must still be rotated (see
+   [operations/legacy-removal.md](operations/legacy-removal.md)).
 2. **No PHP code is reused as production implementation.** No file is copied, transliterated, or mechanically translated into C#. Behavior is understood, then independently redesigned.
 3. Legacy data may be inspected to understand the data model and to design better test fixtures. It is not migrated (Art. V.2).
 4. Legacy business behavior that is *useful* is preserved in intent and redesigned in implementation.
@@ -209,3 +219,4 @@ No open decisions at this time.
 | 1.2.0 | **CQRS made mandatory** in code (commands and queries as separate handlers); infrastructure-level CQRS still requires an amendment | **Art. IV.4 (new)**, Art. IV.7 | Product Owner |
 | 1.2.0 | `main` protection defined as an enforced rule with a local-hook fallback when the hosting plan cannot enforce it; Product Owner is the sole merge/override authority | **Art. VIII.1**, Art. VIII.3, Art. VIII.6 | Product Owner |
 | 1.1.0 | Added SuperAdmin first-run bootstrap; all other accounts in-app | Art. II.6–7, **Art. VI.6 (new)** | Product Owner |
+| 1.3.0 | Legacy tree and MySQL dump removed from the repository (T16); Art. IX.1 amended so the committed analysis is the retained evidence and the removed material is archived outside Git. Reason: committed credentials (Art. VI.3) and personal data (Art. VI.5, Art. VII.4, Art. XI.2). Deletion does not rotate credentials; rotation is outstanding | **Art. IX.1**, Art. VI.3, Art. VI.5 | Product Owner (T16 approval) |

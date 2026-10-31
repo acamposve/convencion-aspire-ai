@@ -7,7 +7,7 @@
 -- What is deliberately NOT here:
 --   * any user account. Per constitution Art. VI.6 the single SuperAdmin is created once through
 --     POST /auth/bootstrap; no seeded user of any kind exists, in any environment.
---   * any legacy record. No row from presenci_cccol.sql is reproduced (constitution Art. V.2).
+--   * any legacy record. The legacy dump is no longer in the repository (T16, docs/operations/legacy-removal.md); no row from it is reproduced (constitution Art. V.2).
 --   * the full 64-heading taxonomy, 237 countries, 23 states or 410 municipalities of the legacy
 --     data. Reproducing those would be a data migration wearing a seed's clothes. The heading
 --     groups are seeded because they are the vocabulary the product cannot operate without, and

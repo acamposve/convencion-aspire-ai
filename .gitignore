@@ -1,10 +1,12 @@
 # =============================================================================
-# Convenciones — legacy PHP reference tree
+# Legacy PHP tree - REMOVED from the repository (T16, docs/operations/legacy-removal.md)
 # =============================================================================
 
-# Historial: configuración con credenciales (MySQL/ODBC passwords).
-# NUNCA se versiona. Ver README.md § local/config*.php
+# The tree and the MySQL dump are no longer versioned. A local copy, if any, lives outside the
+# repository (C:\proyectos\convenciones-legacy-archive) and is never committed.
 local/
+presenci_ccol.sql
+presenci*.sql
 
 # Basura de sistema operativo / Dreamweaver
 Thumbs.db
@@ -42,14 +44,3 @@ dist/
 
 # Aspire local
 .aspire/
-
-# =============================================================================
-# Notas
-# =============================================================================
-# `presenci_cccol.sql` (48 MB, dump de datos reales) y los PDFs de contratos en
-# `admin/modulos/contratos/contratos/documentos/` SÍ se versionan en este repo
-# PRIVADO por su valor como dataset de referencia/migración (README.md).
-# Si el repo se hiciera público, excluirlos antes de cualquier push.
-
-# Per-developer launch profile: contains machine-specific ports
-**/Properties/launchSettings.json

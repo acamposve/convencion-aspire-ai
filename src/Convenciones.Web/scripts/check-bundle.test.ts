@@ -4,7 +4,10 @@ import { FORBIDDEN_MARKERS, scanText } from './check-bundle.mjs';
 describe('bundle scan', () => {
   it('flags a service-role key and a database URL', () => {
     expect(scanText('const role = "service_role";')).toContain('service_role');
-    expect(scanText('const url = "postgresql://user:secret@host/db";')).toContain(
+    // Built at run time: the repository must not contain a credential-shaped literal, and the scanner
+    // scans its own tests.
+    const credentials = ['user', 'secret'].join(':');
+    expect(scanText(`const url = "postgresql://${credentials}@host/db";`)).toContain(
       'postgresql://',
     );
     expect(scanText(`const key = "sb_secret_${'a'.repeat(40)}";`)).toContain('sb_secret_ key');
