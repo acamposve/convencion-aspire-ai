@@ -38,6 +38,7 @@ public sealed class MigrationFileTests
         "20260105000000_negotiation_workflow.sql",
         "20260106000000_news_publication_guard.sql",
         "20260107000000_administration_bootstrap.sql",
+        "20260108000000_api_role_membership.sql",
     ];
 
     [Fact]
