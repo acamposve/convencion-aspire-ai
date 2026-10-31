@@ -35,9 +35,34 @@ builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadReq
 var connectionString = builder.Configuration.GetConnectionString("convenciones");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
+    // The deployment sets the parts separately (Database__Host, Database__User, Database__Password,
+    // ...) instead of a pre-assembled connection string. NpgsqlConnectionStringBuilder escapes the
+    // password properly, which an env-file value cannot be relied on to do.
+    var databaseHost = builder.Configuration["Database:Host"];
+    var databaseUser = builder.Configuration["Database:User"];
+    var databasePassword = builder.Configuration["Database:Password"];
+    if (!string.IsNullOrWhiteSpace(databaseHost)
+        && !string.IsNullOrWhiteSpace(databaseUser)
+        && !string.IsNullOrWhiteSpace(databasePassword))
+    {
+        connectionString = new NpgsqlConnectionStringBuilder
+        {
+            Host = databaseHost,
+            Port = builder.Configuration.GetValue("Database:Port", 5432),
+            Database = builder.Configuration["Database:Name"] ?? "postgres",
+            Username = databaseUser,
+            Password = databasePassword,
+            SslMode = SslMode.Require,
+        }.ConnectionString;
+    }
+}
+
+if (string.IsNullOrWhiteSpace(connectionString))
+{
     throw new InvalidOperationException(
         "Connection string 'convenciones' is not configured. Under Aspire it is injected as " +
-        "ConnectionStrings__convenciones; outside Aspire set it in configuration or environment.");
+        "ConnectionStrings__convenciones; outside Aspire set it in configuration or environment, " +
+        "or provide Database__Host, Database__User and Database__Password.");
 }
 
 // The audit interceptor reads the change tracker, so a change cannot be saved without its audit row.
@@ -85,14 +110,34 @@ builder.Services.Configure<FormOptions>(options =>
 // approved project. Failing fast on a missing root keeps a misconfigured deployment from writing
 // documents somewhere unintended.
 var storageRoot = builder.Configuration["Documents:StorageRoot"];
-if (string.IsNullOrWhiteSpace(storageRoot))
+var supabaseUrl = builder.Configuration["Documents:SupabaseUrl"];
+var supabaseSecretKey = builder.Configuration["Documents:SupabaseSecretKey"];
+var supabaseBucket = builder.Configuration["Documents:Bucket"];
+
+if (!string.IsNullOrWhiteSpace(supabaseUrl)
+    && !string.IsNullOrWhiteSpace(supabaseSecretKey)
+    && !string.IsNullOrWhiteSpace(supabaseBucket))
+{
+    // Production path: the private bucket lives in Supabase Storage and the secret key never
+    // reaches the browser. It is server-side configuration only.
+    builder.Services.AddHttpClient<IDocumentStorage, SupabaseDocumentStorage>(client =>
+    {
+        client.BaseAddress = new Uri($"{supabaseUrl!.TrimEnd('/')}/storage/v1/");
+        client.DefaultRequestHeaders.Add("apikey", supabaseSecretKey);
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", supabaseSecretKey);
+    });
+}
+else if (!string.IsNullOrWhiteSpace(storageRoot))
+{
+    builder.Services.AddSingleton<IDocumentStorage>(_ => new LocalDocumentStorage(storageRoot));
+}
+else
 {
     throw new InvalidOperationException(
-        "Documents:StorageRoot is not configured. Documents are kept in a private directory until "
-        + "Supabase Storage is approved in T18.");
+        "Configure either Documents:SupabaseUrl + Documents:SupabaseSecretKey + Documents:Bucket " +
+        "(Supabase Storage) or Documents:StorageRoot (local development).");
 }
-
-builder.Services.AddSingleton<IDocumentStorage>(_ => new LocalDocumentStorage(storageRoot));
 
 // ---- Legal library ------------------------------------------------------------------------------
 // Statutes are company-independent reference data. The module owns its commands and queries; it
@@ -192,6 +237,15 @@ builder.Services
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
 
 var app = builder.Build();
+
+// The deployment serves the SPA and the API from one origin: nginx forwards /api/ unchanged and
+// this makes the API strip the prefix, so /api/me maps to /me without touching a single route.
+var pathBase = builder.Configuration["Api:PathBase"];
+if (!string.IsNullOrWhiteSpace(pathBase))
+{
+    app.UsePathBase(pathBase);
+}
+
 
 app.UseExceptionHandler();
 

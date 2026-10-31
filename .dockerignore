@@ -1,0 +1,13 @@
+# Keep the build context small and free of secrets or local artefacts.
+.git
+.vs
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+docs
+tests
+*.md
+!README.md
