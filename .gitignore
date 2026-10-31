@@ -47,3 +47,11 @@ dist/
 
 # Deployment secret mounted into the containers by the deploy workflow; never committed.
 /secrets/
+
+# Terraform (state and provider cache are never committed)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+crash.log
