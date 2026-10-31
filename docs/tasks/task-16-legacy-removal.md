@@ -1,6 +1,6 @@
 # T16 — Legacy tree removal and credential rotation
 
-**Status:** implemented (removal, history purge) — **PR #27 open**, credential rotation outstanding · **Requires:** your approval before executing
+**Status:** implemented (removal, history purge) — **PR #27 merged** · infrastructure decommissioned, rotation not applicable (2026-10-31)
 **Branch:** `task/29-legacy-removal` (from `main` at `28b89be`)
 
 ## Objective
@@ -32,8 +32,8 @@ authorisation.
 |---|---|
 | 1. A secret scan across the whole repository returns **zero** credential-shaped matches — proven by running it | `pwsh ./tools/scan-secrets.ps1` → `CLEAN`, exit 0 (288 files on the rebased branch). No allowlist; three test fixtures were reshaped instead |
 | 2. Every behaviour the new system depends on is traceable to `docs/legacy/*`; nothing is lost by removing the code | No file in `src/`, `tests/`, `supabase/` or `tools/` referenced a legacy path (0 matches after the seed comment was updated). The analysis is committed: 6 documents in `docs/legacy` (**40** `BR-` rules, **15** `S-` sections) and 7 in `docs/database` (**57** `DS-` findings) |
-| 3. The rotation checklist names each credential, the system it belongs to, and who must rotate it | [legacy-removal.md §4](../operations/legacy-removal.md): four credential sets (A–D) with host/database, account, historical file:line, system, owner and status **OUTSTANDING** |
-| 4. Deleting files is **not** described as making credentials safe | [legacy-removal.md §4 and §6](../operations/legacy-removal.md) state that the credentials are still valid and still in history, and that rotation is the only remedy |
+| 3. The rotation checklist names each credential, the system it belongs to, and who must rotate it | Superseded by the owner's decommissioning decision (2026-10-31): [legacy-removal.md §4](../operations/legacy-removal.md) records sets A–D, their historical location, and that **rotation is not applicable** because the MySQL infrastructure no longer exists |
+| 4. Deleting files is **not** described as making credentials safe | The record says the values are inert because the systems they opened no longer exist — an owner decision, not a consequence of deleting files — and that a restored database backup would make them live again |
 | 5. Git history is addressed explicitly | [legacy-removal.md §6](../operations/legacy-removal.md): the history was rewritten with `git filter-repo`, every ref force-pushed, and the purge verified (no legacy path, no dump blob, no literal connection call). Pull-request refs, pre-rewrite clones and the backup remain |
 
 ## Risks
@@ -100,10 +100,16 @@ exists only in the record. Verification after the rewrite: no object under any r
 blob is not retrievable, no literal `mysql_connect(` call in any commit, and the pack fell from
 150.9 MB to under 1 MB. Pull-request refs (#6–#26), pre-rewrite clones and the backup remain.
 
+**Decommissioning decision (2026-10-31).** The Product Owner confirmed that the original MySQL servers and
+databases no longer exist, that sets A–D belonged only to that infrastructure, and that **rotation is
+not applicable**. The security record now states the disposition instead of an outstanding task; the
+legacy archive and the working-tree `local/` configuration were deleted with the owner's authorization,
+and the pre-rewrite backup is retained pending a separate decision.
+
 ## What remains
 
-1. **Rotate the four credential sets.** This is the only step that reduces the exposure; the owner for
-   every row is the Product Owner. See [legacy-removal.md §4](../operations/legacy-removal.md).
+1. **Nothing to rotate** — the Product Owner confirmed the infrastructure was decommissioned and recorded the
+   disposition in [legacy-removal.md §4](../operations/legacy-removal.md).
 2. **Remote refs and clones** — the branch history is clean; GitHub pull-request refs and pre-rewrite
    clones are not; purging them needs GitHub Support plus destroying the backup.
 3. **Run the scan in CI** — `tools/scan-secrets.ps1` is ready for T15.
@@ -112,6 +118,6 @@ blob is not retrievable, no literal `mysql_connect(` call in any commit, and the
    conflict is textual (status rows), not behavioural.
 
 ## Left undone, explicitly
-
-- **No credential has been rotated.** The repository tip is clean; the history is not.
+- **No credential was rotated, and none needs to be.** The infrastructure no longer exists (owner decision,
+  2026-10-31); the values survive only in the pre-rewrite backup and GitHub's PR refs.
 - **The dump is not in Git, but it is still on disk** in the archive, unencrypted, with personal data.

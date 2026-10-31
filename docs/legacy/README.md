@@ -18,7 +18,7 @@ Changes from the original, recorded for provenance:
 the MySQL dump were removed because they carried committed database credentials and personal data; the
 analysis documents in this directory are the retained evidence, and the removed material is archived
 outside Git. See [../operations/legacy-removal.md](../operations/legacy-removal.md), including the
-rotation checklist, which is outstanding.
+credential disposition, recorded as not applicable because the infrastructure was decommissioned.
 
 Content below is the original, in Spanish as written.
 

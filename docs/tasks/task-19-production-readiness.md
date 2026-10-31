@@ -34,8 +34,8 @@ on-call expectation, even if the on-call is one person.
 4. `/health/ready` returning 503 raises an alert; `/health/live` returning 200 after a failure is
    distinguished from a working service.
 5. No log line contains a token, a password or a `service_role` key — checked by looking at real output.
-6. Rotation is scheduled for every credential, with the T16 legacy credentials explicitly tracked until
-   rotated.
+6. Rotation is scheduled for every credential, with the T16 legacy credentials recorded as decommissioned
+   (no rotation applicable).
 
 ## Risks
 

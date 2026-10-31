@@ -15,7 +15,7 @@
 
 .PARAMETER IncludeWorkingTree
     Also scan untracked files that are not ignored. The default is the tracked set, which is what the
-    repository actually contains; untracked developer files (local/, node_modules/) are out of scope.
+    repository actually contains; untracked developer files (node_modules/, build output) are out of scope.
 
 .EXAMPLE
     pwsh ./tools/scan-secrets.ps1

@@ -1,12 +1,18 @@
-# Legacy tree removal and credential rotation (T16)
+# Legacy tree removal and credential disposition (T16)
 
-**Status:** implemented, pending review/merge.
+**Status:** implemented; PR #27 merged. Credential disposition recorded as decommissioned (2026-10-31).
 **Executed:** 2026-10-31, branch `task/29-legacy-removal`, from the merge of PR #25 (rewritten as `2512ef9` by the history purge in §6).
 **Authority:** the Product Owner instructed "proceed with T16" on 2026-10-31. Because the removal
 contradicts an article of the constitution, the instruction is treated as the approval that
 [Art. XIV](../constitution.md#art-xiv--amendment) requires, and the constitution is amended in the same
 change (see §7).
 
+**Decisions (Product Owner, 2026-10-31):** the original MySQL servers and databases no longer
+exist; sets A-D belonged only to that infrastructure; **rotation is not applicable**; the archive
+and the legacy `local/` configuration had no remaining value and were deleted; the pre-rewrite
+backup is retained pending a separate decision.
+
+---
 ---
 
 ## 1. What was removed
@@ -68,27 +74,25 @@ weakness security finding S1 describes. The release audit counted **17** sites w
 credentials; this inventory counts **18** literal sites plus the empty template. The difference is one
 site and is not material to the remediation; the recorded figure is the measured one.
 
-## 4. Rotation checklist
+## 4. Credential disposition — not applicable (infrastructure decommissioned)
 
-**Nothing in this section is done.** Deleting the files does not rotate anything: the credentials are
-still valid wherever those database servers still exist, and they remain readable in git history.
+**The original MySQL servers and databases no longer exist.** On 2026-10-31 the Product Owner
+confirmed that sets A-D belonged exclusively to that decommissioned infrastructure, that no other
+system uses them, and that **no rotation is required**. This is the system owner's recorded
+decision, not an inference from deleting the source code.
 
-Owner for every row: **Product Owner** — the only person who can reach the legacy MySQL servers or
-declare them decommissioned. An agent must not attempt the rotation (T16 scope, and Art. VI.4 for
-remote systems).
+| Set | Account / schema | Historical location | Disposition |
+|---|---|---|---|
+| A | `root` @ `CCCOL` | `lib/objetos/*.php` | **Decommissioned** — no rotation applicable |
+| B | `root` @ `cccol` | `lib/objetos/discusion.php`, `sectores.php` | **Decommissioned** — no rotation applicable |
+| C | `presenci_ccol` @ `presenci_ccol` | `lib/objetos/*.php`, `comparacion/conexion.php` | **Decommissioned** — no rotation applicable |
+| D | `pv014_admcccol` @ `CCCOL` | `admin/modulos/settings.php` | **Decommissioned** — no rotation applicable |
+| — | Supabase / new stack | Not in this repository | Not applicable; T18 provisions it |
 
-| # | Credential | System it belongs to | Where it was | Action | Status |
-|---|---|---|---|---|---|
-| 1 | Set A — `root` @ `CCCOL` | Legacy MySQL server (localhost at authoring time; possibly the packaged local stack) | `lib/objetos/*.php` | Rotate the password, or confirm the server is decommissioned and destroy the database | **OUTSTANDING** |
-| 2 | Set B — `root` @ `cccol` | Same server, different schema/case | `lib/objetos/discusion.php`, `sectores.php` | Rotate or decommission | **OUTSTANDING** |
-| 3 | Set C — `presenci_ccol` @ `presenci_ccol` | Legacy MySQL production account | `lib/objetos/*.php`, `comparacion/conexion.php` | Rotate; check for reuse of the same password on any other system | **OUTSTANDING** |
-| 4 | Set D — `pv014_admcccol` @ `CCCOL` | Legacy MySQL administration account | `admin/modulos/settings.php` | Rotate or decommission | **OUTSTANDING** |
-| 5 | Supabase / new stack | Not in this repository | — | Nothing to rotate here; T18 covers provisioning | Not applicable |
-
-**Done when:** the owner records, for each row, either the rotation date or a dated statement that the
-server no longer exists. Until then the exposure is open, and this document must not be read as
-saying otherwise.
-
+**What still matters.** The values survive in the pre-history-rewrite backup and in GitHub's
+pull-request refs (§6). They are inert only because the systems they opened no longer exist. If a
+backup of any of those MySQL databases is ever restored, rotate before it is connected to anything,
+and never reuse any of these values in the new stack.
 ## 5. Verification executed
 
 ### 5.1 Secret scan (AC 1)
@@ -161,12 +165,18 @@ was rewritten to purge the legacy material from every ref.
 **What this achieves, and what it does not.** It removes the material from this repository's history
 and from every branch on GitHub. It does **not** reach GitHub's pull-request refs (#6-#26), which
 keep the old commits, nor clones and mirrors made before the rewrite, nor the backup above. Those
-remain readable until GitHub Support purges the remote refs and the copies are destroyed. **Rotation
-is still the only remedy that removes the value of the credentials, and it is outstanding.**
+remain readable until GitHub Support purges the remote refs and the copies are destroyed.
+
+**The credentials do not need to be rotated.** The Product Owner confirmed on 2026-10-31 that the
+MySQL infrastructure they opened no longer exists and that no other system used those accounts; the
+disposition is recorded in section 4. The copies above are still worth destroying because they
+also contain personal data, and because a restored database backup would make the old values live
+again.
 
 **Cost, recorded deliberately.** Every commit SHA changed, so the short SHAs quoted in older documents
 (for example the audit at `92dfa3d`) no longer resolve; open pull requests had to be recreated from
 the rewritten branches, and every collaborator must re-clone.
+
 ## 7. Constitutional conflict, resolved in this change
 
 [Art. IX.1](../constitution.md#art-ix--the-legacy-codebase-reference-only) said the legacy PHP
@@ -177,36 +187,28 @@ forbids a silent deviation, so the article is amended in the same change:
   (T16), that the committed analysis in `docs/legacy` and `docs/database` is the retained evidence, and
   that the removed material is archived outside Git because it carried credentials (Art. VI.3) and
   personal data (Art. VI.5).
-- The constitution version becomes **1.3.0**, with an entry in the amendment log.
+- The constitution version becomes **1.3.1** (1.3.0 amended Art. IX.1; 1.3.1 records the decommissioning), with an entry in the amendment log.
 
 **This is the part of T16 that needs the Product Owner's explicit confirmation at review.** The
 instruction "proceed with T16" was read as that approval; if it was not intended to amend the
 constitution, the correct outcome is to reject the pull request, restore the files from the archive,
 and execute the narrower option ("keep them out of the build only") instead.
 
-## 8. Archive outside the repository
+## 8. Archive and working-tree copies — deleted (2026-10-31)
 
-Because the deletion is irreversible for the working tree, the material was preserved **outside Git**
-before removal:
+The material was preserved outside Git before the removal, then deleted once the Product Owner
+confirmed it had no remaining business or technical value:
 
-| Path | Contents | Size |
+| Path | Contents | Deleted |
 |---|---|---|
-| `C:\proyectos\convenciones-legacy-archive\tree\` | `admin`, `lib`, `plantillas`, `css`, `img`, `new_img`, `index.html` | 152 MB |
-| `C:\proyectos\convenciones-legacy-archive\presenci_ccol.sql` | The dump, copied with a wildcard | 48.9 MB |
-| `C:\proyectos\convenciones-legacy-archive\local\` | The untracked `local/configuracion*.php` files that were never in Git | 10 KB |
-| `C:\proyectos\convenciones-legacy-archive\README.txt` | Provenance: source repository, commit `28b89be`, date, and a warning | — |
+| `C:\proyectos\convenciones-legacy-archive\` | The tree (152 MB), the dump (48.9 MB), the archived `local/` config and a provenance README; 1,915 files, 201.3 MB | **2026-10-31** |
+| `local/` (working tree) | `configuracion*.php` and `_notes/dwsync.xml`; untracked and ignored | **2026-10-31** |
 
-**The archive is not safe.** It contains the same credentials and personal data, unencrypted, on this
-machine. It exists only so the analysis can be checked against the source and so the dump is not lost;
-it must be protected like the secret it holds and deleted once it is no longer needed.
+Both were removed only after the code, docs, tests, migrations and development workflow were checked
+and none references them. The only copy of the removed material that still exists is the
+pre-rewrite mirror backup described in section 6, which the owner has asked to keep for now.
 
-`local/` was also left in place in the working tree: it is untracked and ignored, and it is the
-developer's own configuration. It is not part of the repository and is not covered by the scan's
-default scope.
-
-## 9. Left undone
-
-1. **Rotate the four credential sets** (§4) — the only step that makes the credentials safe.
+1. **Nothing to rotate** — the infrastructure was decommissioned and the disposition is recorded in §4.
 2. **Remote refs and clones** (§6) — the local and branch history is clean; GitHub pull-request refs and
    pre-rewrite clones are not, and purging them needs GitHub Support plus destroying the backup.
 3. **Run the scan in CI** — [`tools/scan-secrets.ps1`](../../tools/scan-secrets.ps1) is ready for T15,

@@ -8,6 +8,10 @@ inferred from documentation, and nothing is asserted that was not executed.
 
 ## Verdict: **NOT RELEASABLE**
 
+> **Update 2026-10-31 (T16):** the legacy tree and dump were removed and purged from history; the
+> Product Owner confirmed the original MySQL infrastructure was decommissioned, so credential rotation
+> is not applicable. The findings below are the historical audit of `92dfa3d`.
+
 The primary workflow cannot be completed because it does not exist. At this commit the repository
 contains a **working database schema** and a **working infrastructure skeleton** — and no
 application: no authentication, no business endpoints, no document upload, no processing, no
@@ -283,7 +287,7 @@ mistake them for implemented behaviour.
 3. **RLS has never been tested through the API.** It is tested as SQL with simulated claims. Once
    real tokens arrive, the gap between "claims the API sets" and "claims the policies expect" is the
    most likely place for an authorization hole.
-4. **The legacy tree is a live credential store in the repository.** Rotation is still outstanding
+4. **The legacy tree is a live credential store in the repository.** Rotation is still outstanding (superseded 2026-10-31: the MySQL infrastructure was decommissioned)
    from Phase 1.
 5. **Aspire's failure is unresolved.** If it is not fixed before the demo, the demo depends on a
    manual two-command fallback, which is a poor story for a reviewer.
