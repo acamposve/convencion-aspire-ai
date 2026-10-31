@@ -1,10 +1,12 @@
 import { createContext, useContext, type ReactNode } from 'react';
-import type { ApiClient } from './lib/api';
+import type { ApiClient, PublicApi } from './lib/api';
 import type { AuthClient } from './lib/auth';
 
 export interface AppServices {
   auth: AuthClient;
   api: ApiClient;
+  /** The anonymous client the public portal uses. It holds no token. */
+  publicApi: PublicApi;
 }
 
 const ServicesContext = createContext<AppServices | null>(null);

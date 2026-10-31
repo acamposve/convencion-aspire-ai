@@ -3,6 +3,13 @@ import { ApiError } from './errors';
 
 export const MAX_DOCUMENT_BYTES = 20 * 1024 * 1024;
 
+export interface Page<TItem> {
+  items: TItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
 export interface Me {
   userId: string;
   email: string;
@@ -15,6 +22,8 @@ export interface Company {
   id: string;
   name: string;
 }
+
+// ---- Documents (T4–T7) ---------------------------------------------------------------------------
 
 export type ExtractionStatus =
   | 'NotRequested'
@@ -48,7 +57,6 @@ export interface UploadedDocument {
 export interface DocumentDetail extends DocumentSummary {
   extractionStartedAt: string | null;
   extractionCompletedAt: string | null;
-  extractionError: string | null;
   rowVersion: number;
 }
 
@@ -76,14 +84,557 @@ export interface DocumentText {
   extractedAt: string;
 }
 
+// ---- Agreements and clauses (T8) -----------------------------------------------------------------
+
+export type PublicationState = 'Draft' | 'Published';
+
+export interface AgreementSummary {
+  id: string;
+  companyId: string;
+  companyName: string;
+  title: string;
+  validFrom: string;
+  validTo: string | null;
+  scope: string;
+  state: PublicationState;
+  publishedAt: string | null;
+  clauseCount: number;
+  rowVersion: number;
+}
+
+export interface ClauseView {
+  id: string;
+  number: number;
+  title: string;
+  summary: string | null;
+  body: string;
+  headingId: string;
+  headingName: string | null;
+  economicComparisonNote: string | null;
+  isExcludedFromCompilation: boolean;
+  exclusionNote: string | null;
+  rowVersion: number;
+}
+
+export interface AnnexView {
+  id: string;
+  name: string;
+  description: string | null;
+  body: string | null;
+  documentId: string | null;
+  sortOrder: number;
+  rowVersion: number;
+}
+
+export interface AgreementDetail extends Omit<AgreementSummary, 'clauseCount'> {
+  createdAt: string;
+  updatedAt: string;
+  clauses: ClauseView[];
+  annexes: AnnexView[];
+}
+
+export interface AgreementListResponse extends Page<AgreementSummary> {}
+
+export interface CreateAgreementInput {
+  companyId?: string | null;
+  validFrom: string;
+  validTo?: string | null;
+  scope: string;
+}
+
+export interface UpdateAgreementInput {
+  validFrom: string;
+  validTo?: string | null;
+  scope: string;
+}
+
+export interface ClauseInput {
+  number: number;
+  title: string;
+  summary?: string | null;
+  body: string;
+  headingId: string;
+  economicComparisonNote?: string | null;
+  isExcludedFromCompilation?: boolean;
+  exclusionNote?: string | null;
+}
+
+// ---- Comparison (T9) ----------------------------------------------------------------------------
+
+export interface HeadingGroupView {
+  id: string;
+  name: string;
+  description: string | null;
+  requiresEconomicComparison: boolean;
+  sortOrder: number;
+}
+
+export interface HeadingView {
+  id: string;
+  groupId: string;
+  groupName: string;
+  name: string;
+  isExcluded: boolean;
+  requiresEconomicComparison: boolean;
+  sortOrder: number;
+}
+
+export interface ComparisonClauseView {
+  clauseId: string;
+  number: number;
+  title: string;
+  summary: string | null;
+  body: string;
+  economicComparisonNote: string | null;
+  isExcludedFromCompilation: boolean;
+}
+
+export interface ComparisonAgreementView {
+  agreementId: string;
+  companyId: string;
+  companyName: string;
+  title: string;
+  validFrom: string;
+  validTo: string | null;
+  clauses: ComparisonClauseView[];
+}
+
+export interface ComparisonStatuteArticleView {
+  statuteId: string;
+  statuteName: string;
+  statuteKind: string;
+  articleId: string;
+  number: number;
+  title: string;
+  body: string;
+  economicComparisonNote: string | null;
+}
+
+export interface ComparisonView {
+  heading: HeadingView;
+  statuteArticles: ComparisonStatuteArticleView[];
+  statuteArticleTotal: number;
+  agreements: ComparisonAgreementView[];
+  unpublishedRequested: string[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface ComparisonCandidate {
+  agreementId: string;
+  companyId: string;
+  companyName: string;
+  title: string;
+  validFrom: string;
+  validTo: string | null;
+  clauseCount: number;
+}
+
+// ---- Legal library (T10) ------------------------------------------------------------------------
+
+export type StatuteKind = 'LabourLaw' | 'OtherStatute';
+
+export interface StatuteSummary {
+  id: string;
+  kind: StatuteKind;
+  name: string;
+  publishedOn: string | null;
+  source: string | null;
+  documentId: string | null;
+  articleCount: number;
+  rowVersion: number;
+}
+
+export interface StatuteArticleView {
+  id: string;
+  number: number;
+  title: string;
+  summary: string | null;
+  body: string;
+  headingId: string | null;
+  economicComparisonNote: string | null;
+  rowVersion: number;
+}
+
+export interface StatuteDetail {
+  id: string;
+  kind: StatuteKind;
+  name: string;
+  publishedOn: string | null;
+  source: string | null;
+  documentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  rowVersion: number;
+  articles: StatuteArticleView[];
+}
+
+export interface StatuteArticleInput {
+  number: number;
+  title: string;
+  summary?: string | null;
+  body: string;
+  headingId?: string | null;
+  economicComparisonNote?: string | null;
+}
+
+// ---- Negotiation (T11) --------------------------------------------------------------------------
+
+export type CaseState = 'Open' | 'InProgress' | 'Pending' | 'Agreed' | 'Closed';
+
+export type CaseTransition = 'in-progress' | 'pending' | 'agree' | 'close' | 'reopen';
+
+export interface PartyView {
+  id: string;
+  role: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  position: string | null;
+}
+
+export interface OfferView {
+  id: string;
+  number: number;
+  title: string;
+  body: string;
+}
+
+export interface MeetingAgreementView {
+  id: string;
+  petitionId: string;
+  meetingId: string;
+  agreedOn: string;
+  number: number;
+  title: string;
+  body: string;
+  headingId: string | null;
+}
+
+export interface PetitionView {
+  id: string;
+  number: number;
+  title: string;
+  body: string;
+  headingId: string | null;
+  state: string;
+  offers: OfferView[];
+  agreements: MeetingAgreementView[];
+}
+
+export interface MeetingView {
+  id: string;
+  heldOn: string;
+  startTime: string | null;
+  duration: string | null;
+  summary: string | null;
+  details: string | null;
+  attendees: string | null;
+}
+
+export interface NegotiationCaseSummary {
+  id: string;
+  companyId: string;
+  startedOn: string;
+  state: CaseState;
+  closedAt: string | null;
+  promotedAgreementId: string | null;
+  partyCount: number;
+  petitionCount: number;
+  meetingCount: number;
+  meetingAgreementCount: number;
+}
+
+export interface NegotiationCaseDetail {
+  id: string;
+  companyId: string;
+  startedOn: string;
+  state: CaseState;
+  closedAt: string | null;
+  promotedAgreementId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  parties: PartyView[];
+  petitions: PetitionView[];
+  meetings: MeetingView[];
+}
+
+export interface PromoteCaseInput {
+  validFrom: string;
+  validTo?: string | null;
+  scope: string;
+}
+
+// ---- News (T12) ---------------------------------------------------------------------------------
+
+export interface NewsSummary {
+  id: string;
+  title: string;
+  summary: string | null;
+  categoryId: string;
+  categoryName: string;
+  state: PublicationState;
+  publishedAt: string | null;
+  updatedAt: string;
+}
+
+export interface NewsDetail {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  title: string;
+  summary: string | null;
+  body: string;
+  state: PublicationState;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsCategoryView {
+  id: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+// ---- Administration and audit (T13) -------------------------------------------------------------
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  displayName: string;
+  isBlocked: boolean;
+  expiresOn: string | null;
+  companyId: string | null;
+  companyName: string | null;
+  roles: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserDetail extends UserSummary {
+  phone: string | null;
+}
+
+export interface RoleView {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  capabilities: string[];
+}
+
+export interface CapabilityView {
+  key: string;
+  description: string;
+}
+
+export interface AuditEntryView {
+  id: number;
+  occurredAt: string;
+  actorId: string | null;
+  actorDisplayName: string | null;
+  module: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  fromState: string | null;
+  toState: string | null;
+  changes: unknown;
+}
+
+// ---- Public portal (T12) ------------------------------------------------------------------------
+
+export interface PublicClause {
+  number: number;
+  title: string;
+  summary: string | null;
+  body: string;
+}
+
+export interface PublicAnnex {
+  name: string;
+  description: string | null;
+  body: string | null;
+}
+
+export interface PublicAgreementSummary {
+  id: string;
+  title: string;
+  companyName: string;
+  validFrom: string;
+  validTo: string | null;
+  scope: string;
+  publishedAt: string;
+}
+
+export interface PublicAgreementDetail extends PublicAgreementSummary {
+  clauses: PublicClause[];
+  annexes: PublicAnnex[];
+}
+
+export interface PublicNewsSummary {
+  id: string;
+  title: string;
+  summary: string | null;
+  categoryName: string;
+  publishedAt: string;
+}
+
+export interface PublicNewsDetail extends PublicNewsSummary {
+  body: string;
+}
+
+// ---- Clients ------------------------------------------------------------------------------------
+
 export interface ApiClient {
   getMe(): Promise<Me>;
   getCompany(id: string): Promise<Company>;
+
   listDocuments(page: number, pageSize: number): Promise<DocumentListResponse>;
   uploadDocument(file: File, onProgress: (percent: number) => void): Promise<UploadedDocument>;
   extractDocument(id: string): Promise<ExtractionState>;
   getDocument(id: string): Promise<DocumentDetail>;
   getDocumentText(id: string): Promise<DocumentText>;
+
+  listAgreements(query: {
+    page: number;
+    pageSize: number;
+    state?: PublicationState | null;
+    q?: string | null;
+    companyId?: string | null;
+  }): Promise<AgreementListResponse>;
+  getAgreement(id: string): Promise<AgreementDetail>;
+  createAgreement(input: CreateAgreementInput): Promise<AgreementDetail>;
+  updateAgreement(
+    id: string,
+    input: UpdateAgreementInput,
+    rowVersion: number,
+  ): Promise<AgreementDetail>;
+  publishAgreement(id: string): Promise<AgreementDetail>;
+  unpublishAgreement(id: string): Promise<AgreementDetail>;
+  createClause(agreementId: string, input: ClauseInput): Promise<ClauseView>;
+  updateClause(
+    agreementId: string,
+    clauseId: string,
+    input: Partial<ClauseInput>,
+    rowVersion: number,
+  ): Promise<ClauseView>;
+  deleteClause(agreementId: string, clauseId: string, rowVersion: number): Promise<void>;
+
+  listHeadingGroups(): Promise<HeadingGroupView[]>;
+  listHeadings(): Promise<HeadingView[]>;
+  listCandidates(query: {
+    headingId?: string | null;
+    q?: string | null;
+    page: number;
+    pageSize: number;
+  }): Promise<Page<ComparisonCandidate>>;
+  compare(query: {
+    headingId: string;
+    agreementIds: string[];
+    page: number;
+    pageSize: number;
+  }): Promise<ComparisonView>;
+
+  listStatutes(page: number, pageSize: number): Promise<Page<StatuteSummary>>;
+  getStatute(id: string): Promise<StatuteDetail>;
+  createStatuteArticle(statuteId: string, input: StatuteArticleInput): Promise<StatuteArticleView>;
+  updateStatuteArticle(
+    statuteId: string,
+    articleId: string,
+    input: StatuteArticleInput,
+    rowVersion: number,
+  ): Promise<StatuteArticleView>;
+
+  listCases(query: {
+    page: number;
+    pageSize: number;
+    state?: CaseState | null;
+  }): Promise<Page<NegotiationCaseSummary>>;
+  getCase(id: string): Promise<NegotiationCaseDetail>;
+  createCase(startedOn: string): Promise<NegotiationCaseDetail>;
+  transitionCase(id: string, step: CaseTransition): Promise<NegotiationCaseDetail>;
+  promoteCase(id: string, input: PromoteCaseInput): Promise<{ agreementId: string; caseId: string }>;
+  addPetition(
+    caseId: string,
+    input: { number: number; title: string; body: string; headingId?: string | null },
+  ): Promise<PetitionView>;
+  addMeeting(
+    caseId: string,
+    input: { heldOn: string; summary?: string | null; attendees?: string | null },
+  ): Promise<MeetingView>;
+  addMeetingAgreement(
+    caseId: string,
+    petitionId: string,
+    input: { meetingId: string; agreedOn: string; number: number; title: string; body: string },
+  ): Promise<MeetingAgreementView>;
+
+  listNews(query: {
+    page: number;
+    pageSize: number;
+    state?: PublicationState | null;
+  }): Promise<Page<NewsSummary>>;
+  createNews(input: {
+    categoryId: string;
+    title: string;
+    summary?: string | null;
+    body: string;
+  }): Promise<NewsDetail>;
+  publishNews(id: string): Promise<NewsDetail>;
+  unpublishNews(id: string): Promise<NewsDetail>;
+  listNewsCategories(): Promise<NewsCategoryView[]>;
+
+  listUsers(query: {
+    page: number;
+    pageSize: number;
+    q?: string | null;
+  }): Promise<Page<UserSummary>>;
+  getUser(id: string): Promise<UserDetail>;
+  createUser(input: {
+    subject: string;
+    email: string;
+    displayName: string;
+    phone?: string | null;
+    companyId?: string | null;
+    roleKeys: string[];
+  }): Promise<UserDetail>;
+  updateUser(
+    id: string,
+    input: {
+      displayName?: string;
+      email?: string;
+      phone?: string | null;
+      companyId?: string | null;
+      isBlocked?: boolean;
+      expiresOn?: string | null;
+    },
+  ): Promise<UserDetail>;
+  replaceUserRoles(id: string, roleKeys: string[]): Promise<UserDetail>;
+  listRoles(): Promise<RoleView[]>;
+  listCapabilities(): Promise<CapabilityView[]>;
+  listAudit(query: {
+    page: number;
+    pageSize: number;
+    module?: string | null;
+    entityType?: string | null;
+    entityId?: string | null;
+    actorId?: string | null;
+    from?: string | null;
+    to?: string | null;
+  }): Promise<Page<AuditEntryView>>;
+}
+
+/** The anonymous surface. It sends no Authorization header, by construction. */
+export interface PublicApi {
+  listAgreements(page: number, pageSize: number): Promise<Page<PublicAgreementSummary>>;
+  getAgreement(id: string): Promise<PublicAgreementDetail>;
+  listNews(page: number, pageSize: number): Promise<Page<PublicNewsSummary>>;
+  getNews(id: string): Promise<PublicNewsDetail>;
 }
 
 interface ProblemDetails {
@@ -118,6 +669,19 @@ function parseProblemJson(text: string): ProblemDetails | null {
   }
 }
 
+function queryString(values: Record<string, string | number | null | undefined>): string {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== null && value !== undefined && value !== '') {
+      params.set(key, String(value));
+    }
+  }
+
+  const query = params.toString();
+  return query === '' ? '' : `?${query}`;
+}
+
 export class HttpApiClient implements ApiClient {
   private readonly baseUrl: string;
 
@@ -137,9 +701,7 @@ export class HttpApiClient implements ApiClient {
   }
 
   async listDocuments(page: number, pageSize: number): Promise<DocumentListResponse> {
-    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-
-    return this.request<DocumentListResponse>(`/documents?${query.toString()}`);
+    return this.request<DocumentListResponse>(`/documents${queryString({ page, pageSize })}`);
   }
 
   async extractDocument(id: string): Promise<ExtractionState> {
@@ -180,7 +742,13 @@ export class HttpApiClient implements ApiClient {
             try {
               resolve(JSON.parse(request.responseText) as UploadedDocument);
             } catch {
-              reject(new ApiError(request.status, 'invalid_response', 'El API devolvió una respuesta ilegible.'));
+              reject(
+                new ApiError(
+                  request.status,
+                  'invalid_response',
+                  'El API devolvió una respuesta ilegible.',
+                ),
+              );
             }
 
             return;
@@ -208,6 +776,316 @@ export class HttpApiClient implements ApiClient {
     });
   }
 
+  async listAgreements(query: {
+    page: number;
+    pageSize: number;
+    state?: PublicationState | null;
+    q?: string | null;
+    companyId?: string | null;
+  }): Promise<AgreementListResponse> {
+    return this.request<AgreementListResponse>(`/agreements${queryString(query)}`);
+  }
+
+  async getAgreement(id: string): Promise<AgreementDetail> {
+    return this.request<AgreementDetail>(`/agreements/${encodeURIComponent(id)}`);
+  }
+
+  async createAgreement(input: CreateAgreementInput): Promise<AgreementDetail> {
+    return this.request<AgreementDetail>('/agreements', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updateAgreement(
+    id: string,
+    input: UpdateAgreementInput,
+    rowVersion: number,
+  ): Promise<AgreementDetail> {
+    return this.request<AgreementDetail>(`/agreements/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+      headers: { 'If-Match': String(rowVersion) },
+    });
+  }
+
+  async publishAgreement(id: string): Promise<AgreementDetail> {
+    return this.request<AgreementDetail>(`/agreements/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+    });
+  }
+
+  async unpublishAgreement(id: string): Promise<AgreementDetail> {
+    return this.request<AgreementDetail>(`/agreements/${encodeURIComponent(id)}/unpublish`, {
+      method: 'POST',
+    });
+  }
+
+  async createClause(agreementId: string, input: ClauseInput): Promise<ClauseView> {
+    return this.request<ClauseView>(`/agreements/${encodeURIComponent(agreementId)}/clauses`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async updateClause(
+    agreementId: string,
+    clauseId: string,
+    input: Partial<ClauseInput>,
+    rowVersion: number,
+  ): Promise<ClauseView> {
+    return this.request<ClauseView>(
+      `/agreements/${encodeURIComponent(agreementId)}/clauses/${encodeURIComponent(clauseId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+        headers: { 'If-Match': String(rowVersion) },
+      },
+    );
+  }
+
+  async deleteClause(agreementId: string, clauseId: string, rowVersion: number): Promise<void> {
+    return this.request<void>(
+      `/agreements/${encodeURIComponent(agreementId)}/clauses/${encodeURIComponent(clauseId)}`,
+      { method: 'DELETE', headers: { 'If-Match': String(rowVersion) } },
+    );
+  }
+
+  async listHeadingGroups(): Promise<HeadingGroupView[]> {
+    return this.request<HeadingGroupView[]>('/comparison/heading-groups');
+  }
+
+  async listHeadings(): Promise<HeadingView[]> {
+    return this.request<HeadingView[]>('/comparison/headings');
+  }
+
+  async listCandidates(query: {
+    headingId?: string | null;
+    q?: string | null;
+    page: number;
+    pageSize: number;
+  }): Promise<Page<ComparisonCandidate>> {
+    return this.request<Page<ComparisonCandidate>>(`/comparison/candidates${queryString(query)}`);
+  }
+
+  async compare(query: {
+    headingId: string;
+    agreementIds: string[];
+    page: number;
+    pageSize: number;
+  }): Promise<ComparisonView> {
+    return this.request<ComparisonView>(
+      `/comparison${queryString({
+        headingId: query.headingId,
+        agreementIds: query.agreementIds.join(','),
+        page: query.page,
+        pageSize: query.pageSize,
+      })}`,
+    );
+  }
+
+  async listStatutes(page: number, pageSize: number): Promise<Page<StatuteSummary>> {
+    return this.request<Page<StatuteSummary>>(`/statutes${queryString({ page, pageSize })}`);
+  }
+
+  async getStatute(id: string): Promise<StatuteDetail> {
+    return this.request<StatuteDetail>(`/statutes/${encodeURIComponent(id)}`);
+  }
+
+  async createStatuteArticle(
+    statuteId: string,
+    input: StatuteArticleInput,
+  ): Promise<StatuteArticleView> {
+    return this.request<StatuteArticleView>(
+      `/statutes/${encodeURIComponent(statuteId)}/articles`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
+  async updateStatuteArticle(
+    statuteId: string,
+    articleId: string,
+    input: StatuteArticleInput,
+    rowVersion: number,
+  ): Promise<StatuteArticleView> {
+    return this.request<StatuteArticleView>(
+      `/statutes/${encodeURIComponent(statuteId)}/articles/${encodeURIComponent(articleId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+        headers: { 'If-Match': String(rowVersion) },
+      },
+    );
+  }
+
+  async listCases(query: {
+    page: number;
+    pageSize: number;
+    state?: CaseState | null;
+  }): Promise<Page<NegotiationCaseSummary>> {
+    return this.request<Page<NegotiationCaseSummary>>(
+      `/negotiation/cases${queryString(query)}`,
+    );
+  }
+
+  async getCase(id: string): Promise<NegotiationCaseDetail> {
+    return this.request<NegotiationCaseDetail>(`/negotiation/cases/${encodeURIComponent(id)}`);
+  }
+
+  async createCase(startedOn: string): Promise<NegotiationCaseDetail> {
+    return this.request<NegotiationCaseDetail>('/negotiation/cases', {
+      method: 'POST',
+      body: JSON.stringify({ startedOn }),
+    });
+  }
+
+  async transitionCase(id: string, step: CaseTransition): Promise<NegotiationCaseDetail> {
+    return this.request<NegotiationCaseDetail>(
+      `/negotiation/cases/${encodeURIComponent(id)}/${step}`,
+      { method: 'POST' },
+    );
+  }
+
+  async promoteCase(
+    id: string,
+    input: PromoteCaseInput,
+  ): Promise<{ agreementId: string; caseId: string }> {
+    return this.request<{ agreementId: string; caseId: string }>(
+      `/negotiation/cases/${encodeURIComponent(id)}/promote`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
+  async addPetition(
+    caseId: string,
+    input: { number: number; title: string; body: string; headingId?: string | null },
+  ): Promise<PetitionView> {
+    return this.request<PetitionView>(
+      `/negotiation/cases/${encodeURIComponent(caseId)}/petitions`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
+  async addMeeting(
+    caseId: string,
+    input: { heldOn: string; summary?: string | null; attendees?: string | null },
+  ): Promise<MeetingView> {
+    return this.request<MeetingView>(
+      `/negotiation/cases/${encodeURIComponent(caseId)}/meetings`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
+  async addMeetingAgreement(
+    caseId: string,
+    petitionId: string,
+    input: { meetingId: string; agreedOn: string; number: number; title: string; body: string },
+  ): Promise<MeetingAgreementView> {
+    return this.request<MeetingAgreementView>(
+      `/negotiation/cases/${encodeURIComponent(caseId)}/petitions/${encodeURIComponent(petitionId)}/agreements`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
+  async listNews(query: {
+    page: number;
+    pageSize: number;
+    state?: PublicationState | null;
+  }): Promise<Page<NewsSummary>> {
+    return this.request<Page<NewsSummary>>(`/news${queryString(query)}`);
+  }
+
+  async createNews(input: {
+    categoryId: string;
+    title: string;
+    summary?: string | null;
+    body: string;
+  }): Promise<NewsDetail> {
+    return this.request<NewsDetail>('/news', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async publishNews(id: string): Promise<NewsDetail> {
+    return this.request<NewsDetail>(`/news/${encodeURIComponent(id)}/publish`, { method: 'POST' });
+  }
+
+  async unpublishNews(id: string): Promise<NewsDetail> {
+    return this.request<NewsDetail>(`/news/${encodeURIComponent(id)}/unpublish`, {
+      method: 'POST',
+    });
+  }
+
+  async listNewsCategories(): Promise<NewsCategoryView[]> {
+    return this.request<NewsCategoryView[]>('/news/categories');
+  }
+
+  async listUsers(query: {
+    page: number;
+    pageSize: number;
+    q?: string | null;
+  }): Promise<Page<UserSummary>> {
+    return this.request<Page<UserSummary>>(`/users${queryString(query)}`);
+  }
+
+  async getUser(id: string): Promise<UserDetail> {
+    return this.request<UserDetail>(`/users/${encodeURIComponent(id)}`);
+  }
+
+  async createUser(input: {
+    subject: string;
+    email: string;
+    displayName: string;
+    phone?: string | null;
+    companyId?: string | null;
+    roleKeys: string[];
+  }): Promise<UserDetail> {
+    return this.request<UserDetail>('/users', { method: 'POST', body: JSON.stringify(input) });
+  }
+
+  async updateUser(
+    id: string,
+    input: {
+      displayName?: string;
+      email?: string;
+      phone?: string | null;
+      companyId?: string | null;
+      isBlocked?: boolean;
+      expiresOn?: string | null;
+    },
+  ): Promise<UserDetail> {
+    return this.request<UserDetail>(`/users/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
+  }
+
+  async replaceUserRoles(id: string, roleKeys: string[]): Promise<UserDetail> {
+    return this.request<UserDetail>(`/users/${encodeURIComponent(id)}/roles`, {
+      method: 'PUT',
+      body: JSON.stringify({ roleKeys }),
+    });
+  }
+
+  async listRoles(): Promise<RoleView[]> {
+    return this.request<RoleView[]>('/roles');
+  }
+
+  async listCapabilities(): Promise<CapabilityView[]> {
+    return this.request<CapabilityView[]>('/capabilities');
+  }
+
+  async listAudit(query: {
+    page: number;
+    pageSize: number;
+    module?: string | null;
+    entityType?: string | null;
+    entityId?: string | null;
+    actorId?: string | null;
+    from?: string | null;
+    to?: string | null;
+  }): Promise<Page<AuditEntryView>> {
+    return this.request<Page<AuditEntryView>>(`/audit${queryString(query)}`);
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const token = await this.auth.getAccessToken();
 
@@ -227,6 +1105,60 @@ export class HttpApiClient implements ApiClient {
 
     try {
       response = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+    } catch {
+      throw new ApiError(0, 'network_error', 'No se pudo contactar el API.');
+    }
+
+    if (!response.ok) {
+      throw await readProblem(response);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return (await response.json()) as T;
+  }
+}
+
+/**
+ * The anonymous client used by the public portal.
+ *
+ * It holds no token and sends no Authorization header — there is nothing to send. That is the
+ * client-side half of AC 4; the server half is that `/public/*` runs on the `anon` database role.
+ */
+export class HttpPublicApi implements PublicApi {
+  private readonly baseUrl: string;
+
+  constructor(baseUrl: string) {
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
+  }
+
+  async listAgreements(page: number, pageSize: number): Promise<Page<PublicAgreementSummary>> {
+    return this.request<Page<PublicAgreementSummary>>(
+      `/public/agreements${queryString({ page, pageSize })}`,
+    );
+  }
+
+  async getAgreement(id: string): Promise<PublicAgreementDetail> {
+    return this.request<PublicAgreementDetail>(`/public/agreements/${encodeURIComponent(id)}`);
+  }
+
+  async listNews(page: number, pageSize: number): Promise<Page<PublicNewsSummary>> {
+    return this.request<Page<PublicNewsSummary>>(`/public/news${queryString({ page, pageSize })}`);
+  }
+
+  async getNews(id: string): Promise<PublicNewsDetail> {
+    return this.request<PublicNewsDetail>(`/public/news/${encodeURIComponent(id)}`);
+  }
+
+  private async request<T>(path: string): Promise<T> {
+    let response: Response;
+
+    try {
+      response = await fetch(`${this.baseUrl}${path}`, {
+        headers: { Accept: 'application/json' },
+      });
     } catch {
       throw new ApiError(0, 'network_error', 'No se pudo contactar el API.');
     }

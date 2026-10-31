@@ -7,6 +7,25 @@ the extracted text.
 ever** (constitution Art. III). Server state is fetched through a small typed client; there is no
 state-management library.
 
+## Screens
+
+| Route | Screen |
+|---|---|
+| `/login` | Sign in (Supabase Auth, or a development token) |
+| `/documents` | PDF upload, extraction and text viewer (T7) |
+| `/agreements` · `/agreements/{id}` | Agreement list, creation and editor; clauses, heading picker, publication |
+| `/comparison` | Clauses of one heading beside the statute articles of that heading |
+| `/legal` · `/legal/{statuteId}` | Statutes and the article editor |
+| `/negotiation` · `/negotiation/{caseId}` | Cases, the five stages, petitions, meetings and promotion |
+| `/news` | News administration |
+| `/admin/users` · `/admin/roles` | Users and the role × capability matrix |
+| `/audit` | Audit trail with filters |
+| `/portal` | The anonymous portal — no session, no token |
+
+Navigation and controls are filtered by the caller's capabilities (`/me`), but the API is what enforces
+them: a hidden control is a courtesy, never a permission. The published agreement editor is read-only
+until it is explicitly unpublished, and the comparison screen says *vecindad, sin alineación* because the
+backend does not assert equivalence.
 ## Run it
 
 Prerequisites: Node.js 22 and pnpm. The API must be running (see the repository README / T18).
