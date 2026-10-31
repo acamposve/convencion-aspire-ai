@@ -83,6 +83,24 @@ or leak it into a log.
    public address.
 8. On any failure, restores the previous `.env` and brings the previous images back up.
 
+### 3.1 Migrations are tracked now
+
+The migrator records every file it applies in `public.schema_migration` and skips what is already
+there. This was added after the first deployment proved the original assumption wrong: the runner
+replayed every file, so a second deploy would have failed on `create table` for a schema that already
+existed.
+
+The already-deployed database was seeded once with the 19 files it had applied, so the next deploy
+applies only what is new. A database created from scratch needs no seeding: the table is created on the
+first run.
+
+### 3.2 Role membership
+
+PostgreSQL 16 grants the *creator* of a role `ADMIN` but not `SET`, and the API's per-request
+`set role app_api` / `set role anon` requires `SET`. Migration `20260108000000_api_role_membership.sql`
+grants it explicitly for `app_api`, `anon` and `authenticated`; without it the first deployment
+answered `42501 permission denied to set role "app_api"`.
+
 ## 4. First run on a fresh environment
 
 1. **Bucket.** Supabase → Storage → New bucket → name `documents`, **private** (no public access).
