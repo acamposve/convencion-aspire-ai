@@ -1,6 +1,6 @@
 # Deployment — staging on DigitalOcean and Supabase
 
-**Status:** implemented; first deployment pending the droplet (Phase 4).
+**Status:** implemented and live — `http://138.197.15.40` (deployed 2026-10-31).
 **Environment:** exactly one, `staging`. Continuous integration is separate and never deploys.
 **Public address:** `http://<droplet-ip>` (no domain; see the HTTPS limitation in §7).
 
@@ -146,6 +146,25 @@ curl -fsS http://127.0.0.1/health/ready
 The previous images stay on the droplet until `docker image prune`. Migrations are forward-only; a
 rollback restores the binary, not the schema, so a schema-changing release needs its own reverse
 migration (none in this MVP).
+
+## 6.1 Verified on 2026-10-31
+
+| Check | Result |
+|---|---|
+| `/health/ready` over the public IP | 200 |
+| SPA | 200, `<title>Convenciones</title>` |
+| Sign-in (real user) | works; `/api/me` 200 with capabilities |
+| Upload + extraction | 27,020-byte PDF stored in `documents`, extraction `Completed`, 470 characters |
+| Cross-tenant read over HTTPS | **404** on another company's document and text; own list empty |
+| Migration history | 20 applied and recorded |
+| Firewall | 22 and 80 open; 8080 and 5432 closed |
+| Reboot | containers healthy ~50 s after `systemctl reboot` |
+| Bundle | no `service_role`, no `sb_secret_` token, no database URL |
+
+**First-run gap:** there is no company-creation screen yet. On staging, the first company
+(`Empresa Demo`) and the SuperAdmin's membership were inserted directly in the database as a
+documented step: an `app.company` row plus `platform.user_profile.company_id`. A UI for this belongs
+to a later increment; until then, a new environment needs the same one-time SQL.
 
 ## 7. Known limitations
 

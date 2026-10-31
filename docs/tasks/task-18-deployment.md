@@ -1,123 +1,100 @@
-# T18 — Deployment
+# T18 — Deployment (staging)
 
-**Status:** planned · **Depends on:** T3 (API + auth), T7 (web), T15 (CI) · **Blocks:** T19
-**Requires:** the decisions and credentials listed below, plus your approval before touching Supabase
+**Status:** **implemented and live** — deployed 2026-10-31 to `http://138.197.15.40`.
+**Depends on:** T3, T7, T15 · **Blocks:** T19
 
-## Objective
+## 1. What was decided
 
-Take the MVP from "works on this machine" to "works at a URL, against a real database, with real
-sign-in, and with no secret in the repository".
+The original task asked for five product decisions. The Product Owner chose:
 
-This is the task that answers the question *"when do you need Supabase?"* — see §2.
-
----
-
-## 1. What deployment actually means here
-
-Three things ship, and they have different homes:
-
-| Thing | What it needs |
-|---|---|
-| **API** (ASP.NET Core container) | A container host, env configuration, a connection to PostgreSQL, a public HTTPS hostname |
-| **Web** (React/Vite static build) | A static host or CDN, the API base URL, the Supabase project URL and **publishable** key |
-| **Database** (PostgreSQL + migrations) | Supabase project; migrations applied by `Convenciones.Migrator`, never by hand |
-
----
-
-## 2. When Supabase is actually needed
-
-Nothing in T3–T6 requires it: those tasks run against the disposable PostgreSQL container and the local
-storage adapter, and are verified that way.
-
-| Point | What is needed | Blocking? |
+| # | Decision | Value |
 |---|---|---|
-| **T4** document storage, production adapter | Bucket name and private policy; `service_role` key for the **server** | No — the local adapter keeps the slice runnable. Deferred to this task |
-| **T7** web sign-in | Project URL + publishable key, and a real user to sign in with | **Yes, in practice** — the browser cannot authenticate against a project that does not exist. T7 can be built and tested against a local stand-in, but cannot be *demonstrated* without the project |
-| **T18** deployment | Everything below | **Yes** |
-| **T19** operations | Backups, monitoring, restore rehearsal | **Yes**, but only after T18 |
+| D1 | Where the API runs | **DigitalOcean Droplet**, 1 vCPU / 2 GB / 50 GB, Ubuntu 24.04, **NYC** |
+| D2 | Environments | **One**: `staging`. CI is separate and never deploys |
+| D3 | Supabase plan | **Free** (500 MB database, 1 GB storage; pauses when idle) |
+| D4 | Domain and DNS | **None**: the application is served from the droplet's IPv4, `http://138.197.15.40` |
+| D5 | `service_role` holder | The GitHub `staging` environment; the API reads it as `Documents__SupabaseSecretKey` |
 
-So: **I need it for T7's demonstration, and I must have it for T18.** Giving me the information before
-T7 starts removes a stall; giving it at T18 is workable but delays the first usable demo.
+**Cost:** $12/month (droplet) + $0 (Supabase Free). Pro would add $25/month.
 
-### Exactly what I need, and how sensitive it is
+## 2. Architecture
 
-| # | Item | Why | Sensitivity |
-|---|---|---|---|
-| 1 | **Project URL** (`https://<ref>.supabase.co`) | JWT issuer/audience, CORS, browser client | Public |
-| 2 | **Publishable / anon key** | Browser client signs in and calls the API | Public by design — still restricted by RLS |
-| 3 | **JWKS / metadata URL** (`/auth/v1/.well-known/jwks.json`) | The API validates token signatures | Public |
-| 4 | **`service_role` key** | Server-side only: storage writes, and any operation that must bypass RLS | **Secret — bypasses every RLS policy.** Never in the browser, never in the repo, only in a secret store |
-| 5 | **Direct connection string** (port 5432) | Applying migrations | Secret |
-| 6 | **Pooled connection string** (port 6543, transaction mode) | The API's runtime connection | Secret |
-| 7 | **Bucket name + policy** | Private bucket, per-company object keys | Public name, policy matters |
-| 8 | **Region** | Latency to Venezuela; backup location | Public |
-| 9 | **Plan tier** | Free pauses idle projects and has no automated backups; Pro enables both, plus real branch protection on the repo | Decision |
+```
+Internet ──:80──► web (nginx) ──/api/──► api (.NET, :8080, not published)
+                        └── /health/* ──► api
+api ──TLS, IPv4 session pooler──► Supabase PostgreSQL
+api ──service key, server-side──► Supabase Storage (private bucket `documents`)
+SPA ──publishable key──► Supabase Auth (ES256 tokens; API validates via OIDC discovery)
+```
 
-**How to hand these over:** put the secrets in the host's secret store and tell me the variable names. Do
-not paste them into this conversation or a file — the repository already has 17 committed credentials and
-does not need an eighteenth.
+Images live in GHCR, tagged with the commit SHA. `main` deploys through
+`.github/workflows/deploy.yml`: build → push → write `.env` → migrate → `up -d` → verify readiness on
+the droplet and over the public address → roll back to the previous images on failure.
 
----
-
-## 3. Decisions I need before starting
-
-| # | Decision | Why it must be yours |
-|---|---|---|
-| **D1** | **Where does the API run?** Azure Container Apps · Fly.io · Render · Railway · a VPS · your own server | Cost, operational ownership, whether you want a managed platform or a machine to maintain |
-| **D2** | **Environments:** just production, or staging as well? | A staging copy roughly doubles Supabase cost and adds a promotion step; skipping it means every test happens against live data |
-| **D3** | **Supabase plan:** Free or Pro | Free: no automated backups, projects pause when idle, and **GitHub branch protection is unavailable** — the same 403 that has blocked enforcement since Task 6 |
-| **D4** | **Domain and DNS** — who owns them, and which hostnames | TLS, CORS allow-list, cookies |
-| **D5** | **Who holds the `service_role` key** | It bypasses RLS. One holder, rotated on a schedule, stored in a secret manager |
-
----
-
-## 4. Scope
-
-**In:** container image for the API (multi-stage, non-root, no secret baked in); static build for the web;
-environment configuration per environment; Supabase project provisioning **with your approval**; migrations
-applied through the migrator and verified by query; private storage bucket; CORS restricted to the web
-origin; HTTPS only; `/health/ready` wired to the platform's health check; a deploy workflow in CI.
-
-**Out:** backups, restore rehearsal, monitoring and incident runbooks — those are T19. Also out: any
-action on the remote database that you have not explicitly approved.
-
----
-
-## 5. Deliverables
+## 3. Deliverables
 
 | File | Purpose |
 |---|---|
-| `Dockerfile` (API) | Reproducible image, non-root, no secrets |
-| `.github/workflows/deploy.yml` | Build, test, migrate, deploy — or deploy only on `main`, your call |
-| `docs/operations/deployment.md` | How to deploy, what each environment is, how to roll back |
-| `src/Convenciones.Web/.env.example` | Which variables exist, with no values |
+| `Dockerfile` | API + migrator + SQL migrations in one image; non-root (uid 1654); read-only root filesystem |
+| `Dockerfile.web` | SPA built with the publishable key only, served by nginx |
+| `deploy/docker-compose.yml` | One published port; API internal; health-gated web; migrator as a one-shot service |
+| `deploy/nginx.conf` | SPA fallback, `/api/` proxy, 25 MB body limit, security headers |
+| `deploy/bootstrap-droplet.sh` | One-time droplet provisioning: Docker, deploy user, ufw 22/80, key-only SSH |
+| `deploy/.env.example` | Every deployment key, no values |
+| `.github/workflows/deploy.yml` | Build, push, migrate, deploy, verify, roll back |
+| `.dockerignore` | Small context; no secrets, no tests, no docs |
+| `docs/operations/deployment.md` | Architecture, secrets inventory, procedures, rollback, limitations |
+| `supabase/migrations/20260108000000_api_role_membership.sql` | `SET` membership the API's role switch needs |
 
-## 6. Acceptance criteria
+Application changes the deployment required: `Api__PathBase=/api`, database assembled from
+`Database__*` parts (base64 password or mounted file), and `SupabaseDocumentStorage`.
 
-1. `/health/ready` returns **200** at the deployed URL with the real database, and **503** when the
-   database is unreachable — proven by stopping connectivity, not by assumption.
-2. Migrations applied by the migrator, and the result verified by querying `information_schema` — not by
-   trusting the exit code.
-3. A browser signs in against real Supabase Auth and calls `/me` successfully.
-4. A user of company A cannot read company B's data **over HTTPS in the deployed environment** — the
-   first time tenant isolation is proven against something that is not a test container.
-5. No secret appears in the repository, the image, or the JavaScript bundle — proven by running the scan
-   and inspecting the bundle, not by inspection "looking fine".
-6. Redeploying the previous version restores service, and the procedure is written down and timed.
-7. The API refuses to start if a required secret is missing — verified by deploying without it once, in
-   staging.
+## 4. Acceptance — executed, not asserted
 
-## 7. Risks
+| # | Criterion | Evidence |
+|---|---|---|
+| 1 | API starts | `/health/live` 200; container `Up (healthy)` |
+| 2 | Frontend on the IP | `GET /` 200, `<title>Convenciones</title>` |
+| 3 | API ↔ Supabase | `/health/ready` 200; EF queries against `app.agreement` in the logs |
+| 4 | Migrations execute | 20 files applied and recorded in `public.schema_migration`; 32 tables, 164 RLS policies, 23 capabilities |
+| 5 | Supabase Auth works | Real sign-in through the SPA; `/api/me` 200; SuperAdmin bootstrapped with `{"configured":true}` |
+| 6 | Uploads work | PDF `apgetpdfdatoscita_impl.pdf` (27,020 bytes) stored at `documents/5c47…/2026/10/….pdf`, row in `platform.document` with `extraction_status = Completed`, 470 extracted characters |
+| 7 | Cross-tenant access denied | Second company/user over HTTPS: `GET /api/documents/{A-id}` **404**, `/text` **404**, own list **0**; probe data deleted afterwards |
+| 8 | No secret in the bundle | Bundle contains no `service_role`, no `sb_secret_` token (only the library's `startsWith("sb_secret_")` literal), no database URL |
+| 9 | No secret in Git/logs | `tools/scan-secrets.ps1` CLEAN; deployment logs contain no values |
+| 10 | Health endpoint | `/health/ready` 200 over the public IP |
+| 11 | Restart after reboot | `systemctl reboot`; containers came back healthy in ~50 s |
+| 12 | Firewall | 22 and 80 reachable; **8080 and 5432 closed** |
+| 13 | Rollback | Automatic on failure (previous `.env` restored); manual procedure documented; not exercised in production yet |
 
-| Risk | Mitigation |
-|---|---|
-| **`service_role` reaching the browser.** It bypasses RLS entirely; one mistake turns the tenant model off | Server-only, never in a `VITE_` variable, and a build-time check failing on a `service_role` string in the bundle |
-| **RLS silently not applying** because the runtime connects as the project owner | The API connects with a non-owner role; a deployment test asserts a cross-company read fails |
-| **Free tier pauses the project**, and the demo fails at the worst moment | Decide D3 before the demo; know how to unpause |
-| **Migrations applied by hand** and drifting from the repository | Only the migrator applies them; the deploy pipeline runs it, and a manual change is treated as an incident |
-| **Pooled connections and `SET LOCAL ROLE`** | Transaction-mode pooling still scopes `SET LOCAL` correctly; verify explicitly in the deployed environment rather than assuming |
+## 5. Defects found only by deploying
 
-## 8. What this task does **not** claim
+1. **Compose `command` does not replace `ENTRYPOINT`** — the migrator executed the API binary. Fixed with `entrypoint`.
+2. **A 600 bind-mounted password is unreadable by uid 1654** — the password now travels base64-encoded and is decoded in-process.
+3. **`set role "app_api"` → 42501** — PostgreSQL 16 gives the role creator `ADMIN` but not `SET`; new migration grants it.
+4. **The migrator replayed every file** — it now records history in `public.schema_migration`; the live database was seeded once with the 19 files it had applied.
+5. **JWT validation failed with "signature key not found"** — `Jwt:MetadataAddress` must point at the OIDC **discovery document**, not the JWKS.
+6. **Selecting a PDF uploaded nothing** — the control cleared `input.value` before reading the `FileList`, which empties it in Chromium.
 
-The T16 credentials belonged to infrastructure the Product Owner confirmed decommissioned on 2026-10-31;
-deploying neither revives them nor requires rotating them. The values remain in the pre-rewrite backup and GitHub's PR refs.
+Each one has its own fix and evidence in the PRs (#32–#36).
+
+## 6. Known limitations
+
+1. **No TLS.** Public CAs do not certify a bare IP. Staging is HTTP; tokens and passwords travel unencrypted. A domain plus Let's Encrypt is the fix, and nginx is ready for it.
+2. **Free Supabase pauses idle projects**; the API returns 503 until it is resumed.
+3. **No company-creation screen.** The first company (`Empresa Demo`) and the SuperAdmin's membership were inserted directly in the database as a documented staging step. A UI belongs to a later increment.
+4. **Single droplet**, no redundancy; backups only in Supabase.
+5. The API connects as `postgres` (member of `app_api`/`anon`) and switches role per request; a connection opened without the interceptor would bypass RLS.
+
+## 7. Operations
+
+- **Deploy:** merge to `main`; the workflow does the rest.
+- **Rollback:** automatic; manual procedure in [deployment.md](../operations/deployment.md) §6.
+- **Secrets:** GitHub environment `staging` only; never in the repository, the image or the bundle.
+- **Logs:** `docker compose logs api` on the droplet.
+- **Health:** `http://138.197.15.40/health/ready`.
+
+## 8. What T18 does not claim
+
+The credentials of T16 were not rotated and do not need to be: their infrastructure was decommissioned
+(the Product Owner's decision, recorded in T16). Nothing here revives them.
