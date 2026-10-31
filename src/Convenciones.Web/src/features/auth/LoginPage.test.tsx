@@ -9,14 +9,15 @@ describe('LoginPage', () => {
     const auth = new FakeAuth();
     const api = new FakeApi();
     const { user } = renderApp({ auth, api, route: '/login' });
+    const typedValue = 'clave-segura';
 
     await user.type(await screen.findByLabelText(/Correo electrónico/), 'ana@example.test');
-    await user.type(screen.getByLabelText(/Contraseña/), 'clave-segura');
+    await user.type(screen.getByLabelText(/Contraseña/), typedValue);
     await user.click(screen.getByRole('button', { name: 'Entrar' }));
 
     expect(await screen.findByRole('heading', { name: 'Documentos' })).toBeInTheDocument();
     expect(await screen.findByText('Empresa Demo')).toBeInTheDocument();
-    expect(auth.signedInWith).toEqual({ email: 'ana@example.test', password: 'clave-segura' });
+    expect(auth.signedInWith).toEqual({ email: 'ana@example.test', password: typedValue });
 
     // The access token lives in memory only: nothing may be written to web storage.
     expect(window.localStorage.length).toBe(0);
