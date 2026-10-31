@@ -17,7 +17,7 @@ resource "azurerm_consumption_budget_resource_group" "ai" {
       enabled        = true
       operator       = "GreaterThan"
       threshold      = notification.value
-      threshold_type = "Percentage"
+      threshold_type = "Actual"
       contact_emails = [var.budget_alert_email]
     }
   }
