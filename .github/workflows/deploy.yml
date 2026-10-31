@@ -39,7 +39,13 @@ jobs:
           set -euo pipefail
           image="ghcr.io/${GITHUB_REPOSITORY,,}/api:${GITHUB_SHA}"
           docker build --file Dockerfile --tag "$image" .
-          docker push "$image"
+          pushed=0
+          for attempt in 1 2 3; do
+            if docker push "$image"; then pushed=1; break; fi
+            echo "push failed (attempt $attempt); retrying"
+            sleep 15
+          done
+          test "$pushed" = 1
           printf 'API_IMAGE=%s\n' "$image" >> "$GITHUB_ENV"
 
       - name: Build and push the web image
@@ -53,7 +59,13 @@ jobs:
             --build-arg VITE_API_BASE_URL=/api \
             --build-arg VITE_SUPABASE_URL="$VITE_SUPABASE_URL" \
             --build-arg VITE_SUPABASE_ANON_KEY="$VITE_SUPABASE_ANON_KEY" .
-          docker push "$image"
+          pushed=0
+          for attempt in 1 2 3; do
+            if docker push "$image"; then pushed=1; break; fi
+            echo "push failed (attempt $attempt); retrying"
+            sleep 15
+          done
+          test "$pushed" = 1
           printf 'WEB_IMAGE=%s\n' "$image" >> "$GITHUB_ENV"
 
       - name: Configure SSH
