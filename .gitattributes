@@ -1,7 +1,6 @@
-# Normalizar únicamente texto; no tocar los binarios (PDFs, imágenes, dump SQL).
+# Normalizar únicamente texto; no tocar los binarios (PDFs, imágenes).
 * text=auto
 
-*.php   text
 *.js    text
 *.css   text
 *.html  text
@@ -11,9 +10,6 @@
 # makes `sh` fail, which would silently disable the pre-push guard that protects `main`
 # (constitution Art. VIII.1, docs/operations/repository-settings.md).
 .githooks/* text eol=lf
-
-# Dump de datos reales: byte-exacto, sin normalización de fin de línea.
-presenci_cccol.sql binary
 
 *.pdf   binary
 *.pps   binary
