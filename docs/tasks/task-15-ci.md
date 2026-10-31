@@ -51,8 +51,8 @@ Two problems were found by running it, not by reading it:
 
 1. **The scanner failed on Linux.** `Get-Item -LiteralPath` on a bare dotfile behaved differently from
    `Test-Path`; the scan now resolves and stats through .NET, so Windows and the runner agree.
-2. **The workflow contained a credential-shaped URL.** The `psql` verification used
-   `postgresql://user:password@host`, and the scanner correctly refused it. It now uses the keyword DSN
+2. **The workflow contained a credential-shaped URL.** The `psql` verification embedded
+   the user and password in a URL, and the scanner correctly refused it. It now uses the keyword DSN
    plus `PGPASSWORD`, so the scan stays at zero with no allowlist.
 
 The vitest suite also received a 20 s per-test timeout. It was the known flake: the heaviest login tests
