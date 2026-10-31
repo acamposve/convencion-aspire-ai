@@ -16,6 +16,14 @@ if (string.IsNullOrWhiteSpace(connectionString))
     var host = Environment.GetEnvironmentVariable("Database__Host");
     var user = Environment.GetEnvironmentVariable("Database__User");
     var password = Environment.GetEnvironmentVariable("Database__Password");
+    if (string.IsNullOrWhiteSpace(password))
+    {
+        var passwordFile = Environment.GetEnvironmentVariable("Database__PasswordFile");
+        if (!string.IsNullOrWhiteSpace(passwordFile) && File.Exists(passwordFile))
+        {
+            password = File.ReadAllText(passwordFile).Trim();
+        }
+    }
     if (!string.IsNullOrWhiteSpace(host)
         && !string.IsNullOrWhiteSpace(user)
         && !string.IsNullOrWhiteSpace(password))

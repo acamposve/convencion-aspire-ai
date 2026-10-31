@@ -13,6 +13,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - ./secrets:/run/secrets:ro
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -44,6 +46,8 @@ services:
     env_file: [.env]
     environment:
       MIGRATIONS_PATH: /app/supabase/migrations
+    volumes:
+      - ./secrets:/run/secrets:ro
     profiles: ["tools"]
     restart: "no"
     networks:
