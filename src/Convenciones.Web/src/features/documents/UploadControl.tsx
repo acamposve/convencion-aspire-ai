@@ -131,9 +131,14 @@ export function UploadControl({
         style={{ display: 'none' }}
         disabled={uploading}
         onChange={(event) => {
-          const files = event.target.files;
+          // Capture the File before resetting the input: assigning to value empties the live
+          // FileList in Chromium, so reading it afterwards uploads nothing at all.
+          const file = event.target.files?.[0] ?? null;
           event.target.value = '';
-          handleFiles(files);
+
+          if (file) {
+            void upload(file);
+          }
         }}
       />
 
