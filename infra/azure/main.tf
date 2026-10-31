@@ -75,3 +75,11 @@ resource "azurerm_cognitive_deployment" "clauses" {
     capacity = var.model_capacity
   }
 }
+
+# The staging deployment was created manually while Azure OpenAI was blocked
+# (715-123420). This import adopts it instead of recreating it; it becomes a
+# no-op once the resource is in the state.
+import {
+  to = azurerm_cognitive_deployment.clauses
+  id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${azurerm_resource_group.ai.name}/providers/Microsoft.CognitiveServices/accounts/${azurerm_cognitive_account.foundry.name}/deployments/clauses"
+}
