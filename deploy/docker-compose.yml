@@ -24,6 +24,28 @@ services:
     networks:
       - internal
 
+  # Background processing. Disabled until the extraction stage exists (#42); the container starts
+  # with the stack so the deployment path is real, but it claims nothing while Worker__Enabled=false.
+  worker:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    entrypoint: ["dotnet", "Convenciones.Worker.dll"]
+    env_file: [.env]
+    environment:
+      Worker__Enabled: "false"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/worker-ready"]
+      interval: 15s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+    networks:
+      - internal
   web:
     image: ${WEB_IMAGE:?WEB_IMAGE is required}
     restart: unless-stopped

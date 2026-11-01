@@ -33,6 +33,8 @@ public sealed class ProcessingRunConfiguration : IEntityTypeConfiguration<Proces
         builder.Property(run => run.StartedAt).HasColumnName("started_at");
         builder.Property(run => run.FinishedAt).HasColumnName("finished_at");
         builder.Property(run => run.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(run => run.AvailableAt).HasColumnName("available_at");
+        builder.Property(run => run.LeaseExpiresAt).HasColumnName("lease_expires_at");
     }
 }
 

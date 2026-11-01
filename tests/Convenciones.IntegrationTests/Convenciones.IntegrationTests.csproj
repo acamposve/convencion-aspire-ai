@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\Convenciones.Api\Convenciones.Api.csproj" />
 
     <ProjectReference Include="..\..\src\Convenciones.Migrator\Convenciones.Migrator.csproj" />
+    <ProjectReference Include="..\..\src\Convenciones.Worker\Convenciones.Worker.csproj" />
   </ItemGroup>
 
 </Project>

@@ -14,6 +14,8 @@ RUN dotnet publish src/Convenciones.Api/Convenciones.Api.csproj \
         --configuration Release --output /app/publish /p:UseAppHost=false
 RUN dotnet publish src/Convenciones.Migrator/Convenciones.Migrator.csproj \
         --configuration Release --output /app/publish /p:UseAppHost=false
+RUN dotnet publish src/Convenciones.Worker/Convenciones.Worker.csproj \
+        --configuration Release --output /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 
