@@ -50,4 +50,18 @@ public sealed class ProcessingRun
     public DateTimeOffset UpdatedAt { get; private set; }
     public DateTimeOffset AvailableAt { get; private set; }
     public DateTimeOffset? LeaseExpiresAt { get; private set; }
+
+    public static ProcessingRun Create(Guid documentId, Guid companyId, Guid requestedBy, DateTimeOffset now) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            DocumentId = documentId,
+            CompanyId = companyId,
+            RequestedBy = requestedBy,
+            Status = ProcessingStatus.Queued,
+            Stage = "Queued",
+            CreatedAt = now,
+            UpdatedAt = now,
+            AvailableAt = now,
+        };
 }
