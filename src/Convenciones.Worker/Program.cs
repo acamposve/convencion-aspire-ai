@@ -120,7 +120,11 @@ public static class Program
             IntervalMinutes = ReadPositive(builder.Configuration["Retention:IntervalMinutes"], 360),
             BatchSize = ReadPositive(builder.Configuration["Retention:BatchSize"], 100),
         });
-        builder.Services.AddHostedService<ProcessingRetentionSweeper>();
+        builder.Services.AddSingleton(serviceProvider => new ProcessingRetentionSweeper(
+            connectionString,
+            serviceProvider.GetRequiredService<RetentionOptions>(),
+            serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ProcessingRetentionSweeper>>()));
+        builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ProcessingRetentionSweeper>());
         builder.Services.AddHostedService<ProcessingWorker>();
 
         await builder.Build().RunAsync().ConfigureAwait(false);
