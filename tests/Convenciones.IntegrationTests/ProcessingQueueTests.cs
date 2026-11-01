@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Convenciones.Worker;
 using Npgsql;
@@ -8,14 +9,29 @@ using Xunit;
 namespace Convenciones.IntegrationTests;
 
 [Collection(PostgresCollection.Name)]
-public sealed class ProcessingQueueTests(PostgresFixture fixture)
+public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifetime
 {
+    private readonly List<(Guid Company, Guid User, Guid Document)> _created = [];
+
     private static readonly WorkerOptions Options = new()
     {
         LeaseSeconds = 60,
         MaxAttempts = 3,
         BackoffSeconds = [0],
     };
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        foreach (var (company, user, document) in _created)
+        {
+            await ExecuteAsync($"delete from platform.processing_run where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.document where id = '{document}';");
+            await ExecuteAsync($"delete from platform.user_account where id = '{user}';");
+            await ExecuteAsync($"delete from app.company where id = '{company}';");
+        }
+    }
 
     [Fact]
     public async Task Two_workers_never_claim_the_same_run()
@@ -118,6 +134,7 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture)
             $"values ('{documentId}', 'queue/{suffix}.pdf', 'queue.pdf', 'application/pdf', 1024, '{userId}', '{companyId}');" +
             $"insert into platform.processing_run (id, document_id, company_id) values ('{runId}', '{documentId}', '{companyId}');");
 
+        _created.Add((companyId, userId, documentId));
         return (runId, documentId);
     }
 
