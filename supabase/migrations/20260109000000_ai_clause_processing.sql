@@ -186,6 +186,12 @@ create index clause_classification_category_idx on platform.clause_classificatio
 -- -------------------------------------------------------------------------------------
 -- RLS: tenant-scoped reads and capability-gated writes
 -- -------------------------------------------------------------------------------------
+alter table platform.processing_run        enable row level security;
+alter table platform.processing_attempt    enable row level security;
+alter table platform.extracted_clause      enable row level security;
+alter table platform.clause_category       enable row level security;
+alter table platform.clause_classification enable row level security;
+
 create policy processing_run_api_read on platform.processing_run
     for select to app_api
     using (platform.is_active_user()
