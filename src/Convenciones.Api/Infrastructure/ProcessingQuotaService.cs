@@ -13,7 +13,7 @@ public sealed record QuotaUsage(
 
 public sealed record QuotaStatus(DateOnly Period, QuotaLimits Limits, QuotaUsage Usage);
 
-public sealed record QuotaDecision(bool Allowed, QuotaStatus Status, string? Detail);
+public sealed record QuotaDecision(bool Allowed, QuotaStatus Status, string? Detail, string? Code = null);
 
 /// <summary>
 /// Monthly processing quota. The reservation increments the document counter inside a transaction
@@ -32,11 +32,46 @@ public sealed class ProcessingQuotaService(string connectionString)
         return new QuotaStatus(period, limits, usage);
     }
 
-    public async Task<QuotaDecision> TryReserveAsync(Guid companyId, CancellationToken cancellationToken)
+    public Task<QuotaDecision> TryReserveAsync(Guid companyId, CancellationToken cancellationToken) =>
+        TryReserveAsync(companyId, 0, cancellationToken);
+
+    public async Task<QuotaDecision> TryReserveAsync(
+        Guid companyId,
+        int maxActiveRuns,
+        CancellationToken cancellationToken)
     {
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using (var lockCommand = new NpgsqlCommand(
+            "select pg_advisory_xact_lock(hashtext(@company::text));", connection, transaction))
+        {
+            lockCommand.Parameters.AddWithValue("company", companyId);
+            await lockCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (maxActiveRuns > 0)
+        {
+            await using var activeCommand = new NpgsqlCommand(
+                """
+                select count(*) from platform.processing_run
+                where company_id = @company
+                  and status in ('Queued'::platform.processing_status, 'Running'::platform.processing_status);
+                """, connection, transaction);
+            activeCommand.Parameters.AddWithValue("company", companyId);
+            var active = Convert.ToInt32(await activeCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+            if (active >= maxActiveRuns)
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                var blocked = await GetAsync(companyId, cancellationToken).ConfigureAwait(false);
+                return new QuotaDecision(
+                    false,
+                    blocked,
+                    "The company already has the maximum number of active runs.",
+                    "concurrency_limit");
+            }
+        }
 
         var period = await EnsureUsageAsync(connection, transaction, companyId, cancellationToken).ConfigureAwait(false);
         var limits = await ReadLimitsAsync(connection, transaction, companyId, cancellationToken).ConfigureAwait(false);
@@ -49,7 +84,11 @@ public sealed class ProcessingQuotaService(string connectionString)
         if (exceeded)
         {
             await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-            return new QuotaDecision(false, new QuotaStatus(period, limits, usage), "The monthly processing quota is exhausted.");
+            return new QuotaDecision(
+                false,
+                new QuotaStatus(period, limits, usage),
+                "The monthly processing quota is exhausted.",
+                "quota_exceeded");
         }
 
         await using (var update = new NpgsqlCommand(

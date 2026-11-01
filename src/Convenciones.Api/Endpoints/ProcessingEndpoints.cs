@@ -1,5 +1,6 @@
 using Convenciones.Api.Infrastructure;
 using Convenciones.Catalog;
+using Microsoft.Extensions.Configuration;
 using Convenciones.Clauses;
 using Convenciones.Documents;
 using Convenciones.Identity;
@@ -22,6 +23,11 @@ public static class ProcessingEndpoints
             .RequiresCapability("clause.process")
             .WithTags("Processing")
             .WithName("StartDocumentProcessing");
+
+        app.MapDelete("/documents/{id:guid}/processing", PurgeAsync)
+            .RequiresCapability("clause.manage")
+            .WithTags("Processing")
+            .WithName("PurgeDocumentProcessing");
 
         app.MapGet("/documents/{id:guid}/processing", GetLatestAsync)
             .RequiresCapability("clause.read")
@@ -61,6 +67,7 @@ public static class ProcessingEndpoints
         ConvencionesDbContext db,
         ISessionAccessor accessor,
         ProcessingQuotaService quotas,
+        IConfiguration configuration,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;
@@ -98,10 +105,13 @@ public static class ProcessingEndpoints
             return Results.Accepted($"/processing/{existing.Id}", ToResponse(existing));
         }
 
-        var quota = await quotas.TryReserveAsync(companyId, cancellationToken).ConfigureAwait(false);
+        var maxActiveRuns = configuration.GetValue<int?>("Processing:MaxActiveRunsPerCompany") ?? 1;
+        var quota = await quotas.TryReserveAsync(companyId, maxActiveRuns, cancellationToken).ConfigureAwait(false);
         if (!quota.Allowed)
         {
-            return Problem(StatusCodes.Status409Conflict, "quota_exceeded",
+            return Problem(
+                StatusCodes.Status409Conflict,
+                quota.Code ?? "quota_exceeded",
                 quota.Detail ?? "The monthly processing quota is exhausted.");
         }
 
@@ -131,11 +141,33 @@ public static class ProcessingEndpoints
         return Results.Accepted($"/processing/{run.Id}", ToResponse(run));
     }
 
+    private static async Task<IResult> PurgeAsync(
+        Guid id,
+        ConvencionesDbContext db,
+        ISessionAccessor accessor,
+        ProcessingRetentionService retention,
+        CancellationToken cancellationToken)
+    {
+        var session = accessor.Session;
+        if (session is null)
+        {
+            return Forbidden();
+        }
+
+        if (await DocumentAccess.FindAccessibleAsync(session, id, db, cancellationToken).ConfigureAwait(false) is null)
+        {
+            return NotFoundDocument(id);
+        }
+
+        await retention.PurgeDocumentAsync(id, cancellationToken).ConfigureAwait(false);
+        return Results.NoContent();
+    }
     private static async Task<IResult> GetLatestAsync(
         Guid id,
         ConvencionesDbContext db,
         ISessionAccessor accessor,
         ProcessingQuotaService quotas,
+        IConfiguration configuration,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;
@@ -164,6 +196,7 @@ public static class ProcessingEndpoints
         ConvencionesDbContext db,
         ISessionAccessor accessor,
         ProcessingQuotaService quotas,
+        IConfiguration configuration,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;
@@ -221,6 +254,7 @@ public static class ProcessingEndpoints
         ConvencionesDbContext db,
         ISessionAccessor accessor,
         ProcessingQuotaService quotas,
+        IConfiguration configuration,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;

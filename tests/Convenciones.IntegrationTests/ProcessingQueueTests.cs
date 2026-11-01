@@ -90,6 +90,25 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifeti
     }
 
     [Fact]
+    public async Task Lifecycle_writes_audit_entries()
+    {
+        var (runId, _) = await CreateRunAsync();
+        var queue = new ProcessingQueue(fixture.ConnectionString, Options);
+
+        var job = await queue.ClaimAsync(CancellationToken.None);
+        job.ShouldNotBeNull();
+        await queue.FailAsync(job!, "provider_unavailable", "Temporary failure.", retryable: true, CancellationToken.None);
+        var second = await queue.ClaimAsync(CancellationToken.None);
+        second.ShouldNotBeNull();
+        await queue.CompleteAsync(second!, CancellationToken.None);
+
+        var actions = await ScalarAsync(
+            $"select string_agg(action, ',' order by id) from platform.audit_entry where entity_id = '{runId}'");
+        actions.ShouldContain("processing.started");
+        actions.ShouldContain("processing.retried");
+        actions.ShouldContain("processing.completed");
+    }
+    [Fact]
     public async Task Expired_lease_is_recovered()
     {
         var (runId, _) = await CreateRunAsync();

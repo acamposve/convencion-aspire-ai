@@ -255,6 +255,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 // Fail fast again: without a way to validate signatures there is no authentication, only a claim
 // that there is. See docs/architecture/security-model.md.
 builder.Services.AddSingleton(new ProcessingQuotaService(connectionString));
+builder.Services.AddSingleton(new ProcessingRetentionService(connectionString));
 builder.Services.AddConvencionesIdentity(builder.Configuration, connectionString);
 
 builder.Services
