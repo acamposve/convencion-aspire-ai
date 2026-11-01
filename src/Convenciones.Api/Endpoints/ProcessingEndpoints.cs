@@ -60,6 +60,7 @@ public static class ProcessingEndpoints
         Guid id,
         ConvencionesDbContext db,
         ISessionAccessor accessor,
+        ProcessingQuotaService quotas,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;
@@ -97,6 +98,13 @@ public static class ProcessingEndpoints
             return Results.Accepted($"/processing/{existing.Id}", ToResponse(existing));
         }
 
+        var quota = await quotas.TryReserveAsync(companyId, cancellationToken).ConfigureAwait(false);
+        if (!quota.Allowed)
+        {
+            return Problem(StatusCodes.Status409Conflict, "quota_exceeded",
+                quota.Detail ?? "The monthly processing quota is exhausted.");
+        }
+
         var run = ProcessingRun.Create(id, companyId, session.UserId, DateTimeOffset.UtcNow);
         db.ProcessingRuns.Add(run);
 
@@ -127,6 +135,7 @@ public static class ProcessingEndpoints
         Guid id,
         ConvencionesDbContext db,
         ISessionAccessor accessor,
+        ProcessingQuotaService quotas,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;
@@ -154,6 +163,7 @@ public static class ProcessingEndpoints
         Guid id,
         ConvencionesDbContext db,
         ISessionAccessor accessor,
+        ProcessingQuotaService quotas,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;
@@ -210,6 +220,7 @@ public static class ProcessingEndpoints
         Guid id,
         ConvencionesDbContext db,
         ISessionAccessor accessor,
+        ProcessingQuotaService quotas,
         CancellationToken cancellationToken)
     {
         var session = accessor.Session;

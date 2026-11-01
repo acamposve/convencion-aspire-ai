@@ -254,6 +254,7 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 // ---- Authentication and authorization ---------------------------------------------------------
 // Fail fast again: without a way to validate signatures there is no authentication, only a claim
 // that there is. See docs/architecture/security-model.md.
+builder.Services.AddSingleton(new ProcessingQuotaService(connectionString));
 builder.Services.AddConvencionesIdentity(builder.Configuration, connectionString);
 
 builder.Services
@@ -310,6 +311,7 @@ app.MapCompanyEndpoints();
 app.MapDocumentEndpoints();
 app.MapDocumentExtractionEndpoints();
 app.MapProcessingEndpoints();
+app.MapQuotaEndpoints();
 app.MapAgreementEndpoints();
 app.MapComparisonHeadingEndpoints();
 app.MapComparisonEndpoints();

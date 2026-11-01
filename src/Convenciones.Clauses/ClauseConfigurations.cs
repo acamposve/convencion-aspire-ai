@@ -134,3 +134,36 @@ public sealed class ClauseClassificationConfiguration : IEntityTypeConfiguration
         builder.Property(classification => classification.CreatedAt).HasColumnName("created_at");
     }
 }
+
+public sealed class CompanyQuotaConfiguration : IEntityTypeConfiguration<CompanyQuota>
+{
+    public void Configure(EntityTypeBuilder<CompanyQuota> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.ToTable("company_quota", "platform");
+        builder.HasKey(quota => quota.CompanyId);
+        builder.Property(quota => quota.CompanyId).HasColumnName("company_id");
+        builder.Property(quota => quota.DocumentsLimit).HasColumnName("documents_limit");
+        builder.Property(quota => quota.PagesLimit).HasColumnName("pages_limit");
+        builder.Property(quota => quota.TokensLimit).HasColumnName("tokens_limit");
+        builder.Property(quota => quota.UpdatedAt).HasColumnName("updated_at");
+    }
+}
+
+public sealed class ProcessingUsageConfiguration : IEntityTypeConfiguration<ProcessingUsage>
+{
+    public void Configure(EntityTypeBuilder<ProcessingUsage> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.ToTable("processing_usage", "platform");
+        builder.HasKey(usage => new { usage.CompanyId, usage.Period });
+        builder.Property(usage => usage.CompanyId).HasColumnName("company_id");
+        builder.Property(usage => usage.Period).HasColumnName("period");
+        builder.Property(usage => usage.Documents).HasColumnName("documents");
+        builder.Property(usage => usage.Pages).HasColumnName("pages");
+        builder.Property(usage => usage.InputTokens).HasColumnName("input_tokens");
+        builder.Property(usage => usage.OutputTokens).HasColumnName("output_tokens");
+        builder.Property(usage => usage.CostEstimateUsd).HasColumnName("cost_estimate_usd").HasColumnType("numeric(12,6)");
+        builder.Property(usage => usage.UpdatedAt).HasColumnName("updated_at");
+    }
+}
