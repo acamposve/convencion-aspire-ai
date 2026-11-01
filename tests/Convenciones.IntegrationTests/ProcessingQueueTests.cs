@@ -122,6 +122,9 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifeti
         recovered.ShouldBe(1);
         var status = await ScalarAsync($"select status::text from platform.processing_run where id = '{runId}'");
         status.ShouldBe("Queued");
+        var actions = await ScalarAsync(
+            $"select string_agg(action, ',' order by id) from platform.audit_entry where entity_id = '{runId}'");
+        actions.ShouldContain("processing.recovered");
     }
 
     [Fact]

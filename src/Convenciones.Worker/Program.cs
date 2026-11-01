@@ -115,9 +115,18 @@ public static class Program
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(new ProcessingQueue(connectionString, options));
         WorkerComposition.AddProcessingStage(builder.Services, builder.Configuration, connectionString);
+        builder.Services.AddSingleton(new RetentionOptions
+        {
+            IntervalMinutes = ReadPositive(builder.Configuration["Retention:IntervalMinutes"], 360),
+            BatchSize = ReadPositive(builder.Configuration["Retention:BatchSize"], 100),
+        });
+        builder.Services.AddHostedService<ProcessingRetentionSweeper>();
         builder.Services.AddHostedService<ProcessingWorker>();
 
         await builder.Build().RunAsync().ConfigureAwait(false);
         return 0;
     }
+
+    private static int ReadPositive(string? value, int fallback) =>
+        int.TryParse(value, out var parsed) && parsed > 0 ? parsed : fallback;
 }

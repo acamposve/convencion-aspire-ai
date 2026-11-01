@@ -248,6 +248,7 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
     {
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         await using var command = new NpgsqlCommand(
             """
@@ -263,7 +264,7 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
                 where status = 'Running'::platform.processing_status
                   and lease_expires_at < now()
                   and attempts < @max
-                returning 1
+                returning id, requested_by
             ), failed as (
                 update platform.processing_run
                 set status = 'Failed'::platform.processing_status,
@@ -276,15 +277,38 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
                 where status = 'Running'::platform.processing_status
                   and lease_expires_at < now()
                   and attempts >= @max
-                returning 1
+                returning id, requested_by
+            ), audited as (
+                insert into platform.audit_entry
+                    (actor_id, module, entity_type, entity_id, action, from_state, to_state, changes)
+                select requested_by,
+                       'documents',
+                       'processing_run',
+                       id::text,
+                       'processing.recovered',
+                       'Running',
+                       'Queued',
+                       jsonb_build_object('code', 'worker_interrupted')
+                from requeued
+                union all
+                select requested_by,
+                       'documents',
+                       'processing_run',
+                       id::text,
+                       'processing.failed',
+                       'Running',
+                       'Failed',
+                       jsonb_build_object('code', 'worker_interrupted')
+                from failed
             )
             select (select count(*) from requeued) + (select count(*) from failed);
-            """, connection);
+            """, connection, transaction);
 
         command.Parameters.AddWithValue("max", options.MaxAttempts);
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+        var recovered = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return recovered;
     }
-
     private async Task FinishAttemptAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
