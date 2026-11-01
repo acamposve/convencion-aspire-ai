@@ -31,7 +31,7 @@ services:
     entrypoint: ["dotnet", "Convenciones.Worker.dll"]
     env_file: [.env]
     environment:
-      Worker__Enabled: "false"
+      Worker__Enabled: "${Worker__Enabled:-false}"
     restart: unless-stopped
     read_only: true
     tmpfs:

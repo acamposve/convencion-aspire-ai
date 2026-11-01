@@ -1,0 +1,98 @@
+name: Staging AI exercise
+
+# One stage per dispatch. Nothing here runs automatically, and each stage requires the matching
+# confirmation value. The worker is never enabled by the exercise itself: use the dedicated
+# worker-enable / worker-disable stages, each with its own dispatch and conversation approval.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Stage to run'
+        required: true
+        type: choice
+        options:
+          - provision
+          - queued-check
+          - completed-check
+          - worker-enable
+          - worker-disable
+          - teardown
+      confirm:
+        description: 'Type the exact stage name to confirm'
+        required: true
+        type: string
+      window_minutes:
+        description: 'Worker auto-disable window for worker-enable (1-120)'
+        required: false
+        default: '20'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-ai-exercise
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    name: ${{ github.event.inputs.stage }}
+    if: github.ref == 'refs/heads/main' && github.event.inputs.confirm == github.event.inputs.stage
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 40
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
+      STAGING_API_URL: http://${{ vars.SSH_HOST }}/api
+      WINDOW_MINUTES: ${{ github.event.inputs.window_minutes }}
+      STATE_DIR: /opt/convenciones/.staging-ai
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Require the exact stage confirmation
+        run: |
+          set -euo pipefail
+          test "${{ github.event.inputs.confirm }}" = "${{ github.event.inputs.stage }}"
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install PostgreSQL client
+        if: github.event.inputs.stage == 'provision' || github.event.inputs.stage == 'teardown'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Validate shell scripts
+        run: |
+          set -euo pipefail
+          for script in scripts/staging/*.sh; do bash -n "$script"; done
+
+      - name: Run stage
+        run: bash "scripts/staging/${{ github.event.inputs.stage }}.sh"
+
+      - name: Verify the worker is off after non-worker stages
+        if: github.event.inputs.stage != 'worker-enable'
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_TARGET" \
+            "cd /opt/convenciones && test \"\$(grep '^Worker__Enabled=' .env)\" = 'Worker__Enabled=false' && docker compose ps worker"
