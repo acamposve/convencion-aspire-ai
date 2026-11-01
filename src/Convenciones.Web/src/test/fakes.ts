@@ -6,6 +6,9 @@ import type {
   ApiClient,
   AuditEntryView,
   CapabilityView,
+  ClauseCategoryView,
+  ClausePageResponse,
+  ClauseReviewStatus,
   ClauseView,
   ComparisonCandidate,
   ComparisonView,
@@ -23,6 +26,8 @@ import type {
   NewsSummary,
   Page,
   PetitionView,
+  ProcessingClause,
+  ProcessingRun,
   PublicAgreementDetail,
   PublicAgreementSummary,
   PublicApi,
@@ -504,6 +509,69 @@ export class FakeApi implements ApiClient {
       extractionError: document.extractionError,
       rowVersion: 1,
     };
+  }
+
+  processingRuns = new Map<string, ProcessingRun>();
+  processingClauses = new Map<string, ProcessingClause[]>();
+  processingCalls: string[] = [];
+  processingError: ApiError | null = null;
+
+  async startProcessing(documentId: string): Promise<ProcessingRun> {
+    this.processingCalls.push(documentId);
+    if (this.processingError) {
+      throw this.processingError;
+    }
+
+    const existing = this.processingRuns.get(documentId);
+    if (existing) {
+      return existing;
+    }
+
+    const run: ProcessingRun = {
+      id: `run-${documentId}`,
+      documentId,
+      status: 'Queued',
+      stage: 'Queued',
+      attempts: 0,
+      clauseCount: 0,
+      classifiedCount: 0,
+      unclassifiedCount: 0,
+      errorCode: null,
+      errorMessage: null,
+      createdAt: '2026-01-15T10:02:00Z',
+      startedAt: null,
+      finishedAt: null,
+    };
+    this.processingRuns.set(documentId, run);
+    return run;
+  }
+
+  async getProcessing(documentId: string): Promise<ProcessingRun> {
+    return this.processingRuns.get(documentId) ?? missing(documentId);
+  }
+
+  async listClauses(documentId: string, page: number, pageSize: number): Promise<ClausePageResponse> {
+    const items = this.processingClauses.get(documentId) ?? [];
+    const start = (page - 1) * pageSize;
+    return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
+  }
+
+  async reviewClause(clauseId: string, status: ClauseReviewStatus): Promise<ProcessingClause> {
+    for (const clauses of this.processingClauses.values()) {
+      const clause = clauses.find((item) => item.id === clauseId);
+      if (clause) {
+        clause.reviewStatus = status;
+        return clause;
+      }
+    }
+
+    return missing(clauseId);
+  }
+
+  async listClauseCategories(): Promise<ClauseCategoryView[]> {
+    return [
+      { key: 'pricing', name: 'Precio y pago', description: null, parentId: null, sortOrder: 10 },
+    ];
   }
 
   async getDocumentText(id: string): Promise<DocumentText> {

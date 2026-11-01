@@ -13,6 +13,7 @@ import { ErrorNotice } from '../../components/ErrorNotice';
 import { UploadControl } from './UploadControl';
 import { DocumentCard } from './DocumentCard';
 import { TextDialog } from './TextDialog';
+import { ClauseProcessingDialog } from './ClauseProcessingDialog';
 
 const PAGE_SIZE = 10;
 
@@ -33,6 +34,7 @@ export function DocumentsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<DocumentSummary | null>(null);
+  const [clausesDocument, setClausesDocument] = useState<DocumentSummary | null>(null);
 
   const load = useCallback(
     async (targetPage: number, quiet = false) => {
@@ -194,6 +196,7 @@ export function DocumentsPage() {
                   processing={processingId === document.id}
                   onProcess={(candidate) => void handleProcess(candidate)}
                   onViewText={setSelected}
+                  onProcessClauses={setClausesDocument}
                 />
               ))}
             </Stack>
@@ -230,6 +233,11 @@ export function DocumentsPage() {
       </Box>
 
       <TextDialog document={selected} onClose={() => setSelected(null)} />
+      <ClauseProcessingDialog
+        document={clausesDocument}
+        open={clausesDocument !== null}
+        onClose={() => setClausesDocument(null)}
+      />
     </Stack>
   );
 }

@@ -22,11 +22,13 @@ export function DocumentCard({
   processing,
   onProcess,
   onViewText,
+  onProcessClauses,
 }: {
   document: DocumentSummary;
   processing: boolean;
   onProcess: (document: DocumentSummary) => void;
   onViewText: (document: DocumentSummary) => void;
+  onProcessClauses: (document: DocumentSummary) => void;
 }) {
   const attemptsExhausted = document.extractionAttempts >= MAX_ATTEMPTS;
   const isCompleted = document.extractionStatus === 'Completed';
@@ -91,9 +93,14 @@ export function DocumentCard({
           alignItems={{ xs: 'stretch', sm: 'center' }}
         >
           {isCompleted ? (
-            <Button variant="contained" size="small" onClick={() => onViewText(document)}>
-              Ver texto
-            </Button>
+            <>
+              <Button variant="contained" size="small" onClick={() => onViewText(document)}>
+                Ver texto
+              </Button>
+              <Button variant="outlined" size="small" onClick={() => onProcessClauses(document)}>
+                Procesar cláusulas
+              </Button>
+            </>
           ) : (
             <Button
               variant="contained"

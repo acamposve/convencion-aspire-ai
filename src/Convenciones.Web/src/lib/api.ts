@@ -84,6 +84,66 @@ export interface DocumentText {
   extractedAt: string;
 }
 
+// ---- Clause processing (T44/T45) -----------------------------------------------------------------
+
+export type ProcessingStatus = 'Queued' | 'Running' | 'Completed' | 'Failed' | 'Cancelled';
+
+export type ClauseReviewStatus = 'Pending' | 'Accepted' | 'Corrected' | 'Rejected';
+
+export interface ProcessingRun {
+  id: string;
+  documentId: string;
+  status: ProcessingStatus;
+  stage: string;
+  attempts: number;
+  clauseCount: number;
+  classifiedCount: number;
+  unclassifiedCount: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface ClauseClassificationView {
+  key: string;
+  name: string;
+  confidence: number | null;
+  isPrimary: boolean;
+  rationale: string | null;
+}
+
+export interface ProcessingClause {
+  id: string;
+  ordinal: number;
+  number: string | null;
+  heading: string | null;
+  text: string;
+  pageFrom: number;
+  pageTo: number;
+  sourceCharStart: number | null;
+  sourceCharEnd: number | null;
+  confidence: number | null;
+  needsReview: boolean;
+  reviewStatus: ClauseReviewStatus;
+  classifications: ClauseClassificationView[];
+}
+
+export interface ClausePageResponse {
+  items: ProcessingClause[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface ClauseCategoryView {
+  key: string;
+  name: string;
+  description: string | null;
+  parentId: string | null;
+  sortOrder: number;
+}
 // ---- Agreements and clauses (T8) -----------------------------------------------------------------
 
 export type PublicationState = 'Draft' | 'Published';
@@ -501,6 +561,16 @@ export interface ApiClient {
   getDocument(id: string): Promise<DocumentDetail>;
   getDocumentText(id: string): Promise<DocumentText>;
 
+  startProcessing(documentId: string): Promise<ProcessingRun>;
+  getProcessing(documentId: string): Promise<ProcessingRun>;
+  listClauses(documentId: string, page: number, pageSize: number): Promise<ClausePageResponse>;
+  reviewClause(
+    clauseId: string,
+    status: ClauseReviewStatus,
+    input?: { text?: string; heading?: string },
+  ): Promise<ProcessingClause>;
+  listClauseCategories(): Promise<ClauseCategoryView[]>;
+
   listAgreements(query: {
     page: number;
     pageSize: number;
@@ -716,6 +786,37 @@ export class HttpApiClient implements ApiClient {
 
   async getDocumentText(id: string): Promise<DocumentText> {
     return this.request<DocumentText>(`/documents/${encodeURIComponent(id)}/text`);
+  }
+
+  async startProcessing(documentId: string): Promise<ProcessingRun> {
+    return this.request<ProcessingRun>(`/documents/${encodeURIComponent(documentId)}/process`, {
+      method: 'POST',
+    });
+  }
+
+  async getProcessing(documentId: string): Promise<ProcessingRun> {
+    return this.request<ProcessingRun>(`/documents/${encodeURIComponent(documentId)}/processing`);
+  }
+
+  async listClauses(documentId: string, page: number, pageSize: number): Promise<ClausePageResponse> {
+    return this.request<ClausePageResponse>(
+      `/documents/${encodeURIComponent(documentId)}/clauses${queryString({ page, pageSize })}`,
+    );
+  }
+
+  async reviewClause(
+    clauseId: string,
+    status: ClauseReviewStatus,
+    input: { text?: string; heading?: string } = {},
+  ): Promise<ProcessingClause> {
+    return this.request<ProcessingClause>(`/clauses/${encodeURIComponent(clauseId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, text: input.text ?? null, heading: input.heading ?? null }),
+    });
+  }
+
+  async listClauseCategories(): Promise<ClauseCategoryView[]> {
+    return this.request<ClauseCategoryView[]>('/clause-categories');
   }
 
   uploadDocument(file: File, onProgress: (percent: number) => void): Promise<UploadedDocument> {
