@@ -32,7 +32,7 @@ public sealed class SchemaTests(PostgresFixture fixture)
         var count = await QueryAsync<long>(
             "select count(*) from information_schema.tables where table_schema in ('app', 'platform') and table_type = 'BASE TABLE'");
 
-        count.Single().ShouldBe(37L);
+        count.Single().ShouldBe(39L);
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class SchemaTests(PostgresFixture fixture)
 
         // 22 original capabilities plus company.read_all, added because company.read already means
         // "read the company catalogue" and is granted to every role.
-        capabilities.Single().ShouldBe(27L);
+        capabilities.Single().ShouldBe(28L);
         // Decision Q-9: SuperAdmin, Admin, Editor, Transcriptor, Negotiator.
         roles.Single().ShouldBe(5L);
         users.Single().ShouldBe(0L, "constitution Art. VI.6 forbids seeding a user account");

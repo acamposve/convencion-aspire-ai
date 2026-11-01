@@ -71,6 +71,8 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
     public DbSet<ExtractedClause> ExtractedClauses => Set<ExtractedClause>();
     public DbSet<ClauseCategory> ClauseCategories => Set<ClauseCategory>();
     public DbSet<ClauseClassification> ClauseClassifications => Set<ClauseClassification>();
+    public DbSet<CompanyQuota> CompanyQuotas => Set<CompanyQuota>();
+    public DbSet<ProcessingUsage> ProcessingUsages => Set<ProcessingUsage>();
 
     // Administration: identity tables in the platform schema.
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
@@ -117,6 +119,8 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         modelBuilder.ApplyConfiguration(new ExtractedClauseConfiguration());
         modelBuilder.ApplyConfiguration(new ClauseCategoryConfiguration());
         modelBuilder.ApplyConfiguration(new ClauseClassificationConfiguration());
+        modelBuilder.ApplyConfiguration(new CompanyQuotaConfiguration());
+        modelBuilder.ApplyConfiguration(new ProcessingUsageConfiguration());
 
         // Publishing owns app.news_article and app.news_category.
         modelBuilder.ApplyConfiguration(new NewsArticleConfiguration());

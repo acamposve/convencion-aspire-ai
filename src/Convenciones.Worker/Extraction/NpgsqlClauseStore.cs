@@ -217,4 +217,35 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    public async Task RecordUsageAsync(
+        Guid companyId,
+        int pages,
+        long inputTokens,
+        long outputTokens,
+        decimal costEstimateUsd,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(
+            """
+            insert into platform.processing_usage
+                (company_id, period, pages, input_tokens, output_tokens, cost_estimate_usd, updated_at)
+            values
+                (@company, date_trunc('month', now())::date, @pages, @input, @output, @cost, now())
+            on conflict (company_id, period) do update
+            set pages = platform.processing_usage.pages + excluded.pages,
+                input_tokens = platform.processing_usage.input_tokens + excluded.input_tokens,
+                output_tokens = platform.processing_usage.output_tokens + excluded.output_tokens,
+                cost_estimate_usd = platform.processing_usage.cost_estimate_usd + excluded.cost_estimate_usd,
+                updated_at = now();
+            """, connection);
+        command.Parameters.AddWithValue("company", companyId);
+        command.Parameters.AddWithValue("pages", pages);
+        command.Parameters.AddWithValue("input", inputTokens);
+        command.Parameters.AddWithValue("output", outputTokens);
+        command.Parameters.AddWithValue("cost", costEstimateUsd);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
 }

@@ -14,6 +14,11 @@ public sealed class ExtractionOptions
 
     /// <summary>Optional deployment override; the client uses its configured deployment by default.</summary>
     public string? Deployment { get; set; }
+
+    /// <summary>Planning price, USD per 1M input tokens; configurable, not a contract.</summary>
+    public double InputPricePerMillion { get; set; } = 0.61;
+
+    public double OutputPricePerMillion { get; set; } = 1.82;
 }
 
 public sealed record ClauseChunk(int Index, int PageFrom, int PageTo, string Text, int CharStart);

@@ -9,6 +9,10 @@ public sealed class ClassificationOptions
     public string PromptVersion { get; set; } = "classification/v1";
 
     public string? Deployment { get; set; }
+
+    public double InputPricePerMillion { get; set; } = 0.61;
+
+    public double OutputPricePerMillion { get; set; } = 1.82;
 }
 
 public static class ClassificationSchema

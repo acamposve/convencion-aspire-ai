@@ -32,4 +32,12 @@ public interface IClauseStore
         IReadOnlyList<ClassificationAssignment> assignments,
         int unclassifiedCount,
         CancellationToken cancellationToken);
+
+    Task RecordUsageAsync(
+        Guid companyId,
+        int pages,
+        long inputTokens,
+        long outputTokens,
+        decimal costEstimateUsd,
+        CancellationToken cancellationToken);
 }

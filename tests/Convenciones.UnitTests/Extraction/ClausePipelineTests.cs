@@ -231,5 +231,13 @@ public sealed class ClausePipelineTests
             Unclassified = unclassifiedCount;
             return Task.CompletedTask;
         }
+
+        public Task RecordUsageAsync(
+            Guid companyId,
+            int pages,
+            long inputTokens,
+            long outputTokens,
+            decimal costEstimateUsd,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
