@@ -309,6 +309,7 @@ app.MapMeEndpoints();
 app.MapCompanyEndpoints();
 app.MapDocumentEndpoints();
 app.MapDocumentExtractionEndpoints();
+app.MapProcessingEndpoints();
 app.MapAgreementEndpoints();
 app.MapComparisonHeadingEndpoints();
 app.MapComparisonEndpoints();

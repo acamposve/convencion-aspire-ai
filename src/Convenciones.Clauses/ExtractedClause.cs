@@ -41,4 +41,18 @@ public sealed class ExtractedClause
     public ClauseReviewStatus ReviewStatus { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    public void Review(ClauseReviewStatus status, string? text, string? heading)
+    {
+        ReviewStatus = status;
+        if (!string.IsNullOrWhiteSpace(text))
+        {
+            Text = text;
+        }
+
+        if (heading is not null)
+        {
+            Heading = heading;
+        }
+    }
 }
