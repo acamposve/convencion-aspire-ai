@@ -37,6 +37,13 @@ jobs:
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
+      - name: Read exercise identifiers (no secrets)
+        env:
+          SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_TARGET" \
+            "if [ -f /opt/convenciones/.staging-ai/state.env ]; then grep -E '^(COMPANY|USER|EMAIL|DOC|RUN)_' /opt/convenciones/.staging-ai/state.env; else echo 'no exercise state'; fi"
       - name: Verify HTTPS, redirect, worker and connectivity
         env:
           SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
