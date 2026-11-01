@@ -6,6 +6,35 @@ owner's explicit approval.
 **Scope:** synthetic or authorized test documents only. No real collective agreement may be uploaded
 until the provider terms are reviewed and approved.
 
+## Automated stages (preferred)
+
+A merge to `main` no longer deploys. Every stage is a separate `workflow_dispatch`; the `confirm` input
+must exactly equal the stage name, and the conversation approval is still required before dispatching.
+
+| Workflow | Stage / input | Effect |
+|---|---|---|
+| `Deploy staging` | `confirm=deploy` | builds images, migrates, starts the stack with **`Worker__Enabled=false`** |
+| `Staging AI exercise` | `stage=provision`, `confirm=provision` | verifies private bucket, creates **ephemeral** Auth users, tenants, minimum role and quotas; stores passwords only on the droplet (`600`) |
+| `Staging AI exercise` | `stage=queued-check`, `confirm=queued-check` | uploads the synthetic PDF, extracts, starts the run; asserts **Queued** with the worker off; A/B 404 checks |
+| `Staging AI exercise` | `stage=worker-enable`, `confirm=worker-enable`, `window_minutes=20` | enables the worker with an **independent watchdog on the droplet** that disables it after the window |
+| `Staging AI exercise` | `stage=completed-check`, `confirm=completed-check` | waits for `Completed`, reads clauses, repeats A/B 404 checks |
+| `Staging AI exercise` | `stage=worker-disable`, `confirm=worker-disable` | stops the watchdog, sets `Worker__Enabled=false`, restarts and verifies |
+| `Staging AI exercise` | `stage=teardown`, `confirm=teardown` | disables the worker, deletes only this exercise's objects/users/tenants, removes state |
+
+Commands (only after the explicit window approval; do not chain them):
+
+```bash
+gh workflow run deploy.yml --ref main -f confirm=deploy
+gh workflow run staging-exercise.yml --ref main -f stage=provision -f confirm=provision
+gh workflow run staging-exercise.yml --ref main -f stage=queued-check -f confirm=queued-check
+gh workflow run staging-exercise.yml --ref main -f stage=worker-enable -f confirm=worker-enable -f window_minutes=20
+gh workflow run staging-exercise.yml --ref main -f stage=completed-check -f confirm=completed-check
+gh workflow run staging-exercise.yml --ref main -f stage=worker-disable -f confirm=worker-disable
+gh workflow run staging-exercise.yml --ref main -f stage=teardown -f confirm=teardown
+```
+
+The manual sections below remain a fallback/diagnostic reference, not the primary procedure.
+
 ## 0. What the operator must provide
 
 | Value | Where to get it | Where it goes |
@@ -64,10 +93,16 @@ The deploy workflow writes `Worker__Enabled=false` on every deploy. Enabling the
 
 ## 3. Deploy the configuration PR (after approval)
 
-1. Merge the configuration PR; CI must be green and the deploy workflow runs.
-2. Confirm the workflow emitted no “Azure AI settings are incomplete” warning; if it did, a variable or
+1. Merge the configuration PR; CI must be green. **The merge does not deploy.**
+2. Dispatch the deployment manually, only after the owner's explicit window approval:
+
+```bash
+gh workflow run deploy.yml --ref main -f confirm=deploy
+```
+
+3. Confirm the workflow emitted no “Azure AI settings are incomplete” warning; if it did, a variable or
    secret name is missing — fix it before proceeding.
-3. Confirm the API is healthy:
+4. Confirm the API is healthy:
 
 ```bash
 curl -fsS http://138.197.15.40/health/ready

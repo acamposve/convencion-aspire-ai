@@ -1,13 +1,15 @@
 name: Deploy staging
 
-# Deploys the merged `main` to the single staging droplet. It runs after the CI workflow, but it
-# does not wait for it programmatically: `main` only receives merges whose CI is green, and this
-# workflow is deliberately separate so a deployment failure never blocks or reruns the test gate.
+# Manual, gated deployment. A merge to `main` never deploys by itself; an operator must dispatch this
+# workflow with `confirm=deploy` after the merge and the conversation approval. CI remains automatic.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type deploy to confirm the staging deployment'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -20,6 +22,7 @@ concurrency:
 jobs:
   deploy:
     name: Build, migrate and deploy
+    if: github.ref == 'refs/heads/main' && github.event.inputs.confirm == 'deploy'
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 40
