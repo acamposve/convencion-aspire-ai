@@ -52,7 +52,7 @@ jobs:
       SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
-      STAGING_API_URL: http://${{ vars.SSH_HOST }}/api
+      STAGING_API_URL: https://138-197-15-40.sslip.io/api
       WINDOW_MINUTES: ${{ github.event.inputs.window_minutes }}
       STATE_DIR: /opt/convenciones/.staging-ai
 
