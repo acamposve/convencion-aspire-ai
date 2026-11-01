@@ -18,13 +18,13 @@ public static class WorkerConnectionString
             return direct;
         }
 
-        var host = configuration["Database__Host"];
-        var user = configuration["Database__User"];
-        var password = configuration["Database__Password"];
+        var host = configuration["Database:Host"];
+        var user = configuration["Database:User"];
+        var password = configuration["Database:Password"];
 
         if (string.IsNullOrWhiteSpace(password))
         {
-            var passwordFile = configuration["Database__PasswordFile"];
+            var passwordFile = configuration["Database:PasswordFile"];
             if (!string.IsNullOrWhiteSpace(passwordFile) && File.Exists(passwordFile))
             {
                 password = File.ReadAllText(passwordFile).Trim();
@@ -33,7 +33,7 @@ public static class WorkerConnectionString
 
         if (string.IsNullOrWhiteSpace(password))
         {
-            var encoded = configuration["Database__PasswordBase64"];
+            var encoded = configuration["Database:PasswordBase64"];
             if (!string.IsNullOrWhiteSpace(encoded))
             {
                 password = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
@@ -47,12 +47,12 @@ public static class WorkerConnectionString
             return null;
         }
 
-        _ = int.TryParse(configuration["Database__Port"], out var port);
+        _ = int.TryParse(configuration["Database:Port"], out var port);
         return new Npgsql.NpgsqlConnectionStringBuilder
         {
             Host = host,
             Port = port == 0 ? 5432 : port,
-            Database = configuration["Database__Name"] ?? "postgres",
+            Database = configuration["Database:Name"] ?? "postgres",
             Username = user,
             Password = password,
             SslMode = Npgsql.SslMode.Require,
