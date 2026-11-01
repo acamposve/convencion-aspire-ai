@@ -80,33 +80,38 @@ Recorded, not yet approved:
 
 ## 6. Audit
 
-Implemented after this review started:
-
 - `ProcessingRun` and `ExtractedClause` implement `IAuditable`; the API interceptor writes one
   `platform.audit_entry` row for the run creation and for each review/correction, with actor and time.
+- The worker writes lifecycle rows in the same transaction as the state change:
+  `processing.started`, `processing.retried`, `processing.completed`, `processing.failed` and
+  `processing.cancelled`.
 - Audit rows are append-only (the table rejects UPDATE/DELETE).
+- Evidence: `ProcessingQueueTests.Lifecycle_writes_audit_entries`.
 
-**Gap:** completion/failure transitions are written by the worker through Npgsql, not EF, so they do
-not yet produce audit rows; only the API-created run and the review are audited. Closing this needs a
-worker-side audit write (or a database trigger) and is recorded as a follow-up.
+**Remaining gap:** `RecoverAsync` (expired lease) changes state without an audit row; it needs the
+same treatment or a database trigger.
 
 ## 7. Retention and deletion
 
 - Documents are **soft-deleted** (`deleted_at`), not physically removed.
-- Extracted clauses/classifications reference the document; a soft delete does not currently purge
-  AI output. The intended retention is: keep while the tenant is active, purge AI rows when the
-  document is hard-deleted or the tenant leaves; legal hold overrides.
-- **Gap:** there is no scheduled purge job or tested deletion path for AI rows yet. This must be
-  implemented and tested before production data is accepted.
+- `DELETE /documents/{id}/processing` (capability `clause.manage`) removes the AI-derived output for a
+  document — classifications, clauses, attempts and runs — in one transaction, leaving the document
+  intact.
+- Evidence: `RetentionTests` checks the purge and that the document remains.
+- The intended policy is: keep AI output while the tenant is active; purge on document deletion or
+  tenant exit; legal hold overrides.
+- **Remaining gap:** no scheduled job automatically invokes the purge on soft/hard delete or tenant
+  exit; the endpoint is the tested building block.
 
 ## 8. Rate, abuse and kill switch
 
 - Monthly quota (documents/pages/tokens) is enforced at `POST /documents/{id}/process` with an atomic
   reservation (`FOR UPDATE`); concurrent requests cannot take the last slot.
+- The same reservation takes a per-company advisory lock and rejects a second active run:
+  `Processing:MaxActiveRunsPerCompany` (default **1**) → `409 concurrency_limit`.
+- Evidence: `QuotaTests.Active_run_cap_rejects_a_second_run_for_the_company`.
 - `Worker__Enabled=false` is the kill switch and is the deployed state. It has not been exercised in
   a live incident; stopping the worker leaves runs queued, never partially completed.
-- **Gap:** no per-company active-run concurrency cap yet; a tenant can start one run per document in
-  parallel, bounded only by workers and quota.
 
 ## 9. Acceptance checklist
 
@@ -116,20 +121,19 @@ worker-side audit write (or a database trigger) and is recorded as a follow-up.
 | Cross-tenant denial (live staging) | **Gap** | needs two staging companies + worker |
 | Prompt injection → schema, no tools, flag | **Pass** | `PromptInjectionTests`, `needs_review` |
 | No secret in bundle/logs/image; scan green | **Pass** | CI secret scan |
-| Audit run creation and correction | **Partial** | interceptor on API create/review; worker transitions missing |
-| Retention/deletion documented and tested | **Gap** | policy documented; no purge/test |
-| Per-company concurrency cap | **Gap** | quota only |
+| Audit run creation, lifecycle and correction | **Pass** | interceptor + worker lifecycle rows; recovery pending |
+| Retention purge endpoint and test | **Pass** | `RetentionTests`; scheduled purge pending |
+| Per-company concurrency cap | **Pass** | quota/advisory lock + test |
 | Provider no-training/retention approved | **Gap** | Product Owner decision |
 | Kill switch exercised | **Gap** | disabled, not exercised in staging |
 
-**This is not a production sign-off.** The automated tenancy and injection evidence is solid; the
-gaps above block enabling the capability for real contracts.
+**This is not a production sign-off.** Tenancy, injection, audit, purge and concurrency evidence is
+now automated; live staging and the provider/legal approval still block real contracts.
 
 ## 10. Follow-ups
 
 1. Add endpoint-level cross-tenant tests for every processing route.
-2. Worker-side audit rows for Completed/Failed/Cancelled.
-3. Retention purge job for clauses/classifications and a deletion test.
-4. Per-company active-run cap in the queue claim.
-5. Product Owner sign-off on Azure/Mistral terms; then the synthetic-only flag can be lifted.
-6. Staging exercise with two companies and a controlled kill-switch test.
+2. Audit the `RecoverAsync` (expired lease) transition.
+3. Schedule the retention purge on document/tenant deletion and test the scheduler.
+4. Product Owner sign-off on Azure/Mistral terms; then the synthetic-only flag can be lifted.
+5. Staging exercise with two companies and a controlled kill-switch test.

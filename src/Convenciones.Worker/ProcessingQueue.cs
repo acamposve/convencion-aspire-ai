@@ -35,6 +35,8 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
             await attempt.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        await AuditAsync(connection, transaction, job, "processing.started", "Queued", "Running", null, cancellationToken)
+            .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return job;
     }
@@ -105,6 +107,8 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
             await run.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        await AuditAsync(connection, transaction, job, "processing.completed", "Running", "Completed", null, cancellationToken)
+            .ConfigureAwait(false);
         await FinishAttemptAsync(connection, transaction, job, "Completed", null, null, cancellationToken)
             .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -147,6 +151,15 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
             await run.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        await AuditAsync(
+                connection,
+                transaction,
+                job,
+                retry ? "processing.retried" : "processing.failed",
+                "Running",
+                retry ? "Queued" : "Failed",
+                code,
+                cancellationToken).ConfigureAwait(false);
         await FinishAttemptAsync(connection, transaction, job, "Failed", code, message, cancellationToken)
             .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -173,6 +186,15 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
             await run.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        await AuditAsync(
+                connection,
+                transaction,
+                job,
+                "processing.cancelled",
+                "Running",
+                "Cancelled",
+                "cancelled",
+                cancellationToken).ConfigureAwait(false);
         await FinishAttemptAsync(connection, transaction, job, "Cancelled", "cancelled", "The run was cancelled.", cancellationToken)
             .ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -189,6 +211,38 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
         return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is true;
     }
 
+    private static async Task AuditAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        ProcessingJob job,
+        string action,
+        string fromState,
+        string toState,
+        string? code,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            insert into platform.audit_entry
+                (actor_id, module, entity_type, entity_id, action, from_state, to_state, changes)
+            select requested_by,
+                   'documents',
+                   'processing_run',
+                   id::text,
+                   @action,
+                   @from_state,
+                   @to_state,
+                   case when @code::text is null then null else jsonb_build_object('code', @code::text) end
+            from platform.processing_run
+            where id = @run;
+            """, connection, transaction);
+        command.Parameters.AddWithValue("action", action);
+        command.Parameters.AddWithValue("from_state", fromState);
+        command.Parameters.AddWithValue("to_state", toState);
+        command.Parameters.AddWithValue("code", (object?)code ?? DBNull.Value);
+        command.Parameters.AddWithValue("run", job.RunId);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
     /// <summary>Requeues runs whose worker died, or fails them when the attempt limit is exhausted.</summary>
     public async Task<int> RecoverAsync(CancellationToken cancellationToken)
     {
