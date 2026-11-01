@@ -148,6 +148,15 @@ Implementado en la rama `feat/ai-foundry-client`:
 
 Pendiente de #50: bake-off real (requiere credencial configurada y set dorado) y wiring en la API.
 
+**Issue #49 — Cliente Document Intelligence (Layout).** Implementado en `feat/ai-document-intelligence-client`:
+
+- `IDocumentLayoutClient` + `AzureDocumentIntelligenceClient` (`prebuilt-layout`, LRO con sondeo y deadline).
+- Mapeo de páginas, párrafos, roles, spans y bounding boxes; normalización con mapa de offsets.
+- `RequiresOcr` cuando la densidad de texto por página es insuficiente; error tipado para PDF inválido.
+- Autenticación Entra (`ClientSecretAccessTokenProvider` con `Azure.Identity`) o API key de respaldo.
+- `FakeDocumentLayoutClient` y 7 tests nuevos (30 páginas, offsets, OCR, fallo, timeout, credencial, fake).
+- Suite unitaria completa: **78 tests en verde**; sin llamadas reales a Azure.
+
 ## 10. Acciones manuales restantes
 
 - Ninguna para la decisión.
