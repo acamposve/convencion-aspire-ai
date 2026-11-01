@@ -1,7 +1,7 @@
 # AI processing — security and acceptance review (#47)
 
 **Date:** 2026-11-01 · **Status:** partial. Automated evidence is green; the live staging exercise,
-provider terms and some lifecycle audit/retention controls remain open.
+the kill-switch drill and the provider/legal approval remain open.
 
 ## 1. Trust boundaries
 
@@ -88,8 +88,8 @@ Recorded, not yet approved:
 - Audit rows are append-only (the table rejects UPDATE/DELETE).
 - Evidence: `ProcessingQueueTests.Lifecycle_writes_audit_entries`.
 
-**Remaining gap:** `RecoverAsync` (expired lease) changes state without an audit row; it needs the
-same treatment or a database trigger.
+**Recovery:** `RecoverAsync` now writes `processing.recovered` / `processing.failed` in the same
+transaction as the expired-lease transition; covered by `ProcessingQueueTests.Expired_lease_is_recovered`.
 
 ## 7. Retention and deletion
 
@@ -97,11 +97,12 @@ same treatment or a database trigger.
 - `DELETE /documents/{id}/processing` (capability `clause.manage`) removes the AI-derived output for a
   document — classifications, clauses, attempts and runs — in one transaction, leaving the document
   intact.
-- Evidence: `RetentionTests` checks the purge and that the document remains.
+- A background `ProcessingRetentionSweeper` runs in the worker container (independently of
+  `Worker:Enabled`) every `Retention:IntervalMinutes` (default 360) and purges AI output for
+  soft-deleted documents, in batches.
+- Evidence: `RetentionTests` (endpoint building block) and `RetentionSweepTests` (scheduled sweep).
 - The intended policy is: keep AI output while the tenant is active; purge on document deletion or
-  tenant exit; legal hold overrides.
-- **Remaining gap:** no scheduled job automatically invokes the purge on soft/hard delete or tenant
-  exit; the endpoint is the tested building block.
+  tenant exit; legal hold overrides. Tenant-exit purge still has no dedicated trigger.
 
 ## 8. Rate, abuse and kill switch
 
@@ -121,8 +122,8 @@ same treatment or a database trigger.
 | Cross-tenant denial (live staging) | **Gap** | needs two staging companies + worker |
 | Prompt injection → schema, no tools, flag | **Pass** | `PromptInjectionTests`, `needs_review` |
 | No secret in bundle/logs/image; scan green | **Pass** | CI secret scan |
-| Audit run creation, lifecycle and correction | **Pass** | interceptor + worker lifecycle rows; recovery pending |
-| Retention purge endpoint and test | **Pass** | `RetentionTests`; scheduled purge pending |
+| Audit run creation, lifecycle, recovery and correction | **Pass** | interceptor + worker lifecycle/recovery rows |
+| Retention purge endpoint and scheduled sweep | **Pass** | `RetentionTests`, `RetentionSweepTests` |
 | Per-company concurrency cap | **Pass** | quota/advisory lock + test |
 | Provider no-training/retention approved | **Gap** | Product Owner decision |
 | Kill switch exercised | **Gap** | disabled, not exercised in staging |
@@ -133,7 +134,6 @@ now automated; live staging and the provider/legal approval still block real con
 ## 10. Follow-ups
 
 1. Add endpoint-level cross-tenant tests for every processing route.
-2. Audit the `RecoverAsync` (expired lease) transition.
-3. Schedule the retention purge on document/tenant deletion and test the scheduler.
-4. Product Owner sign-off on Azure/Mistral terms; then the synthetic-only flag can be lifted.
-5. Staging exercise with two companies and a controlled kill-switch test.
+2. Add a tenant-exit purge trigger and test it.
+3. Product Owner sign-off on Azure/Mistral terms; then the synthetic-only flag can be lifted.
+4. Staging exercise with two companies and a controlled kill-switch test.
