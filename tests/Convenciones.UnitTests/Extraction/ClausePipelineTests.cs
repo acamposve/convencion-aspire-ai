@@ -192,6 +192,14 @@ public sealed class ClausePipelineTests
 
         public List<string> Progress { get; } = [];
 
+        public List<StoredClause> Clauses { get; } = [];
+
+        public List<ClauseCategoryInfo> Categories { get; } = [];
+
+        public List<ClassificationAssignment> Classifications { get; } = [];
+
+        public int Unclassified { get; private set; }
+
         public Task<StoredDocument?> LoadDocumentAsync(Guid runId, CancellationToken cancellationToken) =>
             Task.FromResult<StoredDocument?>(new StoredDocument("key.pdf", "file.pdf"));
 
@@ -204,6 +212,23 @@ public sealed class ClausePipelineTests
         public Task SaveClausesAsync(ProcessingJob job, IReadOnlyList<MergedClause> clauses, CancellationToken cancellationToken)
         {
             Saved.AddRange(clauses);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<StoredClause>> LoadClausesAsync(Guid runId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StoredClause>>(Clauses);
+
+        public Task<IReadOnlyList<ClauseCategoryInfo>> LoadActiveCategoriesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ClauseCategoryInfo>>(Categories);
+
+        public Task SaveClassificationsAsync(
+            ProcessingJob job,
+            IReadOnlyList<ClassificationAssignment> assignments,
+            int unclassifiedCount,
+            CancellationToken cancellationToken)
+        {
+            Classifications.AddRange(assignments);
+            Unclassified = unclassifiedCount;
             return Task.CompletedTask;
         }
     }

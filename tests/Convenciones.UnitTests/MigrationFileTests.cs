@@ -42,6 +42,7 @@ public sealed class MigrationFileTests
         "20260109000000_ai_clause_processing.sql",
         "20260109000100_ai_clause_taxonomy.sql",
         "20260109000200_processing_queue.sql",
+        "20260110000000_clause_taxonomy_guard.sql",
     ];
 
     [Fact]

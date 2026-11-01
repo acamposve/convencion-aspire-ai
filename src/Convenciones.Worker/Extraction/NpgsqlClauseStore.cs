@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Npgsql;
 
 namespace Convenciones.Worker.Extraction;
@@ -95,6 +97,120 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             """, connection, transaction))
         {
             run.Parameters.AddWithValue("count", clauses.Count);
+            run.Parameters.AddWithValue("run", job.RunId);
+            await run.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<StoredClause>> LoadClausesAsync(Guid runId, CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(
+            """
+            select id, ordinal, clause_number, heading, text
+            from platform.extracted_clause
+            where run_id = @run
+            order by ordinal;
+            """, connection);
+        command.Parameters.AddWithValue("run", runId);
+
+        var clauses = new List<StoredClause>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            clauses.Add(new StoredClause(
+                reader.GetGuid(0),
+                reader.GetInt32(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.GetString(4)));
+        }
+
+        return clauses;
+    }
+
+    public async Task<IReadOnlyList<ClauseCategoryInfo>> LoadActiveCategoriesAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(
+            """
+            select id, key, name, description
+            from platform.clause_category
+            where is_active
+            order by sort_order, name;
+            """, connection);
+
+        var categories = new List<ClauseCategoryInfo>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            categories.Add(new ClauseCategoryInfo(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+
+        return categories;
+    }
+
+    public async Task SaveClassificationsAsync(
+        ProcessingJob job,
+        IReadOnlyList<ClassificationAssignment> assignments,
+        int unclassifiedCount,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        await using (var delete = new NpgsqlCommand(
+            """
+            delete from platform.clause_classification
+            where clause_id in (select id from platform.extracted_clause where run_id = @run);
+            """, connection, transaction))
+        {
+            delete.Parameters.AddWithValue("run", job.RunId);
+            await delete.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (var assignment in assignments)
+        {
+            await using var insert = new NpgsqlCommand(
+                """
+                insert into platform.clause_classification
+                    (clause_id, category_id, company_id, confidence, is_primary, rationale, model, prompt_version)
+                values
+                    (@clause, @category, @company, @confidence, @primary, @rationale, @model, @prompt);
+                """, connection, transaction);
+
+            insert.Parameters.AddWithValue("clause", assignment.ClauseId);
+            insert.Parameters.AddWithValue("category", assignment.CategoryId);
+            insert.Parameters.AddWithValue("company", job.CompanyId);
+            insert.Parameters.AddWithValue("confidence", (decimal)assignment.Confidence);
+            insert.Parameters.AddWithValue("primary", assignment.IsPrimary);
+            insert.Parameters.AddWithValue("rationale", (object?)assignment.Rationale ?? DBNull.Value);
+            insert.Parameters.AddWithValue("model", "azure-foundry");
+            insert.Parameters.AddWithValue("prompt", "classification/v1");
+            await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var run = new NpgsqlCommand(
+            """
+            update platform.processing_run
+            set classified_count = @classified,
+                unclassified_count = @unclassified,
+                stage = 'ClassifyingClauses',
+                updated_at = now()
+            where id = @run;
+            """, connection, transaction))
+        {
+            run.Parameters.AddWithValue("classified", assignments.Select(item => item.ClauseId).Distinct().Count());
+            run.Parameters.AddWithValue("unclassified", unclassifiedCount);
             run.Parameters.AddWithValue("run", job.RunId);
             await run.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
