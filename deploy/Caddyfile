@@ -1,0 +1,8 @@
+# Public entry point. Caddy obtains and renews the Let's Encrypt certificate for the sslip.io name
+# and proxies everything to the internal nginx that serves the SPA and /api.
+# HTTP is redirected to HTTPS automatically by Caddy's automatic HTTPS.
+
+138-197-15-40.sslip.io {
+	encode zstd gzip
+	reverse_proxy web:80
+}
