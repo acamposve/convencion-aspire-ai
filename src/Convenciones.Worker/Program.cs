@@ -114,7 +114,7 @@ public static class Program
 
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(new ProcessingQueue(connectionString, options));
-        builder.Services.AddSingleton<IProcessingStage, UnavailableProcessingStage>();
+        WorkerComposition.AddProcessingStage(builder.Services, builder.Configuration, connectionString);
         builder.Services.AddHostedService<ProcessingWorker>();
 
         await builder.Build().RunAsync().ConfigureAwait(false);

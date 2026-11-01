@@ -11,7 +11,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Convenciones.Ai\Convenciones.Ai.csproj" />
     <ProjectReference Include="..\Convenciones.Clauses\Convenciones.Clauses.csproj" />
+    <ProjectReference Include="..\Convenciones.Documents\Convenciones.Documents.csproj" />
   </ItemGroup>
 
 </Project>

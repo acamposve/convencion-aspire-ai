@@ -24,6 +24,7 @@
     <ProjectReference Include="..\..\src\Convenciones.Publishing\Convenciones.Publishing.csproj" />
     <ProjectReference Include="..\..\src\Convenciones.Administration\Convenciones.Administration.csproj" />
     <ProjectReference Include="..\..\src\Convenciones.Ai\Convenciones.Ai.csproj" />
+    <ProjectReference Include="..\..\src\Convenciones.Worker\Convenciones.Worker.csproj" />
   </ItemGroup>
 
 </Project>
