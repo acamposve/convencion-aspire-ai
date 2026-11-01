@@ -81,7 +81,11 @@ public sealed class ClauseExtractionStage(
             outputTokens += result.OutputTokens ?? 0;
         }
 
-        var merged = ClauseMerger.Merge(parsed);
+        var merged = ClauseMerger.Merge(parsed)
+            .Select(clause => InstructionDetector.IsInstructionLike(clause.Text)
+                ? clause with { NeedsReview = true }
+                : clause)
+            .ToList();
         if (merged.Count == 0)
         {
             throw new PermanentProcessingException("no_clauses_found", "The model returned no clauses.");

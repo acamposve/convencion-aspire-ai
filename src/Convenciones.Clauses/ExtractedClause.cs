@@ -1,7 +1,9 @@
+using Convenciones.Catalog;
+
 namespace Convenciones.Clauses;
 
 /// <summary>One extracted clause, with its source location. Mirrors <c>platform.extracted_clause</c>.</summary>
-public sealed class ExtractedClause
+public sealed class ExtractedClause : IAuditable
 {
     private ExtractedClause()
     {
@@ -41,6 +43,12 @@ public sealed class ExtractedClause
     public ClauseReviewStatus ReviewStatus { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
+
+    public string AuditModule => "documents";
+
+    public string AuditEntityType => "extracted_clause";
+
+    public string AuditEntityId => Id.ToString();
 
     public void Review(ClauseReviewStatus status, string? text, string? heading)
     {
