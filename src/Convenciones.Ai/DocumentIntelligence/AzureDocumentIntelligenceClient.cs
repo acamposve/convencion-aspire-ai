@@ -19,15 +19,10 @@ public sealed class AzureDocumentIntelligenceClient : IDocumentLayoutClient
     private readonly AzureDocumentIntelligenceOptions _options;
     private readonly IAccessTokenProvider? _tokenProvider;
 
-    public AzureDocumentIntelligenceClient(HttpClient http, AzureDocumentIntelligenceOptions options)
-        : this(http, options, null)
-    {
-    }
-
     public AzureDocumentIntelligenceClient(
         HttpClient http,
         AzureDocumentIntelligenceOptions options,
-        IAccessTokenProvider? tokenProvider)
+        IAccessTokenProvider? tokenProvider = null)
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _options = options ?? throw new ArgumentNullException(nameof(options));
