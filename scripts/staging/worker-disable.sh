@@ -19,7 +19,7 @@ fi
 sed -i 's/^Worker__Enabled=true$/Worker__Enabled=false/' .env
 docker compose up -d worker
 sleep 5
-docker compose logs --tail=20 worker
+docker compose logs --tail=200 worker
 echo "worker flag: $(grep '^Worker__Enabled=' .env)"
 docker compose ps worker
 REMOTE
