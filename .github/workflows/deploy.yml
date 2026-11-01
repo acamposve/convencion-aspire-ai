@@ -87,10 +87,21 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           PUBLIC_BASE_URL: http://${{ vars.SSH_HOST }}
+          AZURE_AI_ENDPOINT: ${{ vars.AZURE_AI_ENDPOINT }}
+          AZURE_AI_DEPLOYMENT: ${{ vars.AZURE_AI_DEPLOYMENT }}
+          AZURE_AI_API_KEY: ${{ secrets.AZURE_AI_API_KEY }}
+          DOCUMENT_INTELLIGENCE_ENDPOINT: ${{ vars.DOCUMENT_INTELLIGENCE_ENDPOINT }}
+          DOCUMENT_INTELLIGENCE_API_KEY: ${{ secrets.DOCUMENT_INTELLIGENCE_API_KEY }}
         run: |
           set -euo pipefail
           umask 077
           password_b64="$(printf '%s' "$DB_PASSWORD" | base64 -w0)"
+          if [ -z "${AZURE_AI_ENDPOINT:-}" ] || [ -z "${AZURE_AI_DEPLOYMENT:-}" ] || [ -z "${AZURE_AI_API_KEY:-}" ]; then
+            echo "::warning::Azure AI settings are incomplete; the worker will stay at stage_not_configured."
+          fi
+          if [ -z "${DOCUMENT_INTELLIGENCE_ENDPOINT:-}" ] || [ -z "${DOCUMENT_INTELLIGENCE_API_KEY:-}" ]; then
+            echo "::warning::Document Intelligence settings are incomplete; the worker will stay at stage_not_configured."
+          fi
           {
             printf 'IMAGE_TAG=%s\n' "$GITHUB_SHA"
             printf 'API_IMAGE=%s\n' "$API_IMAGE"
@@ -107,6 +118,15 @@ jobs:
             printf 'Documents__SupabaseUrl=%s\n' "$SUPABASE_URL"
             printf 'Documents__SupabaseSecretKey=%s\n' "$SECRET_KEY"
             printf 'Documents__Bucket=documents\n'
+            printf 'AzureAi__Endpoint=%s\n' "$AZURE_AI_ENDPOINT"
+            printf 'AzureAi__Deployment=%s\n' "$AZURE_AI_DEPLOYMENT"
+            printf 'AzureAi__ApiKey=%s\n' "$AZURE_AI_API_KEY"
+            printf 'DocumentIntelligence__Endpoint=%s\n' "$DOCUMENT_INTELLIGENCE_ENDPOINT"
+            printf 'DocumentIntelligence__ApiKey=%s\n' "$DOCUMENT_INTELLIGENCE_API_KEY"
+            printf 'Worker__Enabled=false\n'
+            printf 'Processing__MaxActiveRunsPerCompany=1\n'
+            printf 'Retention__IntervalMinutes=360\n'
+            printf 'Retention__BatchSize=100\n'
             printf 'Api__PathBase=/api\n'
             printf 'ASPNETCORE_URLS=http://+:8080\n'
           } > .env
