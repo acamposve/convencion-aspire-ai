@@ -1,7 +1,9 @@
+using Convenciones.Catalog;
+
 namespace Convenciones.Clauses;
 
 /// <summary>One processing run of a document. Mirrors <c>platform.processing_run</c>.</summary>
-public sealed class ProcessingRun
+public sealed class ProcessingRun : IAuditable
 {
     private ProcessingRun()
     {
@@ -50,6 +52,12 @@ public sealed class ProcessingRun
     public DateTimeOffset UpdatedAt { get; private set; }
     public DateTimeOffset AvailableAt { get; private set; }
     public DateTimeOffset? LeaseExpiresAt { get; private set; }
+
+    public string AuditModule => "documents";
+
+    public string AuditEntityType => "processing_run";
+
+    public string AuditEntityId => Id.ToString();
 
     public static ProcessingRun Create(Guid documentId, Guid companyId, Guid requestedBy, DateTimeOffset now) =>
         new()
