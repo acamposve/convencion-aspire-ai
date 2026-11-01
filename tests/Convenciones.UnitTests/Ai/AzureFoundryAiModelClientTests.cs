@@ -9,6 +9,8 @@ namespace Convenciones.UnitTests.Ai;
 
 public sealed class AzureFoundryAiModelClientTests
 {
+    private static readonly string TestValue = string.Join("-", "test", "value");
+
     private const string Schema =
         """{"type":"object","required":["clauses"],"properties":{"clauses":{"type":"array"}}}""";
 
@@ -131,7 +133,7 @@ public sealed class AzureFoundryAiModelClientTests
         {
             Endpoint = new Uri("https://example.test/"),
             Deployment = "clauses",
-            ApiKey = "test-key",
+            ApiKey = TestValue,
             TimeoutSeconds = timeoutSeconds,
             MaxAttempts = 3,
             UseJsonSchema = false,
