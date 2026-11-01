@@ -48,4 +48,6 @@ public sealed class ProcessingRun
     public DateTimeOffset? FinishedAt { get; private set; }
 
     public DateTimeOffset UpdatedAt { get; private set; }
+    public DateTimeOffset AvailableAt { get; private set; }
+    public DateTimeOffset? LeaseExpiresAt { get; private set; }
 }

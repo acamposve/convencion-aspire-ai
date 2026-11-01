@@ -64,6 +64,7 @@
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <!-- HttpClientFactory for the model client; no Azure SDK is needed for a chat-completions call. -->
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
   </ItemGroup>
 
 </Project>
