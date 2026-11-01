@@ -76,7 +76,16 @@ public static class WorkerComposition
             PromptVersion = configuration["Extraction:PromptVersion"] ?? "extraction/v1",
             Deployment = configuration["Extraction:Deployment"],
         });
-        services.AddSingleton<IProcessingStage, ClauseExtractionStage>();
+        services.AddSingleton(new ClassificationOptions
+        {
+            BatchSize = ReadInt(configuration, "Classification:BatchSize", 20),
+            MaxOutputTokens = ReadInt(configuration, "Classification:MaxOutputTokens", 4_000),
+            PromptVersion = configuration["Classification:PromptVersion"] ?? "classification/v1",
+            Deployment = configuration["Classification:Deployment"],
+        });
+        services.AddSingleton<ClauseExtractionStage>();
+        services.AddSingleton<ClauseClassificationStage>();
+        services.AddSingleton<IProcessingStage, ClauseProcessingStage>();
     }
 
     private static int ReadInt(IConfiguration configuration, string key, int fallback) =>

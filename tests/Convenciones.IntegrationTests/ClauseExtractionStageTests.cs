@@ -57,6 +57,33 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
         clauseCount.ShouldBe("2");
     }
 
+    [Fact]
+    public async Task Classification_persists_multi_label_and_unclassified_counts()
+    {
+        var (job, _) = await CreateRunAsync();
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+        var extraction = new ClauseExtractionStage(
+            new FakeStorage(),
+            new FakeLayout(),
+            new FakeModel(),
+            store,
+            new ExtractionOptions { ChunkCharacters = 10_000, OverlapCharacters = 1_000, MaxChunks = 30 },
+            NullLogger<ClauseExtractionStage>.Instance);
+        var classification = new ClauseClassificationStage(
+            new FakeClassificationModel(),
+            store,
+            new ClassificationOptions { BatchSize = 20 },
+            NullLogger<ClauseClassificationStage>.Instance);
+
+        await extraction.ExecuteAsync(job, CancellationToken.None);
+        await classification.ExecuteAsync(job, CancellationToken.None);
+
+        var rows = await ScalarAsync($"select count(*) from platform.clause_classification where company_id = '{job.CompanyId}'");
+        rows.ShouldBe("1");
+        var counts = await ScalarAsync(
+            $"select classified_count::text || '/' || unclassified_count::text from platform.processing_run where id = '{job.RunId}'");
+        counts.ShouldBe("1/1");
+    }
     private async Task<(ProcessingJob Job, Guid DocumentId)> CreateRunAsync()
     {
         var suffix = Guid.NewGuid().ToString("N");
@@ -136,6 +163,21 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
                 10,
                 5,
                 TimeSpan.Zero));
+        }
+    }
+
+    private sealed class FakeClassificationModel : IAiModelClient
+    {
+        public Task<AiCompletionResult> CompleteAsync(AiCompletionRequest request, CancellationToken cancellationToken)
+        {
+            var payload = """
+                {"classifications":[
+                  {"clause_ordinal":1,"categories":[{"key":"pricing","confidence":0.9}],"primary":"pricing","rationale":"Pago"},
+                  {"clause_ordinal":2,"categories":[]}
+                ]}
+                """;
+            using var document = JsonDocument.Parse(payload);
+            return Task.FromResult(new AiCompletionResult(document.RootElement.Clone(), "fake", "clauses", 10, 5, TimeSpan.Zero));
         }
     }
 }
