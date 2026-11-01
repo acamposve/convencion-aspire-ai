@@ -1,6 +1,7 @@
 using Convenciones.Agreements;
 using Convenciones.Api.Endpoints;
 using Convenciones.Api.Infrastructure;
+using Convenciones.Clauses;
 using Convenciones.Documents;
 using Convenciones.Identity;
 using Convenciones.Legal;
@@ -103,7 +104,9 @@ builder.Services.AddDbContext<ConvencionesDbContext>((serviceProvider, options) 
         .MapEnum<StatuteKind>("statute_kind", "app", ExactNameTranslator.Instance)
         .MapEnum<CaseState>("negotiation_case_state", "app", ExactNameTranslator.Instance)
         .MapEnum<PetitionState>("petition_state", "app", ExactNameTranslator.Instance)
-        .MapEnum<PartyRole>("party_role", "app", ExactNameTranslator.Instance))
+        .MapEnum<PartyRole>("party_role", "app", ExactNameTranslator.Instance)
+        .MapEnum<ProcessingStatus>("processing_status", "platform", ExactNameTranslator.Instance)
+        .MapEnum<ClauseReviewStatus>("clause_review_status", "platform", ExactNameTranslator.Instance))
     .AddInterceptors(
         serviceProvider.GetRequiredService<AuditInterceptor>(),
         serviceProvider.GetRequiredService<DatabaseSessionInterceptor>()));

@@ -658,6 +658,105 @@ begin
     end;
 end $$;
 
+-- --- H. AI clause processing (T39) -------------------------------------------------------------
+
+\echo '--- H. AI clause processing (T39) ---'
+
+do $$
+declare
+    v_company  uuid;
+    v_document uuid;
+    v_run      uuid;
+    v_clause   uuid;
+    v_category uuid;
+begin
+    insert into app.company (name) values ('AI constraint company') returning id into v_company;
+
+    insert into platform.document (id, storage_path, file_name, content_type, size_bytes, uploaded_by)
+    values (gen_random_uuid(), 'ai/test-contract.pdf', 'test-contract.pdf', 'application/pdf', 1024,
+            'aaaaaaaa-1111-1111-1111-111111111111')
+    returning id into v_document;
+
+    insert into platform.processing_run (id, document_id, company_id)
+    values (gen_random_uuid(), v_document, v_company)
+    returning id into v_run;
+
+    begin
+        insert into platform.processing_run (id, document_id, company_id)
+        values (gen_random_uuid(), v_document, v_company);
+        raise notice 'FAIL: H1 a second active run was accepted for the same document';
+    exception when unique_violation then
+        raise notice 'PASS: H1 only one active run per document (partial unique index)';
+    end;
+
+    insert into platform.clause_category (key, name)
+    values ('constraint_test_category', 'Constraint test category')
+    returning id into v_category;
+
+    insert into platform.extracted_clause
+        (id, run_id, document_id, company_id, ordinal, text, page_from, page_to, confidence)
+    values
+        (gen_random_uuid(), v_run, v_document, v_company, 1, 'Cláusula de prueba', 1, 1, 0.900)
+    returning id into v_clause;
+
+    begin
+        insert into platform.extracted_clause
+            (run_id, document_id, company_id, ordinal, text, page_from, page_to)
+        values (v_run, v_document, v_company, 1, 'Duplicada', 1, 1);
+        raise notice 'FAIL: H2 a duplicate clause ordinal was accepted';
+    exception when unique_violation then
+        raise notice 'PASS: H2 duplicate (run_id, ordinal) is rejected';
+    end;
+
+    begin
+        insert into platform.extracted_clause
+            (run_id, document_id, company_id, ordinal, text, page_from, page_to, confidence)
+        values (v_run, v_document, v_company, 2, 'Confianza inválida', 1, 1, 1.500);
+        raise notice 'FAIL: H3 a confidence above 1 was accepted';
+    exception when check_violation then
+        raise notice 'PASS: H3 confidence outside 0..1 is rejected';
+    end;
+
+    begin
+        insert into platform.extracted_clause
+            (run_id, document_id, company_id, ordinal, text, page_from, page_to)
+        values (v_run, v_document, v_company, 3, 'Páginas invertidas', 2, 1);
+        raise notice 'FAIL: H4 page_from > page_to was accepted';
+    exception when check_violation then
+        raise notice 'PASS: H4 page_from <= page_to is enforced';
+    end;
+
+    begin
+        insert into platform.extracted_clause
+            (run_id, document_id, company_id, ordinal, text, page_from, page_to)
+        values (v_run, v_document, v_company, 4, '   ', 1, 1);
+        raise notice 'FAIL: H5 a blank clause text was accepted';
+    exception when check_violation then
+        raise notice 'PASS: H5 blank clause text is rejected';
+    end;
+
+    insert into platform.clause_classification (clause_id, category_id, company_id)
+    values (v_clause, v_category, v_company);
+
+    begin
+        insert into platform.clause_classification (clause_id, category_id, company_id)
+        values (v_clause, v_category, v_company);
+        raise notice 'FAIL: H6 a duplicate classification was accepted';
+    exception when unique_violation then
+        raise notice 'PASS: H6 duplicate (clause_id, category_id) is rejected';
+    end;
+
+    begin
+        insert into platform.processing_attempt (run_id, company_id, attempt_no)
+        values (v_run, v_company, 1);
+        insert into platform.processing_attempt (run_id, company_id, attempt_no)
+        values (v_run, v_company, 1);
+        raise notice 'FAIL: H7 a duplicate attempt number was accepted';
+    exception when unique_violation then
+        raise notice 'PASS: H7 duplicate (run_id, attempt_no) is rejected';
+    end;
+end $$;
+
 rollback;
 
 \echo ''

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Convenciones.Ai/Convenciones.Ai.csproj" />
+    <Project Path="src/Convenciones.Clauses/Convenciones.Clauses.csproj" />
     <Project Path="src/Convenciones.Api/Convenciones.Api.csproj" />
     <Project Path="src/Convenciones.Agreements/Convenciones.Agreements.csproj" />
     <Project Path="src/Convenciones.AppHost/Convenciones.AppHost.csproj" />

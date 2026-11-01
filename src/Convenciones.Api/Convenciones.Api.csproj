@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Convenciones.Agreements\Convenciones.Agreements.csproj" />
     <ProjectReference Include="..\Convenciones.Catalog\Convenciones.Catalog.csproj" />
+    <ProjectReference Include="..\Convenciones.Clauses\Convenciones.Clauses.csproj" />
     <ProjectReference Include="..\Convenciones.Comparison\Convenciones.Comparison.csproj" />
     <ProjectReference Include="..\Convenciones.Documents\Convenciones.Documents.csproj" />
     <ProjectReference Include="..\Convenciones.Identity\Convenciones.Identity.csproj" />
