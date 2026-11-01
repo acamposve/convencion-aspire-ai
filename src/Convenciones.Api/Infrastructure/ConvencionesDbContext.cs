@@ -1,5 +1,6 @@
 using Convenciones.Agreements;
 using Convenciones.Catalog;
+using Convenciones.Clauses;
 using Convenciones.Documents;
 using Convenciones.Legal;
 using Convenciones.Negotiation;
@@ -64,6 +65,13 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
     public DbSet<NewsCategory> NewsCategories => Set<NewsCategory>();
 
+    // Clauses: AI processing runs, extracted clauses and the taxonomy.
+    public DbSet<ProcessingRun> ProcessingRuns => Set<ProcessingRun>();
+    public DbSet<ProcessingAttempt> ProcessingAttempts => Set<ProcessingAttempt>();
+    public DbSet<ExtractedClause> ExtractedClauses => Set<ExtractedClause>();
+    public DbSet<ClauseCategory> ClauseCategories => Set<ClauseCategory>();
+    public DbSet<ClauseClassification> ClauseClassifications => Set<ClauseClassification>();
+
     // Administration: identity tables in the platform schema.
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
 
@@ -102,6 +110,13 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
         modelBuilder.ApplyConfiguration(new EmployerOfferConfiguration());
         modelBuilder.ApplyConfiguration(new NegotiationMeetingConfiguration());
         modelBuilder.ApplyConfiguration(new MeetingAgreementConfiguration());
+
+        // Clauses owns the AI processing tables.
+        modelBuilder.ApplyConfiguration(new ProcessingRunConfiguration());
+        modelBuilder.ApplyConfiguration(new ProcessingAttemptConfiguration());
+        modelBuilder.ApplyConfiguration(new ExtractedClauseConfiguration());
+        modelBuilder.ApplyConfiguration(new ClauseCategoryConfiguration());
+        modelBuilder.ApplyConfiguration(new ClauseClassificationConfiguration());
 
         // Publishing owns app.news_article and app.news_category.
         modelBuilder.ApplyConfiguration(new NewsArticleConfiguration());

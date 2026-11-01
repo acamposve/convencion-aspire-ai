@@ -39,6 +39,8 @@ public sealed class MigrationFileTests
         "20260106000000_news_publication_guard.sql",
         "20260107000000_administration_bootstrap.sql",
         "20260108000000_api_role_membership.sql",
+        "20260109000000_ai_clause_processing.sql",
+        "20260109000100_ai_clause_taxonomy.sql",
     ];
 
     [Fact]
