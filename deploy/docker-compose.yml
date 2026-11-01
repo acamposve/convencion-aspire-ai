@@ -1,7 +1,7 @@
 name: convenciones
 
-# Single droplet, single published port (80). The API is reachable only on the internal network;
-# nginx is the only process exposed to the internet.
+# Single droplet, published ports (80/443). Caddy terminates TLS; nginx and the API are internal.
+# Caddy is the only process exposed to the internet.
 
 services:
   api:
@@ -49,8 +49,8 @@ services:
   web:
     image: ${WEB_IMAGE:?WEB_IMAGE is required}
     restart: unless-stopped
-    ports:
-      - "80:80"
+    expose:
+      - "80"
     depends_on:
       api:
         condition: service_healthy
@@ -59,6 +59,23 @@ services:
     networks:
       - internal
 
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - internal
   # One-shot: applies supabase/migrations in order, then the seed. Never started by `up`.
   migrator:
     image: ${API_IMAGE:?API_IMAGE is required}
@@ -70,6 +87,10 @@ services:
     restart: "no"
     networks:
       - internal
+
+volumes:
+  caddy_data:
+  caddy_config:
 
 networks:
   internal:

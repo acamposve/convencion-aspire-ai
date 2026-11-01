@@ -1,0 +1,93 @@
+name: Staging smoke
+
+# Post-deploy, read-only verification. It never changes the worker state and never prints secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type smoke to confirm'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/main' && github.event.inputs.confirm == 'smoke'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Verify HTTPS, redirect, worker and connectivity
+        env:
+          SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
+        run: |
+          set -euo pipefail
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_TARGET" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/convenciones
+          host='138-197-15-40.sslip.io'
+
+          echo "== HTTPS readiness =="
+          curl -fsS "https://$host/health/ready"
+          echo ""
+
+          echo "== HTTP redirect =="
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "http://$host/health/ready")"
+          location="$(curl -sS -o /dev/null -w '%{redirect_url}' "http://$host/health/ready")"
+          test "$code" = "308" || test "$code" = "301"
+          case "$location" in https://*) ;; *) echo "unexpected redirect: $location"; exit 1 ;; esac
+          echo "http=$code -> $location"
+
+          echo "== worker state =="
+          echo "$(grep '^Worker__Enabled=' .env)"
+          docker compose ps worker
+
+          echo "== container config presence (names only) =="
+          docker compose exec -T api sh -c '
+            for name in AzureAi__Endpoint AzureAi__Deployment AzureAi__ApiKey DocumentIntelligence__Endpoint DocumentIntelligence__ApiKey Documents__SupabaseUrl Documents__Bucket; do
+              eval "test -n \"\$$name\"" || { echo "missing $name"; exit 1; }
+            done
+            echo "required configuration names present"
+          '
+
+          echo "== no .env inside the web container =="
+          docker compose exec -T web sh -c 'test ! -e /app/.env && test ! -e /.env'
+          echo "web container has no .env"
+
+          echo "== dotfile is not served =="
+          dot_code="$(curl -sS -o /dev/null -w '%{http_code}' "https://$host/.env")"
+          test "$dot_code" = "403" || test "$dot_code" = "404"
+          echo "dotfile status=$dot_code"
+
+          echo "== Azure network reachability (unauthenticated) =="
+          foundry="$(curl -sS -o /dev/null -w '%{http_code}' https://ai-convenciones-hxetrj.cognitiveservices.azure.com/ || true)"
+          di="$(curl -sS -o /dev/null -w '%{http_code}' https://di-convenciones-hxetrj.cognitiveservices.azure.com/ || true)"
+          echo "foundry=$foundry di=$di"
+          case "$foundry" in 2*|3*|401|403|404) ;; *) echo "foundry connectivity failed"; exit 1 ;; esac
+          case "$di" in 2*|3*|401|403|404) ;; *) echo "di connectivity failed"; exit 1 ;; esac
+
+          echo "== Supabase network reachability =="
+          supabase="$(curl -sS -o /dev/null -w '%{http_code}' https://ckvsbwbnhpvwdbpnyxgs.supabase.co/ || true)"
+          echo "supabase=$supabase"
+          case "$supabase" in 2*|3*|401|403) ;; *) echo "supabase connectivity failed"; exit 1 ;; esac
+          REMOTE
