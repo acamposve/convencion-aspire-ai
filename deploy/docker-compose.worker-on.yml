@@ -1,0 +1,10 @@
+# Ephemeral worker activation. This file is used only by the bounded staging exercise:
+#   docker compose -f docker-compose.yml -f docker-compose.worker-on.yml up -d worker
+# The main .env keeps Worker__Enabled=false; removing this override and recreating the worker returns
+# to the disabled state. `restart: "no"` prevents a droplet/Docker restart from reactivating it.
+services:
+  worker:
+    environment:
+      Worker__Enabled: "true"
+      Worker__DeadlineUtc: "${WORKER_DEADLINE_UTC:?WORKER_DEADLINE_UTC is required}"
+    restart: "no"

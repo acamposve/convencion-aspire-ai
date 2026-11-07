@@ -16,9 +16,10 @@ must exactly equal the stage name, and the conversation approval is still requir
 | `Deploy staging` | `confirm=deploy` | builds images, migrates, starts the stack with **`Worker__Enabled=false`** |
 | `Staging AI exercise` | `stage=provision`, `confirm=provision` | verifies private bucket, creates **ephemeral** Auth users, tenants, minimum role and quotas; stores passwords only on the droplet (`600`) |
 | `Staging AI exercise` | `stage=queued-check`, `confirm=queued-check` | uploads the synthetic PDF, extracts, starts the run; asserts **Queued** with the worker off; A/B 404 checks |
-| `Staging AI exercise` | `stage=worker-enable`, `confirm=worker-enable`, `window_minutes=20` | enables the worker with an **independent watchdog on the droplet** that disables it after the window |
+| `Staging AI exercise` | `stage=isolation-check`, `confirm=isolation-check` | uses the existing identities; B uploads/extracts one synthetic document; asserts exact 201/200 and reciprocal 200/404; no run for B |
+| `Staging AI exercise` | `stage=worker-enable`, `confirm=worker-enable`, `window_minutes=20` | starts the worker with an **ephemeral Compose override**, a mandatory UTC deadline and an independent watchdog; the main `.env` stays false |
 | `Staging AI exercise` | `stage=completed-check`, `confirm=completed-check` | waits for `Completed`, reads clauses, repeats A/B 404 checks |
-| `Staging AI exercise` | `stage=worker-disable`, `confirm=worker-disable` | stops the watchdog, sets `Worker__Enabled=false`, restarts and verifies |
+| `Staging AI exercise` | `stage=worker-disable`, `confirm=worker-disable` | stops the watchdog, removes the override, recreates the worker from the main compose and verifies env, restart policy and health |
 | `Staging AI exercise` | `stage=teardown`, `confirm=teardown` | disables the worker, deletes only this exercise's objects/users/tenants, removes state |
 
 Commands (only after the explicit window approval; do not chain them):
@@ -27,6 +28,7 @@ Commands (only after the explicit window approval; do not chain them):
 gh workflow run deploy.yml --ref main -f confirm=deploy
 gh workflow run staging-exercise.yml --ref main -f stage=provision -f confirm=provision
 gh workflow run staging-exercise.yml --ref main -f stage=queued-check -f confirm=queued-check
+gh workflow run staging-exercise.yml --ref main -f stage=isolation-check -f confirm=isolation-check
 gh workflow run staging-exercise.yml --ref main -f stage=worker-enable -f confirm=worker-enable -f window_minutes=20
 gh workflow run staging-exercise.yml --ref main -f stage=completed-check -f confirm=completed-check
 gh workflow run staging-exercise.yml --ref main -f stage=worker-disable -f confirm=worker-disable

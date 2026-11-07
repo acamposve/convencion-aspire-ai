@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -76,9 +77,31 @@ public static class WorkerOptionsFactory
             .Select(value => int.TryParse(value, out var seconds) ? seconds : 30)
             .ToArray();
 
+        var deadlineRaw = section["DeadlineUtc"];
+        DateTimeOffset? deadline = null;
+        var deadlineInvalid = false;
+        if (!string.IsNullOrWhiteSpace(deadlineRaw))
+        {
+            if (DateTimeOffset.TryParse(
+                    deadlineRaw,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out var parsed))
+            {
+                deadline = parsed;
+            }
+            else
+            {
+                deadlineInvalid = true;
+            }
+        }
+
         return new WorkerOptions
         {
             Enabled = enabled,
+            DeadlineRaw = deadlineRaw,
+            DeadlineUtc = deadline,
+            DeadlineInvalid = deadlineInvalid,
             PollIntervalSeconds = poll == 0 ? 2 : poll,
             LeaseSeconds = lease == 0 ? 600 : lease,
             AttemptTimeoutSeconds = timeout == 0 ? 600 : timeout,
@@ -111,6 +134,12 @@ public static class Program
         }
 
         var options = WorkerOptionsFactory.From(builder.Configuration);
+        var deadlineError = WorkerDeadlinePolicy.Validate(options, DateTimeOffset.UtcNow);
+        if (deadlineError is not null)
+        {
+            Console.Error.WriteLine(deadlineError);
+            return 3;
+        }
 
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(new ProcessingQueue(connectionString, options));

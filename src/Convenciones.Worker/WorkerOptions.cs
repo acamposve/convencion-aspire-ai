@@ -19,4 +19,15 @@ public sealed class WorkerOptions
     public int[] BackoffSeconds { get; set; } = [30, 120];
 
     public string HealthFile { get; set; } = "/tmp/worker-ready";
+
+    /// <summary>Absolute UTC deadline for the temporary activation; required when Enabled is true.</summary>
+    public DateTimeOffset? DeadlineUtc { get; set; }
+
+    /// <summary>True when a non-empty deadline value was configured but could not be parsed.</summary>
+    public bool DeadlineInvalid { get; set; }
+
+    public bool DeadlineConfigured => !string.IsNullOrWhiteSpace(DeadlineRaw);
+
+    /// <summary>Raw value, kept only to distinguish missing from invalid.</summary>
+    public string? DeadlineRaw { get; set; }
 }

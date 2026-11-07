@@ -10,13 +10,18 @@ namespace Convenciones.Worker;
 /// </summary>
 public sealed class ProcessingQueue(string connectionString, WorkerOptions options)
 {
-    public async Task<ProcessingJob?> ClaimAsync(CancellationToken cancellationToken)
+    public Task<ProcessingJob?> ClaimAsync(CancellationToken cancellationToken) =>
+        ClaimAsync(null, cancellationToken);
+
+    public async Task<ProcessingJob?> ClaimAsync(
+        DateTimeOffset? deadline,
+        CancellationToken cancellationToken)
     {
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
-        var job = await ClaimRowAsync(connection, transaction, cancellationToken).ConfigureAwait(false);
+        var job = await ClaimRowAsync(connection, transaction, deadline, cancellationToken).ConfigureAwait(false);
         if (job is null)
         {
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -44,6 +49,7 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
     private async Task<ProcessingJob?> ClaimRowAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
+        DateTimeOffset? deadline,
         CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand(
@@ -53,6 +59,7 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
                 from platform.processing_run
                 where status = 'Queued'::platform.processing_status
                   and available_at <= now()
+                  and (@deadline is null or now() < @deadline)
                 order by available_at, created_at
                 for update skip locked
                 limit 1
@@ -70,6 +77,7 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
             """, connection, transaction);
 
         command.Parameters.AddWithValue("lease", options.LeaseSeconds);
+        command.Parameters.AddWithValue("deadline", NpgsqlTypes.NpgsqlDbType.TimestampTz, (object?)deadline ?? DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

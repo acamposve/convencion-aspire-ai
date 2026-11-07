@@ -47,10 +47,18 @@ public sealed class ProcessingWorker(
                 continue;
             }
 
+            if (options.DeadlineUtc is { } deadline && DateTimeOffset.UtcNow >= deadline)
+            {
+                logger.LogWarning(
+                    "Worker deadline {Deadline:O} reached; no new jobs will be claimed.",
+                    deadline);
+                break;
+            }
+
             ProcessingJob? job = null;
             try
             {
-                job = await queue.ClaimAsync(stoppingToken).ConfigureAwait(false);
+                job = await queue.ClaimAsync(options.DeadlineUtc, stoppingToken).ConfigureAwait(false);
                 if (job is null)
                 {
                     await DelayAsync(options.PollIntervalSeconds, stoppingToken).ConfigureAwait(false);
@@ -74,32 +82,106 @@ public sealed class ProcessingWorker(
                     job.CompanyId,
                     job.Attempt);
 
+                var attemptTimeout = TimeSpan.FromSeconds(options.AttemptTimeoutSeconds);
+                if (options.DeadlineUtc is { } absoluteDeadline)
+                {
+                    var remaining = absoluteDeadline - DateTimeOffset.UtcNow;
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        await queue.FailAsync(
+                            job,
+                            "deadline_reached",
+                            "The worker deadline expired before the attempt started.",
+                            retryable: false,
+                            stoppingToken).ConfigureAwait(false);
+                        logger.LogWarning("Run {RunId} was not started: the worker deadline expired.", job.RunId);
+                        continue;
+                    }
+
+                    if (remaining < attemptTimeout)
+                    {
+                        attemptTimeout = remaining;
+                    }
+                }
+
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                timeout.CancelAfter(TimeSpan.FromSeconds(options.AttemptTimeoutSeconds));
+                timeout.CancelAfter(attemptTimeout);
 
                 try
                 {
                     await stage.ExecuteAsync(job, timeout.Token).ConfigureAwait(false);
+
+                    if (options.DeadlineUtc is { } reached && DateTimeOffset.UtcNow >= reached)
+                    {
+                        await queue.FailAsync(
+                            job,
+                            "deadline_reached",
+                            "The worker deadline expired while the attempt was running.",
+                            retryable: false,
+                            stoppingToken).ConfigureAwait(false);
+                        logger.LogWarning("Run {RunId} finished after the worker deadline; it is marked failed.", job.RunId);
+                        continue;
+                    }
+
                     await queue.CompleteAsync(job, stoppingToken).ConfigureAwait(false);
                     logger.LogInformation("Run {RunId} completed.", job.RunId);
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
                 {
-                    await queue.FailAsync(job, "timeout", "The attempt exceeded its timeout.", retryable: true, stoppingToken)
-                        .ConfigureAwait(false);
-                    logger.LogWarning("Run {RunId} timed out.", job.RunId);
+                    if (options.DeadlineUtc is { } expiredAt && DateTimeOffset.UtcNow >= expiredAt)
+                    {
+                        await queue.FailAsync(
+                            job,
+                            "deadline_reached",
+                            "The worker deadline cancelled the in-flight attempt.",
+                            retryable: false,
+                            stoppingToken).ConfigureAwait(false);
+                        logger.LogWarning("Run {RunId} was cancelled by the worker deadline.", job.RunId);
+                    }
+                    else
+                    {
+                        await queue.FailAsync(job, "timeout", "The attempt exceeded its timeout.", retryable: true, stoppingToken)
+                            .ConfigureAwait(false);
+                        logger.LogWarning("Run {RunId} timed out.", job.RunId);
+                    }
                 }
                 catch (PermanentProcessingException exception)
                 {
-                    await queue.FailAsync(job, exception.Code, exception.Message, retryable: false, stoppingToken)
-                        .ConfigureAwait(false);
-                    logger.LogWarning("Run {RunId} failed permanently: {Code}.", job.RunId, exception.Code);
+                    if (options.DeadlineUtc is { } expiredAt && DateTimeOffset.UtcNow >= expiredAt)
+                    {
+                        await queue.FailAsync(
+                            job,
+                            "deadline_reached",
+                            "The worker deadline expired while the attempt was running.",
+                            retryable: false,
+                            stoppingToken).ConfigureAwait(false);
+                        logger.LogWarning("Run {RunId} failed after the worker deadline.", job.RunId);
+                    }
+                    else
+                    {
+                        await queue.FailAsync(job, exception.Code, exception.Message, retryable: false, stoppingToken)
+                            .ConfigureAwait(false);
+                        logger.LogWarning("Run {RunId} failed permanently: {Code}.", job.RunId, exception.Code);
+                    }
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    await queue.FailAsync(job, "unexpected_error", "The stage failed unexpectedly.", retryable: true, stoppingToken)
-                        .ConfigureAwait(false);
-                    logger.LogError(exception, "Run {RunId} failed and was scheduled for retry.", job.RunId);
+                    if (options.DeadlineUtc is { } expiredAt && DateTimeOffset.UtcNow >= expiredAt)
+                    {
+                        await queue.FailAsync(
+                            job,
+                            "deadline_reached",
+                            "The worker deadline expired while the attempt was running.",
+                            retryable: false,
+                            stoppingToken).ConfigureAwait(false);
+                        logger.LogWarning("Run {RunId} failed after the worker deadline.", job.RunId);
+                    }
+                    else
+                    {
+                        await queue.FailAsync(job, "unexpected_error", "The stage failed unexpectedly.", retryable: true, stoppingToken)
+                            .ConfigureAwait(false);
+                        logger.LogError(exception, "Run {RunId} failed and was scheduled for retry.", job.RunId);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

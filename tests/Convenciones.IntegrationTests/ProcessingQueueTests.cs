@@ -128,6 +128,18 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifeti
     }
 
     [Fact]
+    public async Task Claim_after_the_deadline_returns_nothing()
+    {
+        var (runId, _) = await CreateRunAsync();
+        var queue = new ProcessingQueue(fixture.ConnectionString, Options);
+
+        var job = await queue.ClaimAsync(DateTimeOffset.UtcNow.AddMinutes(-1), CancellationToken.None);
+
+        job.ShouldBeNull();
+        var status = await ScalarAsync($"select status::text from platform.processing_run where id = '{runId}'");
+        status.ShouldBe("Queued");
+    }
+    [Fact]
     public async Task Cancelled_run_is_not_claimed()
     {
         var (runId, _) = await CreateRunAsync();
