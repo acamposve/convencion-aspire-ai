@@ -253,10 +253,26 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
             var result = schema.Evaluate(document.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.List });
             return result.IsValid
                 ? (true, string.Empty)
-                : (false, "the JSON does not match the requested schema");
+                : (false, "the JSON does not match the requested schema; shape=" + DescribeShape(document.RootElement));
         }
     }
 
+    private static string DescribeShape(JsonElement element, int depth = 0)
+    {
+        if (depth >= 3)
+        {
+            return element.ValueKind.ToString();
+        }
+
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => "object{" + string.Join(",", element.EnumerateObject()
+                .Select(property => property.Name + ":" + DescribeShape(property.Value, depth + 1))) + "}",
+            JsonValueKind.Array => "array[" + element.GetArrayLength() + "]" +
+                (element.GetArrayLength() > 0 ? ":" + DescribeShape(element[0], depth + 1) : string.Empty),
+            _ => element.ValueKind.ToString(),
+        };
+    }
     private static TimeSpan Backoff(int attempt) =>
         TimeSpan.FromMilliseconds(250 * Math.Pow(2, Math.Max(0, attempt - 1)));
 }

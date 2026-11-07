@@ -65,7 +65,7 @@ public sealed class ClauseExtractionStage(
             }
             catch (AiInvalidResponseException exception)
             {
-                throw new ClauseExtractionException("invalid_model_output", exception.Message);
+                throw new PermanentProcessingException("invalid_model_output", exception.Message);
             }
 
             try
