@@ -58,7 +58,9 @@ public static class WorkerComposition
             && !string.IsNullOrWhiteSpace(configuration["Documents:SupabaseSecretKey"])
             && !string.IsNullOrWhiteSpace(configuration["Documents:Bucket"]))
         {
-            services.AddHttpClient<IDocumentStorage, SupabaseDocumentStorage>();
+            var supabaseUrl = configuration["Documents:SupabaseUrl"]!;
+            services.AddHttpClient<IDocumentStorage, SupabaseDocumentStorage>(client =>
+                client.BaseAddress = new Uri($"{supabaseUrl.TrimEnd('/')}/storage/v1/"));
         }
         else
         {
