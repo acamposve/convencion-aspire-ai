@@ -40,6 +40,7 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
         var stopwatch = Stopwatch.StartNew();
         var repaired = false;
         string? repairReason = null;
+        string? firstDiagnostic = null;
         var transientAttempt = 0;
 
         while (true)
@@ -81,20 +82,23 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
                 }
 
                 var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-                var (content, model) = ReadContent(payload);
+                var (content, model, finishReason) = ReadContent(payload);
                 var validation = MatchesSchema(content, request.JsonSchema);
+                var diagnostic = DescribeDiagnostic(validation.Error, content.Length, finishReason);
 
                 if (!validation.Valid)
                 {
                     if (!repaired)
                     {
                         repaired = true;
-                        repairReason = validation.Error;
+                        firstDiagnostic = diagnostic;
+                        repairReason = diagnostic;
                         continue;
                     }
 
                     throw new AiInvalidResponseException(
-                        "The model did not return JSON that satisfies the requested schema after one repair attempt: " + validation.Error);
+                        "The model did not return JSON that satisfies the requested schema after one repair attempt. " +
+                        "first[" + firstDiagnostic + "] repair[" + diagnostic + "]");
                 }
 
                 using var contentDocument = JsonDocument.Parse(content);
@@ -191,7 +195,7 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
         return builder.Uri;
     }
 
-    private static (string Content, string? Model) ReadContent(string payload)
+    private static (string Content, string? Model, string? FinishReason) ReadContent(string payload)
     {
         using var envelope = JsonDocument.Parse(payload);
         var root = envelope.RootElement;
@@ -210,7 +214,11 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
         }
 
         var model = root.TryGetProperty("model", out var modelElement) ? modelElement.GetString() : null;
-        return (content, model);
+        var finishReason = choice.TryGetProperty("finish_reason", out var finishElement)
+            && finishElement.ValueKind is JsonValueKind.String
+            ? finishElement.GetString()
+            : null;
+        return (content, model, finishReason);
     }
 
     private static (int? Input, int? Output) ReadUsage(string payload)
@@ -235,7 +243,7 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
         }
         catch (JsonException exception)
         {
-            return (false, "invalid JSON: " + exception.Message);
+            return (false, $"invalid JSON at line {exception.LineNumber}, position {exception.BytePositionInLine}");
         }
 
         using (document)
@@ -253,10 +261,74 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
             var result = schema.Evaluate(document.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.List });
             return result.IsValid
                 ? (true, string.Empty)
-                : (false, "the JSON does not match the requested schema; shape=" + DescribeShape(document.RootElement));
+                : (false, DescribeValidation(result) + "; shape=" + DescribeShape(document.RootElement));
         }
     }
 
+    private static readonly HashSet<string> KnownFields =
+    [
+        "clauses", "text", "number", "heading", "page_from", "page_to", "confidence"
+    ];
+
+    private static string SafeFieldName(string name) =>
+        KnownFields.Contains(name) ? name : "<unexpected>";
+
+    private static string SafeLocation(string location)
+    {
+        var segments = location.Split('/');
+
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var segment = segments[i];
+            if (segment.Length == 0 || KnownFields.Contains(segment))
+            {
+                continue;
+            }
+
+            // Only an array index directly after the clauses array is useful and safe to retain.
+            if (i > 0 && segments[i - 1] == "clauses" && segment.All(char.IsDigit))
+            {
+                continue;
+            }
+
+            segments[i] = "<unexpected>";
+        }
+
+        return string.Join("/", segments);
+    }
+
+    private static string DescribeDiagnostic(string error, int contentLength, string? finishReason) =>
+        $"contentLength={contentLength};finishReason={finishReason ?? "unknown"};error={error}";
+
+    private static string DescribeValidation(EvaluationResults result, int depth = 0)
+    {
+        if (depth >= 4)
+        {
+            return "validation-error-depth-limit";
+        }
+
+        var parts = new List<string>();
+        if (result.Errors is not null)
+        {
+            foreach (var error in result.Errors)
+            {
+                parts.Add($"{SafeLocation(result.InstanceLocation.ToString())} {result.EvaluationPath} keyword={error.Key}");
+            }
+        }
+
+        if (result.Details is not null)
+        {
+            foreach (var detail in result.Details)
+            {
+                if (!detail.IsValid)
+                {
+                    parts.Add(DescribeValidation(detail, depth + 1));
+                }
+            }
+        }
+
+        return parts.Count == 0 ? "the JSON does not match the requested schema" : string.Join("; ", parts.Take(8));
+    }
     private static string DescribeShape(JsonElement element, int depth = 0)
     {
         if (depth >= 3)
@@ -267,7 +339,7 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
         return element.ValueKind switch
         {
             JsonValueKind.Object => "object{" + string.Join(",", element.EnumerateObject()
-                .Select(property => property.Name + ":" + DescribeShape(property.Value, depth + 1))) + "}",
+                .Select(property => SafeFieldName(property.Name) + ":" + DescribeShape(property.Value, depth + 1))) + "}",
             JsonValueKind.Array => "array[" + element.GetArrayLength() + "]" +
                 (element.GetArrayLength() > 0 ? ":" + DescribeShape(element[0], depth + 1) : string.Empty),
             _ => element.ValueKind.ToString(),
