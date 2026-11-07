@@ -14,6 +14,7 @@ on:
         options:
           - provision
           - queued-check
+          - isolation-check
           - completed-check
           - worker-enable
           - worker-disable
