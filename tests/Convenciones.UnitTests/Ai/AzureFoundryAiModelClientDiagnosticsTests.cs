@@ -38,13 +38,13 @@ public sealed class AzureFoundryAiModelClientDiagnosticsTests
     {
         const string contractText = "CONFIDENTIAL-CONTRACT-TEXT";
         var invalid = """{"clauses":[{"text":"CONFIDENTIAL-CONTRACT-TEXT","page_from":"one","SECRET_FIELD":"CONFIDENTIAL-CONTRACT-TEXT","123456789":"CONFIDENTIAL-CONTRACT-TEXT"}]}""";
-        var handler = new StubHandler(Response(invalid, "length"), Response(invalid, "length"));
+        var handler = new StubHandler(Response(invalid, "stop"), Response(invalid, "stop"));
         var client = Client(handler, useJsonSchema: false);
 
         var exception = await Should.ThrowAsync<AiInvalidResponseException>(() => client.CompleteAsync(Request()));
 
         exception.Message.ShouldContain("contentLength=");
-        exception.Message.ShouldContain("finishReason=length");
+        exception.Message.ShouldContain("finishReason=stop");
         exception.Message.ShouldContain("keyword=type");
         exception.Message.ShouldContain("shape=object");
         exception.Message.ShouldNotContain(contractText);
@@ -54,6 +54,34 @@ public sealed class AzureFoundryAiModelClientDiagnosticsTests
         handler.Bodies[1].ShouldContain("keyword=type");
     }
 
+    [Fact]
+    public async Task Length_finish_reason_is_rejected_even_with_schema_valid_json()
+    {
+        var handler = new StubHandler(Response("""{"clauses":[]}""", "length"));
+        var client = Client(handler, useJsonSchema: false);
+
+        var exception = await Should.ThrowAsync<AiInvalidResponseException>(() => client.CompleteAsync(Request()));
+
+        exception.Message.ShouldContain("finish_reason_not_complete");
+        exception.Message.ShouldContain("finishReason=length");
+        handler.Bodies.Count.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData("content_filter")]
+    [InlineData("tool_calls")]
+    [InlineData("")]
+    [InlineData(null)]
+    public async Task Non_stop_finish_reasons_are_rejected(string? finishReason)
+    {
+        var handler = new StubHandler(Response("""{"clauses":[]}""", finishReason));
+        var client = Client(handler, useJsonSchema: false);
+
+        var exception = await Should.ThrowAsync<AiInvalidResponseException>(() => client.CompleteAsync(Request()));
+
+        exception.Message.ShouldContain("finish_reason_not_complete");
+        handler.Bodies.Count.ShouldBe(1);
+    }
     [Fact]
     public async Task Malformed_json_reports_position_and_never_echoes_the_body()
     {
@@ -95,7 +123,7 @@ public sealed class AzureFoundryAiModelClientDiagnosticsTests
         var exception = await Should.ThrowAsync<AiInvalidResponseException>(() => client.CompleteAsync(Request()));
 
         exception.Message.ShouldContain("finishReason=length");
-        exception.Message.ShouldContain("invalid JSON");
+        exception.Message.ShouldContain("finish_reason_not_complete");
         exception.Message.ShouldNotContain(fragment);
     }
 
@@ -139,7 +167,7 @@ public sealed class AzureFoundryAiModelClientDiagnosticsTests
         return new AzureFoundryAiModelClient(new HttpClient(handler), options);
     }
 
-    private static Func<CancellationToken, Task<HttpResponseMessage>> Response(string content, string finishReason) =>
+    private static Func<CancellationToken, Task<HttpResponseMessage>> Response(string content, string? finishReason) =>
         _ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(

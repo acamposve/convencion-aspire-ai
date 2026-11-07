@@ -21,6 +21,11 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
+    // Only a normal end of generation is an acceptable extraction. "length", "content_filter",
+    // "tool_calls", missing values and unknown provider reasons mean the answer is incomplete or
+    // was not produced under the expected contract, even when the JSON happens to validate.
+    private const string CompleteFinishReason = "stop";
+
     private readonly HttpClient _http;
     private readonly AzureAiOptions _options;
 
@@ -83,6 +88,13 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
 
                 var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 var (content, model, finishReason) = ReadContent(payload);
+                if (!IsCompleteFinish(finishReason))
+                {
+                    throw new AiInvalidResponseException(
+                        "The model response did not finish normally; " +
+                        DescribeDiagnostic("finish_reason_not_complete", content.Length, finishReason));
+                }
+
                 var validation = MatchesSchema(content, request.JsonSchema);
                 var diagnostic = DescribeDiagnostic(validation.Error, content.Length, finishReason);
 
@@ -233,6 +245,9 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
         var output = usage.TryGetProperty("completion_tokens", out var completion) && completion.TryGetInt32(out var c) ? c : (int?)null;
         return (input, output);
     }
+
+    private static bool IsCompleteFinish(string? finishReason) =>
+        string.Equals(finishReason, CompleteFinishReason, StringComparison.Ordinal);
 
     private static (bool Valid, string Error) MatchesSchema(string json, string schemaText)
     {

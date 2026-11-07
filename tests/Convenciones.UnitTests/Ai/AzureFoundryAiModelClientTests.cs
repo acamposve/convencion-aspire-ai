@@ -152,7 +152,7 @@ public sealed class AzureFoundryAiModelClientTests
             Content = new StringContent(
                 JsonSerializer.Serialize(new
                 {
-                    choices = new[] { new { message = new { content } } },
+                    choices = new[] { new { message = new { content }, finish_reason = "stop" } },
                     usage = new { prompt_tokens = input, completion_tokens = output },
                     model = "mistral-large-3",
                 }),
