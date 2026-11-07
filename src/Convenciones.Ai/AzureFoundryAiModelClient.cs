@@ -94,7 +94,7 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
                     }
 
                     throw new AiInvalidResponseException(
-                        "The model did not return JSON that satisfies the requested schema after one repair attempt.");
+                        "The model did not return JSON that satisfies the requested schema after one repair attempt: " + validation.Error);
                 }
 
                 using var contentDocument = JsonDocument.Parse(content);
