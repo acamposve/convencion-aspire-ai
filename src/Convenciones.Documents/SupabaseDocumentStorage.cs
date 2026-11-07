@@ -38,6 +38,8 @@ public sealed class SupabaseDocumentStorage : IDocumentStorage
         _httpClient = httpClient;
     }
 
+    internal Uri? BaseAddress => _httpClient.BaseAddress;
+
     public async Task SaveAsync(string key, Stream content, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(content);
