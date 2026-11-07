@@ -25,6 +25,19 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Show recent processing failures (read-only)
+        env:
+          DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+          DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+          DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+          DB_USER: ${{ vars.SUPABASE_DB_USER }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          PGPASSWORD="$DB_PASSWORD" PGSSLMODE=require psql \
+            --host "$DB_HOST" --port "$DB_PORT" --username "$DB_USER" --dbname "$DB_NAME" \
+            --no-psqlrc -c "select id, status::text, error_code, left(error_message, 500) as error_message from platform.processing_run where status in ('Failed','Running') order by updated_at desc limit 5;"
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
