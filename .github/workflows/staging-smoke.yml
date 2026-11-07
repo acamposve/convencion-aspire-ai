@@ -66,8 +66,12 @@ jobs:
           echo "http=$code -> $location"
 
           echo "== worker state =="
-          echo "$(grep '^Worker__Enabled=' .env)"
+          grep -qx 'Worker__Enabled=false' .env
+          echo "Worker__Enabled=false"
           docker compose ps worker
+          worker_container="$(docker compose ps -q worker)"
+          test -n "$worker_container"
+          test "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$worker_container")" = "healthy"
 
           echo "== container config presence (names only) =="
           docker compose exec -T api sh -c '

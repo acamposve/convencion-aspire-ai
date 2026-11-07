@@ -55,3 +55,9 @@ dist/
 *.tfplan
 *.tfplan.*
 crash.log
+
+# Local-only sensitive assets: client audio/transcripts, authorized test contracts and generated
+# launch settings must never be committed.
+docs/client-feedback/
+docs/test/
+**/Properties/launchSettings.json
