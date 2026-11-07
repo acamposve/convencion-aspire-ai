@@ -34,5 +34,7 @@ public sealed class WorkerStorageCompositionTests
         var storage = provider.GetRequiredService<IDocumentStorage>().ShouldBeOfType<SupabaseDocumentStorage>();
 
         storage.BaseAddress.ShouldBe(new Uri("https://project.supabase.co/storage/v1/"));
+        storage.HttpClient.DefaultRequestHeaders.GetValues("apikey").Single().ShouldBe(string.Join("-", "test", "value"));
+        storage.HttpClient.DefaultRequestHeaders.Authorization!.Scheme.ShouldBe("Bearer");
     }
 }

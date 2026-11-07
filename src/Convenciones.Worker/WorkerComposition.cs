@@ -59,8 +59,14 @@ public static class WorkerComposition
             && !string.IsNullOrWhiteSpace(configuration["Documents:Bucket"]))
         {
             var supabaseUrl = configuration["Documents:SupabaseUrl"]!;
+            var supabaseSecretKey = configuration["Documents:SupabaseSecretKey"]!;
             services.AddHttpClient<IDocumentStorage, SupabaseDocumentStorage>(client =>
-                client.BaseAddress = new Uri($"{supabaseUrl.TrimEnd('/')}/storage/v1/"));
+            {
+                client.BaseAddress = new Uri($"{supabaseUrl.TrimEnd('/')}/storage/v1/");
+                client.DefaultRequestHeaders.Add("apikey", supabaseSecretKey);
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", supabaseSecretKey);
+            });
         }
         else
         {
