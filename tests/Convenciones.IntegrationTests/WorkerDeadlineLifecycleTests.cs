@@ -47,10 +47,10 @@ public sealed class WorkerDeadlineLifecycleTests(PostgresFixture fixture) : IAsy
         var options = new WorkerOptions
         {
             Enabled = true,
-            DeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(4),
+            DeadlineUtc = DateTimeOffset.UtcNow.AddMinutes(1),
             PollIntervalSeconds = 1,
             LeaseSeconds = 60,
-            AttemptTimeoutSeconds = 30,
+            AttemptTimeoutSeconds = 2,
             MaxAttempts = 3,
             BackoffSeconds = [0],
             HealthFile = Path.Combine(Path.GetTempPath(), $"worker-{Guid.NewGuid():N}"),
@@ -66,8 +66,10 @@ public sealed class WorkerDeadlineLifecycleTests(PostgresFixture fixture) : IAsy
         await worker.StartAsync(CancellationToken.None);
         try
         {
-            var started = await Task.WhenAny(stage.Started.Task, Task.Delay(TimeSpan.FromSeconds(10)));
-            started.ShouldBe(stage.Started.Task);
+            await stage.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            // The attempt has actually started. Expire the worker deadline while the stage is
+            // blocked; the attempt timeout then exercises the deadline-failure path deterministically.
+            options.DeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(-1);
 
             var failed = false;
             for (var attempt = 0; attempt < 20 && !failed; attempt++)
