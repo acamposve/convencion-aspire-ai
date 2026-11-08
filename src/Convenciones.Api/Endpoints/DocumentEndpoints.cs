@@ -1,5 +1,6 @@
 using Convenciones.Api.Infrastructure;
 using Convenciones.Catalog;
+using Convenciones.Clauses;
 using Convenciones.Documents;
 using Convenciones.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -501,6 +502,20 @@ public static partial class DocumentEndpoints
             return NotFound(id);
         }
 
+        await using var deleteTransaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await LockDocumentAsync(db, id, cancellationToken).ConfigureAwait(false);
+
+        // Reload after the stable document lock: the row checked for If-Match must be the row that
+        // is soft-deleted, not a snapshot read before another writer.
+        db.Entry(document).State = EntityState.Detached;
+        document = await DocumentAccess
+            .FindAccessibleAsync(session, id, db, cancellationToken)
+            .ConfigureAwait(false);
+        if (document is null)
+        {
+            return NotFound(id);
+        }
+
         var ifMatch = request.Headers.IfMatch.ToString();
         if (string.IsNullOrWhiteSpace(ifMatch) || !TryParseRowVersion(ifMatch, out var expectedVersion))
         {
@@ -515,12 +530,19 @@ public static partial class DocumentEndpoints
 
         document.SoftDelete(DateTimeOffset.UtcNow);
 
+        // Cancelling active runs belongs to the same document transaction as the soft delete:
+        // otherwise a run can remain Queued/Running after its document is gone and can never be
+        // claimed or completed.
+        await CancelActiveRunsAsync(db, id, session.UserId, cancellationToken).ConfigureAwait(false);
+
         try
         {
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await deleteTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (DbUpdateConcurrencyException)
         {
+            await deleteTransaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             return ConcurrentModification();
         }
 
@@ -541,6 +563,71 @@ public static partial class DocumentEndpoints
 
         return Results.NoContent();
     }
+
+    private static Task CancelActiveRunsAsync(
+        ConvencionesDbContext db,
+        Guid documentId,
+        Guid actorId,
+        CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlRawAsync(
+            """
+            with active as (
+                select id, requested_by, attempts, status::text as previous_status
+                from platform.processing_run
+                where document_id = {0}
+                  and status in (
+                      'Queued'::platform.processing_status,
+                      'Running'::platform.processing_status)
+                for update
+            ), updated as (
+                update platform.processing_run r
+                set status = 'Cancelled'::platform.processing_status,
+                    stage = 'Cancelled',
+                    finished_at = now(),
+                    lease_expires_at = null,
+                    error_code = 'document_deleted',
+                    error_message = 'The document was deleted while the run was active.',
+                    updated_at = now()
+                from active a
+                where r.id = a.id
+                returning r.id
+            ), attempts as (
+                update platform.processing_attempt p
+                set status = 'Cancelled'::platform.processing_status,
+                    error_code = 'document_deleted',
+                    error_message = 'The document was deleted while the run was active.',
+                    finished_at = now()
+                from active a
+                where p.run_id = a.id
+                  and p.attempt_no = a.attempts
+                  and p.status = 'Running'::platform.processing_status
+                returning p.id
+            ), audited as (
+                insert into platform.audit_entry
+                    (actor_id, module, entity_type, entity_id, action, from_state, to_state, changes)
+                select coalesce(a.requested_by, {1}),
+                       'documents',
+                       'processing_run',
+                       a.id::text,
+                       'processing.cancelled',
+                       a.previous_status,
+                       'Cancelled',
+                       jsonb_build_object('code', 'document_deleted')
+                from active a
+            )
+            select (select count(*) from updated) + (select count(*) from attempts) * 0;
+            """,
+            [documentId, actorId],
+            cancellationToken);
+
+    private static Task LockDocumentAsync(
+        ConvencionesDbContext db,
+        Guid documentId,
+        CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlRawAsync(
+            "select pg_advisory_xact_lock(hashtextextended({0}, 0))",
+            [ClassificationLocks.DocumentKey(documentId)],
+            cancellationToken);
 
     private static DocumentSummary ToSummary(Document document) =>
         new(

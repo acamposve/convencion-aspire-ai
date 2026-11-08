@@ -28,6 +28,18 @@ on:
         required: false
         default: '20'
         type: string
+      allowed_document_id:
+        description: 'Optional document id scope for worker-enable'
+        required: false
+        type: string
+      allowed_run_id:
+        description: 'Optional run id scope for worker-enable'
+        required: false
+        type: string
+      allowed_company_id:
+        description: 'Tenant scope for worker-enable'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -55,6 +67,10 @@ jobs:
       SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
       STAGING_API_URL: https://138-197-15-40.sslip.io/api
       WINDOW_MINUTES: ${{ github.event.inputs.window_minutes }}
+      ALLOWED_DOCUMENT_ID: ${{ github.event.inputs.allowed_document_id }}
+      ALLOWED_RUN_ID: ${{ github.event.inputs.allowed_run_id }}
+      ALLOWED_COMPANY_ID: ${{ github.event.inputs.allowed_company_id }}
+      AUTHORIZED_COMPANY_ID: ${{ vars.STAGING_AUTHORIZED_COMPANY_ID }}
       STATE_DIR: /opt/convenciones/.staging-ai
 
     steps:

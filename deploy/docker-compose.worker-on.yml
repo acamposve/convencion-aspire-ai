@@ -7,4 +7,11 @@ services:
     environment:
       Worker__Enabled: "true"
       Worker__DeadlineUtc: "${WORKER_DEADLINE_UTC:?WORKER_DEADLINE_UTC is required}"
+      # Optional staging scope. Empty values are parsed as null by the worker and preserve the
+      # normal production claim behaviour.
+      Worker__AllowedDocumentId: "${WORKER_ALLOWED_DOCUMENT_ID:-}"
+      Worker__AllowedRunId: "${WORKER_ALLOWED_RUN_ID:-}"
+      Worker__AllowedCompanyId: "${WORKER_ALLOWED_COMPANY_ID:-}"
+      Worker__AuthorizedCompanyId: "${WORKER_AUTHORIZED_COMPANY_ID:-}"
+      Worker__RequireScope: "true"
     restart: "no"

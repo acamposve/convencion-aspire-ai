@@ -145,6 +145,26 @@ public sealed class ProcessingWorker(
                         logger.LogWarning("Run {RunId} timed out.", job.RunId);
                     }
                 }
+                catch (StaleProcessingAttemptException exception)
+                {
+                    logger.LogWarning(
+                        "Run {RunId} attempt {AttemptId} is stale; persistence was rejected without changing the run.",
+                        exception.RunId,
+                        exception.AttemptId);
+                }
+                catch (DocumentDeletedException exception)
+                {
+                    await queue.CancelAsync(
+                            job,
+                            exception.Code,
+                            exception.Message,
+                            stoppingToken)
+                        .ConfigureAwait(false);
+                    logger.LogWarning(
+                        "Run {RunId} stopped because document {DocumentId} was deleted.",
+                        job.RunId,
+                        job.DocumentId);
+                }
                 catch (PermanentProcessingException exception)
                 {
                     if (options.DeadlineUtc is { } expiredAt && DateTimeOffset.UtcNow >= expiredAt)

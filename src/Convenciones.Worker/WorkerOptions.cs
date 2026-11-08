@@ -23,6 +23,37 @@ public sealed class WorkerOptions
     /// <summary>Absolute UTC deadline for the temporary activation; required when Enabled is true.</summary>
     public DateTimeOffset? DeadlineUtc { get; set; }
 
+    /// <summary>
+    /// Optional fail-closed scope for staging: when set, only this document may be claimed.
+    /// Null preserves the normal production behaviour.
+    /// </summary>
+    public Guid? AllowedDocumentId { get; set; }
+
+    /// <summary>
+    /// Optional fail-closed scope for staging: when set, only this run may be claimed.
+    /// Null preserves the normal production behaviour.
+    /// </summary>
+    public Guid? AllowedRunId { get; set; }
+
+    /// <summary>
+    /// Optional staging tenant scope. When set, the document and run must belong to this company.
+    /// </summary>
+    public Guid? AllowedCompanyId { get; set; }
+
+    /// <summary>
+    /// Static staging allowlist. An operator-supplied AllowedCompanyId must match this value.
+    /// </summary>
+    public Guid? AuthorizedCompanyId { get; set; }
+
+    /// <summary>True when an allowed scope value was configured but is not a valid GUID.</summary>
+    public bool ScopeInvalid { get; set; }
+
+    /// <summary>
+    /// When true, an enabled worker must have AllowedDocumentId or AllowedRunId. Staging activation
+    /// sets this; production keeps it false and preserves the existing global claim.
+    /// </summary>
+    public bool RequireScope { get; set; }
+
     /// <summary>True when a non-empty deadline value was configured but could not be parsed.</summary>
     public bool DeadlineInvalid { get; set; }
 

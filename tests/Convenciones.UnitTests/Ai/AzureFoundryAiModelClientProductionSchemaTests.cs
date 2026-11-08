@@ -72,6 +72,47 @@ public sealed class AzureFoundryAiModelClientProductionSchemaTests
         handler.Bodies.Count.ShouldBe(1);
     }
     [Fact]
+    public async Task Classification_production_shape_is_accepted()
+    {
+        const string valid =
+            """{"classifications":[{"clause_ordinal":1,"categories":[{"key":"pricing","confidence":0.9}],"primary":"pricing","rationale":"Salario"}]}""";
+        var client = Client(new StubHandler(Response(valid)));
+
+        var result = await client.CompleteAsync(ClassificationRequest());
+
+        result.Content.GetProperty("classifications").GetArrayLength().ShouldBe(1);
+        result.Content.GetProperty("classifications")[0]
+            .GetProperty("categories")[0]
+            .GetProperty("key")
+            .GetString()
+            .ShouldBe("pricing");
+    }
+
+    [Fact]
+    public async Task Truncated_classification_response_is_rejected_before_schema_validation()
+    {
+        var client = Client(new StubHandler(Response("""{"classifications":[""", "length")));
+
+        var exception = await Should.ThrowAsync<AiInvalidResponseException>(
+            () => client.CompleteAsync(ClassificationRequest()));
+
+        exception.Message.ShouldContain("finish_reason_not_complete");
+        exception.Message.ShouldContain("finishReason=length");
+    }
+
+    [Fact]
+    public async Task Invalid_classification_shape_reports_the_failing_keyword()
+    {
+        const string invalid = """{"classifications":[{"clause_ordinal":1}]}""";
+        var client = Client(new StubHandler(Response(invalid), Response(invalid)));
+
+        var exception = await Should.ThrowAsync<AiInvalidResponseException>(
+            () => client.CompleteAsync(ClassificationRequest()));
+
+        exception.Message.ShouldContain("keyword=required");
+    }
+
+    [Fact]
     public async Task Repair_succeeds_with_the_structural_diagnostic()
     {
         const string invalid =
@@ -90,6 +131,9 @@ public sealed class AzureFoundryAiModelClientProductionSchemaTests
 
     private static AiCompletionRequest Request() =>
         new("Eres un extractor de cláusulas.", "Extrae las cláusulas.", ExtractionSchema.Json);
+
+    private static AiCompletionRequest ClassificationRequest() =>
+        new("Clasifica las cláusulas.", "Clasifica este lote.", ClassificationSchema.Json);
 
     private static AzureFoundryAiModelClient Client(StubHandler handler) =>
         new(new HttpClient(handler), new AzureAiOptions

@@ -14,6 +14,37 @@ if [ "$WINDOW_MINUTES" -lt 1 ] || [ "$WINDOW_MINUTES" -gt 120 ]; then
   exit 1
 fi
 state_exists || { echo "run the provision stage first" >&2; exit 2; }
+allowed_document_id="${ALLOWED_DOCUMENT_ID:-}"
+allowed_run_id="${ALLOWED_RUN_ID:-}"
+allowed_company_id="${ALLOWED_COMPANY_ID:-}"
+authorized_company_id="${AUTHORIZED_COMPANY_ID:-}"
+
+valid_uuid() {
+  printf '%s' "$1" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+}
+
+if [ -z "$authorized_company_id" ]; then
+  echo "AUTHORIZED_COMPANY_ID is required for a scoped staging worker" >&2
+  exit 1
+fi
+if [ -z "$allowed_company_id" ]; then
+  echo "ALLOWED_COMPANY_ID is required for a scoped staging worker" >&2
+  exit 1
+fi
+if [ "$allowed_company_id" != "$authorized_company_id" ]; then
+  echo "ALLOWED_COMPANY_ID must match AUTHORIZED_COMPANY_ID" >&2
+  exit 1
+fi
+if [ -z "$allowed_document_id" ] && [ -z "$allowed_run_id" ]; then
+  echo "ALLOWED_DOCUMENT_ID or ALLOWED_RUN_ID is required for a scoped staging worker" >&2
+  exit 1
+fi
+for id in "$authorized_company_id" "$allowed_company_id" "$allowed_document_id" "$allowed_run_id"; do
+  if [ -n "$id" ] && ! valid_uuid "$id"; then
+    echo "Worker scope values must be valid UUIDs" >&2
+    exit 1
+  fi
+done
 
 ssh_staging "mkdir -p /opt/convenciones/.staging-ai"
 scp -q deploy/docker-compose.worker-on.yml "$SSH_TARGET:/opt/convenciones/docker-compose.worker-on.yml"
@@ -21,10 +52,14 @@ scp -q scripts/staging/worker-off.sh "$SSH_TARGET:/opt/convenciones/.staging-ai/
 scp -q scripts/staging/watchdog-stop.sh "$SSH_TARGET:/opt/convenciones/.staging-ai/watchdog-stop.sh"
 ssh_staging "chmod 700 /opt/convenciones/.staging-ai/disable-worker.sh /opt/convenciones/.staging-ai/watchdog-stop.sh"
 
-ssh_staging "bash -s -- '$WINDOW_MINUTES'" <<'REMOTE'
+ssh_staging "bash -s -- '$WINDOW_MINUTES' '$allowed_document_id' '$allowed_run_id' '$allowed_company_id' '$authorized_company_id'" <<'REMOTE'
 set -eu
 cd /opt/convenciones
 window="$1"
+allowed_document_id="$2"
+allowed_run_id="$3"
+allowed_company_id="$4"
+authorized_company_id="$5"
 mkdir -p .staging-ai
 
 test -f .env || { echo ".env is missing on the droplet" >&2; exit 1; }
@@ -74,6 +109,10 @@ trap cleanup_on_error EXIT
 
 activate() {
   WORKER_DEADLINE_UTC="$deadline" \
+    WORKER_ALLOWED_DOCUMENT_ID="$allowed_document_id" \
+    WORKER_ALLOWED_RUN_ID="$allowed_run_id" \
+    WORKER_ALLOWED_COMPANY_ID="$allowed_company_id" \
+    WORKER_AUTHORIZED_COMPANY_ID="$authorized_company_id" \
     docker compose -f docker-compose.yml -f docker-compose.worker-on.yml up -d --force-recreate worker
 }
 
@@ -99,6 +138,26 @@ printf '%s\n' "$envs" | grep -qx 'Worker__Enabled=true' || {
 }
 printf '%s\n' "$envs" | grep -qx "Worker__DeadlineUtc=$deadline" || {
   echo "worker did not receive the expected deadline" >&2
+  exit 1
+}
+if [ -n "$allowed_document_id" ]; then
+  printf '%s\n' "$envs" | grep -qx "Worker__AllowedDocumentId=$allowed_document_id" || {
+    echo "worker did not receive the allowed document id" >&2
+    exit 1
+  }
+fi
+if [ -n "$allowed_run_id" ]; then
+  printf '%s\n' "$envs" | grep -qx "Worker__AllowedRunId=$allowed_run_id" || {
+    echo "worker did not receive the allowed run id" >&2
+    exit 1
+  }
+fi
+printf '%s\n' "$envs" | grep -qx "Worker__AllowedCompanyId=$allowed_company_id" || {
+  echo "worker did not receive the allowed company id" >&2
+  exit 1
+}
+printf '%s\n' "$envs" | grep -qx "Worker__AuthorizedCompanyId=$authorized_company_id" || {
+  echo "worker did not receive the authorized company id" >&2
   exit 1
 }
 test "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$container")" = "no" || {
@@ -129,4 +188,8 @@ REMOTE
   echo "- watchdog starts before the worker and is verified alive"
   echo "- main .env remains Worker__Enabled=false"
   echo "- worker receives Worker__DeadlineUtc and restart: no"
+  echo "- allowed company: ${ALLOWED_COMPANY_ID}"
+  echo "- authorized company: ${AUTHORIZED_COMPANY_ID}"
+  if [ -n "${ALLOWED_DOCUMENT_ID:-}" ]; then echo "- allowed document: ${ALLOWED_DOCUMENT_ID}"; fi
+  if [ -n "${ALLOWED_RUN_ID:-}" ]; then echo "- allowed run: ${ALLOWED_RUN_ID}"; fi
 } >>"${GITHUB_STEP_SUMMARY:-/dev/null}"

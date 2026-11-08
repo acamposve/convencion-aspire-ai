@@ -50,8 +50,16 @@ describe('ClauseProcessingDialog', () => {
         needsReview: false,
         reviewStatus: 'Pending',
         classifications: [
-          { key: 'pricing', name: 'Precio y pago', confidence: 0.9, isPrimary: true, rationale: null },
+          {
+            key: 'pricing',
+            name: 'Precio y pago',
+            confidence: 0.9,
+            isPrimary: true,
+            rationale: null,
+            source: 'ai' as const,
+          },
         ],
+        classificationVersion: 'v0',
       },
     ]);
 
@@ -60,11 +68,61 @@ describe('ClauseProcessingDialog', () => {
     await user.click(await screen.findByRole('button', { name: 'Procesar cláusulas' }));
 
     expect(await screen.findByText(/Cláusula primera. Objeto del contrato./)).toBeInTheDocument();
-    expect(screen.getByText('Precio y pago (90%)')).toBeInTheDocument();
+    expect(screen.getByText('Precio y pago (90%) · IA')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Aceptar' }));
 
     await waitFor(() => expect(screen.getByText('Accepted')).toBeInTheDocument());
+  });
+
+  it('corrects a classification without hiding the AI source in the UI contract', async () => {
+    const api = new FakeApi();
+    api.documents = [makeDocument({ id: 'doc-1', fileName: 'contrato.pdf', extractionStatus: 'Completed' })];
+    api.processingRuns.set('doc-1', run());
+    api.processingClauses.set('doc-1', [
+      {
+        id: 'clause-1',
+        ordinal: 1,
+        number: 'Primera',
+        heading: 'Objeto',
+        text: 'Cláusula primera. Objeto del contrato.',
+        pageFrom: 1,
+        pageTo: 1,
+        sourceCharStart: 0,
+        sourceCharEnd: 40,
+        confidence: 0.9,
+        needsReview: false,
+        reviewStatus: 'Pending',
+        classifications: [
+          {
+            key: 'pricing',
+            name: 'Precio y pago',
+            confidence: 0.9,
+            isPrimary: true,
+            rationale: null,
+            source: 'ai' as const,
+          },
+        ],
+        classificationVersion: 'v0',
+      },
+    ]);
+
+    const { user } = renderDocuments(api);
+
+    await user.click(await screen.findByRole('button', { name: 'Procesar cláusulas' }));
+    await user.click(await screen.findByRole('button', { name: 'Corregir clasificación' }));
+    await user.click(
+      await screen.findByRole('checkbox', { name: /Alcance y obligaciones/ }),
+    );
+    await user.click(screen.getByRole('radio', { name: 'Alcance y obligaciones' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar corrección' }));
+
+    expect(
+      await screen.findByText(/Alcance y obligaciones \(100%\) · humana/),
+    ).toBeInTheDocument();
+    const stored = api.processingClauses.get('doc-1')?.[0];
+    expect(stored?.reviewStatus).toBe('Corrected');
+    expect(stored?.classifications.some((item) => item.source === 'human')).toBe(true);
   });
 
   it('explains a processing failure in Spanish', async () => {

@@ -556,11 +556,33 @@ export class FakeApi implements ApiClient {
     return { items: items.slice(start, start + pageSize), page, pageSize, total: items.length };
   }
 
-  async reviewClause(clauseId: string, status: ClauseReviewStatus): Promise<ProcessingClause> {
+  async reviewClause(
+    clauseId: string,
+    status: ClauseReviewStatus,
+    input: {
+      text?: string;
+      heading?: string;
+      classifications?: Array<{ key: string; confidence?: number; rationale?: string | null }>;
+      primary?: string | null;
+      expectedVersion?: string | null;
+    } = {},
+  ): Promise<ProcessingClause> {
     for (const clauses of this.processingClauses.values()) {
       const clause = clauses.find((item) => item.id === clauseId);
       if (clause) {
         clause.reviewStatus = status;
+        if (input.classifications) {
+          const categories = this.categoryNames;
+          clause.classifications = input.classifications.map((item) => ({
+            key: item.key,
+            name: categories.get(item.key)?.name ?? item.key,
+            confidence: item.confidence ?? null,
+            isPrimary: item.key === input.primary,
+            rationale: item.rationale ?? null,
+            source: 'human' as const,
+          }));
+          clause.classificationVersion = `v${Number(clause.classificationVersion.replace('v', '')) + 1}`;
+        }
         return clause;
       }
     }
@@ -568,10 +590,21 @@ export class FakeApi implements ApiClient {
     return missing(clauseId);
   }
 
+  private get categoryNames(): Map<string, ClauseCategoryView> {
+    return new Map([
+      [
+        'pricing',
+        { key: 'pricing', name: 'Precio y pago', description: null, parentId: null, sortOrder: 10 },
+      ],
+      [
+        'scope',
+        { key: 'scope', name: 'Alcance y obligaciones', description: null, parentId: null, sortOrder: 20 },
+      ],
+    ]);
+  }
+
   async listClauseCategories(): Promise<ClauseCategoryView[]> {
-    return [
-      { key: 'pricing', name: 'Precio y pago', description: null, parentId: null, sortOrder: 10 },
-    ];
+    return [...this.categoryNames.values()];
   }
 
   async getDocumentText(id: string): Promise<DocumentText> {
