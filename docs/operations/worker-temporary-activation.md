@@ -9,6 +9,9 @@ the bounded exercise; the main `.env` is never edited to `true`.
 
 ```text
 worker-enable.sh
+  ├─ require AUTHORIZED_COMPANY_ID and ALLOWED_COMPANY_ID (they must match)
+  ├─ require ALLOWED_DOCUMENT_ID or ALLOWED_RUN_ID
+  ├─ set Worker__RequireScope=true in the ephemeral override
   ├─ verify main .env has Worker__Enabled=false
   ├─ upload docker-compose.worker-on.yml and the remote off script
   ├─ start and verify an independent setsid watchdog (before the worker)
@@ -21,6 +24,37 @@ worker-enable.sh
 ```
 
 The override is the only place where `Worker__Enabled=true` exists for a running container.
+
+## Scope, tenant and AI/human precedence
+
+Staging scope is a tuple, not a single ID:
+
+- `Worker__AllowedCompanyId` is mandatory;
+- `Worker__AuthorizedCompanyId` is the static staging allowlist and must match it; it comes from the
+  repository/environment variable `STAGING_AUTHORIZED_COMPANY_ID`, not from the per-run workflow input;
+- one of `Worker__AllowedDocumentId` or `Worker__AllowedRunId` is mandatory;
+- the document must belong to the allowed company;
+- the run must belong to the allowed company and, when both are supplied, to the allowed document.
+
+`WorkerScopeValidator` performs these checks against the existing document/run relationships before
+the worker host starts. An invalid scope exits with code 6. Production keeps `RequireScope=false` and
+therefore keeps the previous unscoped behaviour.
+
+AI classification writes and human corrections share one lock hierarchy: document first, then run,
+then clause. Reviews take shared document/run locks and an exclusive clause lock; extraction,
+classification persistence and purge take the exclusive document lock and then the exclusive run lock. The version token sent to the client is derived from the clause's
+extraction run, the latest correction audit id, a fingerprint of the underlying AI rows (including
+model/prompt metadata) and a hash of the effective classification. Consequences:
+
+- an AI rerun changes the token even when a human correction still wins visually;
+- a correction based on an older token is rejected with `409`;
+- an AI rerun never deletes the human correction audit row; the correction remains the effective
+  classification because the audit is the read model;
+- if the human correction commits first, the later AI rerun updates only the original AI rows, not the
+  human correction history;
+- if the AI rerun commits first, the human correction must be reloaded against the new token;
+- extraction retries and purge/retention refuse to remove clauses or documents that have a human
+  correction, so an audit row cannot become orphaned.
 
 ## Why it fails closed
 

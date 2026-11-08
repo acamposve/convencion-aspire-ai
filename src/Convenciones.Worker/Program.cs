@@ -67,6 +67,7 @@ public static class WorkerOptionsFactory
     {
         var section = configuration.GetSection("Worker");
         _ = bool.TryParse(section["Enabled"], out var enabled);
+        _ = bool.TryParse(section["RequireScope"], out var requireScope);
         _ = int.TryParse(section["PollIntervalSeconds"], out var poll);
         _ = int.TryParse(section["LeaseSeconds"], out var lease);
         _ = int.TryParse(section["AttemptTimeoutSeconds"], out var timeout);
@@ -96,12 +97,23 @@ public static class WorkerOptionsFactory
             }
         }
 
+        var allowedDocumentId = ParseGuid(section["AllowedDocumentId"], out var documentIdInvalid);
+        var allowedRunId = ParseGuid(section["AllowedRunId"], out var runIdInvalid);
+        var allowedCompanyId = ParseGuid(section["AllowedCompanyId"], out var companyIdInvalid);
+        var authorizedCompanyId = ParseGuid(section["AuthorizedCompanyId"], out var authorizedCompanyIdInvalid);
+
         return new WorkerOptions
         {
             Enabled = enabled,
             DeadlineRaw = deadlineRaw,
             DeadlineUtc = deadline,
             DeadlineInvalid = deadlineInvalid,
+            AllowedDocumentId = allowedDocumentId,
+            AllowedRunId = allowedRunId,
+            AllowedCompanyId = allowedCompanyId,
+            AuthorizedCompanyId = authorizedCompanyId,
+            ScopeInvalid = documentIdInvalid || runIdInvalid || companyIdInvalid || authorizedCompanyIdInvalid,
+            RequireScope = requireScope,
             PollIntervalSeconds = poll == 0 ? 2 : poll,
             LeaseSeconds = lease == 0 ? 600 : lease,
             AttemptTimeoutSeconds = timeout == 0 ? 600 : timeout,
@@ -109,6 +121,23 @@ public static class WorkerOptionsFactory
             BackoffSeconds = backoff.Length == 0 ? [30, 120] : backoff,
             HealthFile = section["HealthFile"] ?? "/tmp/worker-ready",
         };
+    }
+
+    private static Guid? ParseGuid(string? value, out bool invalid)
+    {
+        invalid = false;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (Guid.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        invalid = true;
+        return null;
     }
 }
 
@@ -141,6 +170,22 @@ public static class Program
             return 3;
         }
 
+        var scopeError = WorkerScopePolicy.Validate(options);
+        if (scopeError is not null)
+        {
+            Console.Error.WriteLine(scopeError);
+            return options.ScopeInvalid ? 4 : 5;
+        }
+
+        var scopeValidationError = await WorkerScopeValidator.ValidateAsync(
+            connectionString,
+            options,
+            CancellationToken.None).ConfigureAwait(false);
+        if (scopeValidationError is not null)
+        {
+            Console.Error.WriteLine(scopeValidationError);
+            return 6;
+        }
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(new ProcessingQueue(connectionString, options));
         WorkerComposition.AddProcessingStage(builder.Services, builder.Configuration, connectionString);
@@ -152,6 +197,7 @@ public static class Program
         builder.Services.AddSingleton(serviceProvider => new ProcessingRetentionSweeper(
             connectionString,
             serviceProvider.GetRequiredService<RetentionOptions>(),
+            serviceProvider.GetRequiredService<WorkerOptions>(),
             serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ProcessingRetentionSweeper>>()));
         builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ProcessingRetentionSweeper>());
         builder.Services.AddHostedService<ProcessingWorker>();

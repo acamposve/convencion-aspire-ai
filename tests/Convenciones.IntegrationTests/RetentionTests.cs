@@ -29,6 +29,7 @@ public sealed class RetentionTests(PostgresFixture fixture) : IAsyncLifetime
             $"insert into platform.document (id, storage_path, file_name, content_type, size_bytes, uploaded_by, company_id) " +
             $"values ('{_documentId}', 'retention/{user:N}.pdf', 'retention.pdf', 'application/pdf', 10, '{user}', '{_companyId}');" +
             $"insert into platform.processing_run (id, document_id, company_id) values ('{_runId}', '{_documentId}', '{_companyId}');" +
+            $"insert into platform.document_text (document_id, content, char_count, extracted_at) values ('{_documentId}', 'texto extraído', 14, now());" +
             $"insert into platform.extracted_clause (run_id, document_id, company_id, ordinal, text, page_from, page_to) " +
             $"values ('{_runId}', '{_documentId}', '{_companyId}', 1, 'Cláusula', 1, 1);" +
             $"insert into platform.clause_classification (clause_id, category_id, company_id) " +
@@ -56,6 +57,7 @@ public sealed class RetentionTests(PostgresFixture fixture) : IAsyncLifetime
         (await ScalarAsync($"select count(*) from platform.processing_run where document_id = '{_documentId}'")).ShouldBe("0");
         (await ScalarAsync($"select count(*) from platform.extracted_clause where document_id = '{_documentId}'")).ShouldBe("0");
         (await ScalarAsync($"select count(*) from platform.clause_classification where company_id = '{_companyId}'")).ShouldBe("0");
+        (await ScalarAsync($"select count(*) from platform.document_text where document_id = '{_documentId}'")).ShouldBe("0");
         (await ScalarAsync($"select count(*) from platform.document where id = '{_documentId}'")).ShouldBe("1");
     }
 

@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using Npgsql;
+using Convenciones.Clauses;
+using Convenciones.Worker;
 
 namespace Convenciones.Worker.Extraction;
 
@@ -12,17 +14,25 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(
             """
-            select d.storage_path, d.file_name
+            select d.id, d.storage_path, d.file_name, d.deleted_at
             from platform.processing_run r
-            join platform.document d on d.id = r.document_id
+            left join platform.document d on d.id = r.document_id
             where r.id = @run;
             """, connection);
         command.Parameters.AddWithValue("run", runId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new StoredDocument(reader.GetString(0), reader.GetString(1))
-            : null;
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false) || reader.IsDBNull(0))
+        {
+            return null;
+        }
+
+        if (!reader.IsDBNull(3))
+        {
+            throw new DocumentDeletedException(reader.GetGuid(0));
+        }
+
+        return new StoredDocument(reader.GetString(1), reader.GetString(2));
     }
 
     public async Task UpdateProgressAsync(
@@ -54,6 +64,11 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await LockDocumentAsync(connection, transaction, job.DocumentId, cancellationToken).ConfigureAwait(false);
+        await EnsureDocumentActiveAsync(connection, transaction, job.DocumentId, cancellationToken).ConfigureAwait(false);
+        await EnsureAttemptOwnedAsync(connection, transaction, job, cancellationToken).ConfigureAwait(false);
+        await LockRunClausesAsync(connection, transaction, job.RunId, cancellationToken).ConfigureAwait(false);
+        await EnsureNoHumanCorrectionsAsync(connection, transaction, job.RunId, cancellationToken).ConfigureAwait(false);
 
         // A retry must not leave the previous attempt's clauses behind.
         await using (var delete = new NpgsqlCommand(
@@ -167,6 +182,10 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await LockDocumentAsync(connection, transaction, job.DocumentId, cancellationToken).ConfigureAwait(false);
+        await EnsureDocumentActiveAsync(connection, transaction, job.DocumentId, cancellationToken).ConfigureAwait(false);
+        await EnsureAttemptOwnedAsync(connection, transaction, job, cancellationToken).ConfigureAwait(false);
+        await LockRunClausesAsync(connection, transaction, job.RunId, cancellationToken).ConfigureAwait(false);
 
         await using (var delete = new NpgsqlCommand(
             """
@@ -247,5 +266,148 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         command.Parameters.AddWithValue("output", outputTokens);
         command.Parameters.AddWithValue("cost", costEstimateUsd);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task EnsureNoHumanCorrectionsAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid runId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            select exists(
+                select 1
+                from platform.audit_entry a
+                join platform.extracted_clause c on c.id::text = a.entity_id
+                where c.run_id = @run
+                  and a.entity_type = 'extracted_clause'
+                  and a.action = 'clause.classification.corrected');
+            """, connection, transaction);
+        command.Parameters.AddWithValue("run", runId);
+        if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is true)
+        {
+            throw new InvalidOperationException(
+                "A human classification correction exists for this run; refusing to discard it.");
+        }
+    }
+
+    /// <summary>
+    /// Serializes AI writes for a run's clauses with the API's per-clause correction locks.
+    /// Locks are acquired in ordinal order so concurrent workers cannot form a lock cycle.
+    /// </summary>
+    private static async Task EnsureAttemptOwnedAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        ProcessingJob job,
+        CancellationToken cancellationToken)
+    {
+        if (job.AttemptId == Guid.Empty)
+        {
+            throw new StaleProcessingAttemptException(job.RunId, job.AttemptId);
+        }
+
+        await using var command = new NpgsqlCommand(
+            """
+            select r.id
+            from platform.processing_run r
+            join platform.processing_attempt a on a.run_id = r.id
+            where r.id = @run
+              and r.status = 'Running'::platform.processing_status
+              and r.attempts = @attempt
+              and a.id = @attempt_id
+              and a.attempt_no = @attempt
+              and a.status = 'Running'::platform.processing_status
+            for update of r, a;
+            """, connection, transaction);
+        command.Parameters.AddWithValue("run", job.RunId);
+        command.Parameters.AddWithValue("attempt", job.Attempt);
+        command.Parameters.AddWithValue("attempt_id", job.AttemptId);
+
+        if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
+        {
+            throw new StaleProcessingAttemptException(job.RunId, job.AttemptId);
+        }
+    }
+
+    private static async Task EnsureDocumentActiveAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "select exists(select 1 from platform.document where id = @document and deleted_at is null);",
+            connection,
+            transaction);
+        command.Parameters.AddWithValue("document", documentId);
+        if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not true)
+        {
+            throw new DocumentDeletedException(documentId);
+        }
+    }
+
+    private static async Task LockDocumentAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        await using var locking = new NpgsqlCommand(
+            "select pg_advisory_xact_lock_shared(hashtextextended(@key, 0));",
+            connection,
+            transaction);
+        locking.Parameters.AddWithValue("key", ClassificationLocks.DocumentKey(documentId));
+        await locking.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task LockRunClausesAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid runId,
+        CancellationToken cancellationToken)
+    {
+        await LockAsync(
+            connection,
+            transaction,
+            ClassificationLocks.RunKey(runId),
+            cancellationToken).ConfigureAwait(false);
+
+        var clauseIds = new List<Guid>();
+        await using (var select = new NpgsqlCommand(
+            "select id from platform.extracted_clause where run_id = @run order by ordinal;",
+            connection,
+            transaction))
+        {
+            select.Parameters.AddWithValue("run", runId);
+            await using var reader = await select.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                clauseIds.Add(reader.GetGuid(0));
+            }
+        }
+
+        foreach (var clauseId in clauseIds)
+        {
+            await LockAsync(
+                connection,
+                transaction,
+                ClassificationLocks.ClauseKey(clauseId),
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task LockAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        await using var locking = new NpgsqlCommand(
+            "select pg_advisory_xact_lock(hashtextextended(@key, 0));",
+            connection,
+            transaction);
+        locking.Parameters.AddWithValue("key", key);
+        await locking.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 }

@@ -29,13 +29,17 @@ gh workflow run deploy.yml --ref main -f confirm=deploy
 gh workflow run staging-exercise.yml --ref main -f stage=provision -f confirm=provision
 gh workflow run staging-exercise.yml --ref main -f stage=queued-check -f confirm=queued-check
 gh workflow run staging-exercise.yml --ref main -f stage=isolation-check -f confirm=isolation-check
-gh workflow run staging-exercise.yml --ref main -f stage=worker-enable -f confirm=worker-enable -f window_minutes=20
+gh workflow run staging-exercise.yml --ref main -f stage=worker-enable -f confirm=worker-enable -f window_minutes=20 \
+  -f allowed_company_id="$AUTHORIZED_COMPANY_ID" -f allowed_document_id="$DOC_A" -f allowed_run_id="$RUN_A"
 gh workflow run staging-exercise.yml --ref main -f stage=completed-check -f confirm=completed-check
 gh workflow run staging-exercise.yml --ref main -f stage=worker-disable -f confirm=worker-disable
 gh workflow run staging-exercise.yml --ref main -f stage=teardown -f confirm=teardown
 ```
 
-The manual sections below remain a fallback/diagnostic reference, not the primary procedure.
+The IDs must identify an existing authorized company, its document and that document's run.
+`AUTHORIZED_COMPANY_ID` must match the independently configured staging variable
+`STAGING_AUTHORIZED_COMPANY_ID`; it is not an authorization source by itself. The manual sections
+below are diagnostic references, not an alternative worker activation procedure.
 
 ## 0. What the operator must provide
 
@@ -82,8 +86,8 @@ gh variable list --env staging --repo acamposve/convencion-aspire-ai
 gh secret list  --env staging --repo acamposve/convencion-aspire-ai
 ```
 
-The deploy workflow writes `Worker__Enabled=false` on every deploy. Enabling the worker is a
-**manual, temporary** edit on the droplet (§5).
+The deploy workflow writes `Worker__Enabled=false` on every deploy. Activate only through the scoped,
+time-bounded workflow (§5); do not edit the main `.env` to enable the worker.
 
 ## 2. Verify the Supabase bucket
 
@@ -148,28 +152,11 @@ Expected output: two rows with the company ids and names.
 
 ## 5. Enable the worker for the exercise window
 
-```bash
-ssh <SSH_USER>@138.197.15.40
-cd /opt/convenciones
-sed -i 's/^Worker__Enabled=false$/Worker__Enabled=true/' .env
-docker compose up -d worker
-docker compose logs --tail=50 worker
-```
-
-Expected: the worker starts and logs no configuration error. If it logs
-`stage_not_configured`, stop here: one of the Azure variables/secrets is missing or the deploy did not
-write them. Do **not** continue with real data.
-
-To disable immediately (kill switch):
-
-```bash
-cd /opt/convenciones
-sed -i 's/^Worker__Enabled=true$/Worker__Enabled=false/' .env
-docker compose up -d worker
-docker compose logs --tail=20 worker | grep "disabled"
-```
-
-Every deploy rewrites the file with `Worker__Enabled=false`; still verify after a deploy.
+Use the `worker-enable` workflow command above only after explicit approval and with the authorized
+company and existing document/run IDs. The workflow and startup validator enforce the staging
+allowlist, tenant relationships, scope and deadline; an invalid scope must fail closed. For an
+immediate stop, dispatch `worker-disable` as shown above and verify its result. Do not enable the
+worker by editing `.env` or running the default Compose service directly.
 
 ## 6. Exercise the happy path (tenant A)
 

@@ -112,6 +112,7 @@ export interface ClauseClassificationView {
   confidence: number | null;
   isPrimary: boolean;
   rationale: string | null;
+  source: 'ai' | 'human';
 }
 
 export interface ProcessingClause {
@@ -128,6 +129,7 @@ export interface ProcessingClause {
   needsReview: boolean;
   reviewStatus: ClauseReviewStatus;
   classifications: ClauseClassificationView[];
+  classificationVersion: string;
 }
 
 export interface ClausePageResponse {
@@ -567,7 +569,13 @@ export interface ApiClient {
   reviewClause(
     clauseId: string,
     status: ClauseReviewStatus,
-    input?: { text?: string; heading?: string },
+    input?: {
+      text?: string;
+      heading?: string;
+      classifications?: Array<{ key: string; confidence?: number; rationale?: string | null }>;
+      primary?: string | null;
+      expectedVersion?: string | null;
+    },
   ): Promise<ProcessingClause>;
   listClauseCategories(): Promise<ClauseCategoryView[]>;
 
@@ -807,11 +815,24 @@ export class HttpApiClient implements ApiClient {
   async reviewClause(
     clauseId: string,
     status: ClauseReviewStatus,
-    input: { text?: string; heading?: string } = {},
+    input: {
+      text?: string;
+      heading?: string;
+      classifications?: Array<{ key: string; confidence?: number; rationale?: string | null }>;
+      primary?: string | null;
+      expectedVersion?: string | null;
+    } = {},
   ): Promise<ProcessingClause> {
     return this.request<ProcessingClause>(`/clauses/${encodeURIComponent(clauseId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status, text: input.text ?? null, heading: input.heading ?? null }),
+      body: JSON.stringify({
+        status,
+        text: input.text ?? null,
+        heading: input.heading ?? null,
+        classifications: input.classifications ?? null,
+        primary: input.primary ?? null,
+        expectedVersion: input.expectedVersion ?? null,
+      }),
     });
   }
 

@@ -48,6 +48,88 @@ public sealed class WorkerDeadlineTests
     }
 
     [Fact]
+    public void Factory_parses_optional_claim_scope()
+    {
+        var documentId = Guid.NewGuid();
+        var options = WorkerOptionsFactory.From(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Worker:AllowedDocumentId"] = documentId.ToString(),
+            })
+            .Build());
+
+        options.AllowedDocumentId.ShouldBe(documentId);
+        options.AllowedRunId.ShouldBeNull();
+        options.ScopeInvalid.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Invalid_claim_scope_fails_closed()
+    {
+        var options = WorkerOptionsFactory.From(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Worker:AllowedRunId"] = "not-a-guid",
+            })
+            .Build());
+
+        options.ScopeInvalid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Require_scope_is_parsed_separately_from_the_scope_value()
+    {
+        var options = WorkerOptionsFactory.From(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Worker:RequireScope"] = "true",
+            })
+            .Build());
+
+        options.RequireScope.ShouldBeTrue();
+        options.AllowedDocumentId.ShouldBeNull();
+        options.AllowedRunId.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Scoped_staging_requires_a_target()
+    {
+        var options = new WorkerOptions
+        {
+            Enabled = true,
+            RequireScope = true,
+        };
+
+        WorkerScopePolicy.Validate(options).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Scoped_staging_accepts_one_document_target()
+    {
+        var options = new WorkerOptions
+        {
+            Enabled = true,
+            RequireScope = true,
+            AllowedCompanyId = Guid.NewGuid(),
+            AuthorizedCompanyId = Guid.NewGuid(),
+            AllowedDocumentId = Guid.NewGuid(),
+        };
+
+        WorkerScopePolicy.Validate(options).ShouldBeNull();
+    }
+
+    [Fact]
+    public void Unscoped_production_behavior_remains_allowed()
+    {
+        var options = new WorkerOptions
+        {
+            Enabled = true,
+            RequireScope = false,
+        };
+
+        WorkerScopePolicy.Validate(options).ShouldBeNull();
+    }
+    [Fact]
     public void Factory_parses_the_deadline_and_marks_invalid_values()
     {
         var valid = WorkerOptionsFactory.From(new ConfigurationBuilder()

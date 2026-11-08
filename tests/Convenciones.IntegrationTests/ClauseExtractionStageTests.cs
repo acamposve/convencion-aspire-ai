@@ -92,15 +92,19 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
         var documentId = Guid.NewGuid();
         var runId = Guid.NewGuid();
 
+        var attemptId = Guid.NewGuid();
         await ExecuteAsync(
             $"insert into app.company (id, name) values ('{companyId}', 'Stage test {suffix}');" +
             $"insert into platform.user_account (id, email, display_name) values ('{userId}', 'stage-{suffix}@example.test', 'Stage Test');" +
             $"insert into platform.document (id, storage_path, file_name, content_type, size_bytes, uploaded_by, company_id) " +
             $"values ('{documentId}', 'stage/{suffix}.pdf', 'stage.pdf', 'application/pdf', 1024, '{userId}', '{companyId}');" +
-            $"insert into platform.processing_run (id, document_id, company_id) values ('{runId}', '{documentId}', '{companyId}');");
+            $"insert into platform.processing_run (id, document_id, company_id, status, attempts, started_at) " +
+            $"values ('{runId}', '{documentId}', '{companyId}', 'Running', 1, now());" +
+            $"insert into platform.processing_attempt (id, run_id, company_id, attempt_no, status) " +
+            $"values ('{attemptId}', '{runId}', '{companyId}', 1, 'Running');");
 
         _created.Add((companyId, userId, documentId, runId));
-        return (new ProcessingJob(runId, documentId, companyId, 1), documentId);
+        return (new ProcessingJob(runId, documentId, companyId, 1, attemptId), documentId);
     }
 
     private async Task ExecuteAsync(string sql)

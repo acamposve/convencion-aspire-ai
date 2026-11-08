@@ -2,17 +2,23 @@ import { useCallback, useEffect, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import FormGroup from '@mui/material/FormGroup';
 import LinearProgress from '@mui/material/LinearProgress';
+import Radio from '@mui/material/Radio';
+import RadioGroup from '@mui/material/RadioGroup';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useServices } from '../../services';
 import { describeError, type UiError } from '../../lib/errors';
 import type {
+  ClauseCategoryView,
   ClauseReviewStatus,
   DocumentSummary,
   ProcessingClause,
@@ -63,6 +69,11 @@ export function ClauseProcessingDialog({
   const [error, setError] = useState<UiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [categories, setCategories] = useState<ClauseCategoryView[]>([]);
+  const [editing, setEditing] = useState<ProcessingClause | null>(null);
+  const [editedKeys, setEditedKeys] = useState<string[]>([]);
+  const [editedPrimary, setEditedPrimary] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadClauses = useCallback(
     async (documentId: string) => {
@@ -148,6 +159,30 @@ export function ClauseProcessingDialog({
     };
   }, [api, document, open, refresh]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let cancelled = false;
+    void api
+      .listClauseCategories()
+      .then((items) => {
+        if (!cancelled) {
+          setCategories(items);
+        }
+      })
+      .catch((failure: unknown) => {
+        if (!cancelled) {
+          setError(describeError(failure));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, open]);
+
   const review = async (clause: ProcessingClause, status: ClauseReviewStatus) => {
     setReviewing(clause.id);
     setError(null);
@@ -162,9 +197,58 @@ export function ClauseProcessingDialog({
     }
   };
 
+  const beginCorrection = (clause: ProcessingClause) => {
+    const keys = clause.classifications.map((item) => item.key);
+    setEditedKeys(keys);
+    setEditedPrimary(clause.classifications.find((item) => item.isPrimary)?.key ?? keys[0] ?? null);
+    setEditing(clause);
+    setError(null);
+  };
+
+  const toggleKey = (key: string, checked: boolean) => {
+    setEditedKeys((current) => {
+      const next = checked ? [...new Set([...current, key])] : current.filter((item) => item !== key);
+      if (next.length > 0 && (editedPrimary === null || !next.includes(editedPrimary))) {
+        setEditedPrimary(next[0] ?? null);
+      }
+      if (next.length === 0) {
+        setEditedPrimary(null);
+      }
+      return next;
+    });
+  };
+
+  const saveCorrection = async () => {
+    if (editing === null || editedKeys.length === 0) {
+      return;
+    }
+
+    setSavingEdit(true);
+    setError(null);
+    try {
+      const updated = await api.reviewClause(editing.id, 'Corrected', {
+        classifications: editedKeys.map((key) => ({ key, confidence: 1, rationale: null })),
+        primary: editedPrimary,
+        expectedVersion: editing.classificationVersion,
+      });
+      setClauses((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setEditing(null);
+    } catch (failure) {
+      setError(describeError(failure));
+      // A conflict means another correction won. Reload the effective state so the user can retry
+      // against the current version instead of resubmitting the stale one.
+      if (document) {
+        await loadClauses(document.id);
+      }
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const active = run?.status === 'Queued' || run?.status === 'Running';
 
   return (
+    <>
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md" aria-labelledby="clause-processing-dialog">
       <DialogTitle id="clause-processing-dialog">
         Procesar cláusulas — {document?.fileName ?? ''}
@@ -242,6 +326,7 @@ export function ClauseProcessingDialog({
                   </Typography>
 
                   {clause.classifications.length > 0 ? (
+                    <>
                     <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
                       {clause.classifications.map((classification) => (
                         <Chip
@@ -249,15 +334,29 @@ export function ClauseProcessingDialog({
                           size="small"
                           color={classification.isPrimary ? 'primary' : 'default'}
                           variant={classification.isPrimary ? 'filled' : 'outlined'}
-                          label={`${classification.name}${classification.confidence === null ? '' : ` (${Math.round(classification.confidence * 100)}%)`}`}
+                          label={`${classification.name} (${Math.round((classification.confidence ?? 0) * 100)}%)${classification.source === 'human' ? ' · humana' : ' · IA'}`}
                         />
                       ))}
                     </Stack>
+                    {clause.classifications
+                      .filter((classification) => classification.rationale)
+                      .map((classification) => (
+                        <Typography
+                          key={`${classification.key}-rationale`}
+                          variant="caption"
+                          color="text.secondary"
+                          display="block"
+                          sx={{ mt: 0.5 }}
+                        >
+                          {classification.name}: {classification.rationale}
+                        </Typography>
+                      ))}
+                    </>
                   ) : (
                     <Chip size="small" variant="outlined" label="Sin clasificar" sx={{ mt: 1 }} />
                   )}
 
-                  <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.5 }} flexWrap="wrap" useFlexGap>
                     <Button
                       size="small"
                       variant="outlined"
@@ -275,6 +374,13 @@ export function ClauseProcessingDialog({
                     >
                       Rechazar
                     </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      onClick={() => beginCorrection(clause)}
+                    >
+                      Corregir clasificación
+                    </Button>
                   </Stack>
                 </Box>
               ))}
@@ -286,5 +392,71 @@ export function ClauseProcessingDialog({
         <Button onClick={onClose}>Cerrar</Button>
       </DialogActions>
     </Dialog>
+
+    <Dialog
+      open={editing !== null}
+      onClose={() => setEditing(null)}
+      fullWidth
+      maxWidth="sm"
+      aria-labelledby="clause-correction-dialog"
+    >
+      <DialogTitle id="clause-correction-dialog">
+        Corregir clasificación — {editing?.number ?? `cláusula ${editing?.ordinal ?? ''}`}
+      </DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Seleccione una o varias categorías. La clasificación original de IA permanece registrada
+            en la auditoría; esta acción crea una corrección humana.
+          </Typography>
+
+          <FormGroup>
+            {categories.map((category) => (
+              <FormControlLabel
+                key={category.key}
+                control={
+                  <Checkbox
+                    checked={editedKeys.includes(category.key)}
+                    onChange={(event) => toggleKey(category.key, event.target.checked)}
+                  />
+                }
+                label={`${category.name} (${category.key})`}
+              />
+            ))}
+          </FormGroup>
+
+          <Typography variant="subtitle2">Categoría primaria</Typography>
+          <RadioGroup
+            value={editedPrimary ?? ''}
+            onChange={(event) => setEditedPrimary(event.target.value)}
+          >
+            {editedKeys.map((key) => {
+              const category = categories.find((item) => item.key === key);
+              return (
+                <FormControlLabel
+                  key={key}
+                  value={key}
+                  control={<Radio />}
+                  label={category?.name ?? key}
+                />
+              );
+            })}
+          </RadioGroup>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setEditing(null)} disabled={savingEdit}>
+          Cancelar
+        </Button>
+        <Button
+          variant="contained"
+          onClick={() => void saveCorrection()}
+          disabled={savingEdit || editedKeys.length === 0 || editedPrimary === null}
+        >
+          Guardar corrección
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   );
 }

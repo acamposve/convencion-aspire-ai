@@ -88,6 +88,8 @@ from (values
     ('superadmin', 'news.read'), ('superadmin', 'news.write'), ('superadmin', 'news.publish'),
     ('superadmin', 'catalog.read'), ('superadmin', 'catalog.write'),
     ('superadmin', 'document.read'), ('superadmin', 'document.write'),
+    ('superadmin', 'clause.read'), ('superadmin', 'clause.process'),
+    ('superadmin', 'clause.review'), ('superadmin', 'clause.manage'),
     ('superadmin', 'user.manage'), ('superadmin', 'role.manage'), ('superadmin', 'audit.read'),
     ('superadmin', 'system.superadmin'),
 
@@ -100,6 +102,7 @@ from (values
     ('transcriptor', 'statute.read'), ('transcriptor', 'statute.write'),
     ('transcriptor', 'catalog.read'),
     ('transcriptor', 'document.read'), ('transcriptor', 'document.write'),
+    ('transcriptor', 'clause.read'), ('transcriptor', 'clause.process'), ('transcriptor', 'clause.review'),
 
     -- Administrator: everything except system.superadmin, which is granted only at bootstrap
     ('administrator', 'company.read'), ('administrator', 'company.write'), ('administrator', 'company.read_all'),
@@ -110,6 +113,7 @@ from (values
     ('administrator', 'news.read'), ('administrator', 'news.write'), ('administrator', 'news.publish'),
     ('administrator', 'catalog.read'), ('administrator', 'catalog.write'),
     ('administrator', 'document.read'), ('administrator', 'document.write'),
+    ('administrator', 'clause.read'), ('administrator', 'clause.process'), ('administrator', 'clause.review'),
     ('administrator', 'user.manage'), ('administrator', 'role.manage'), ('administrator', 'audit.read'),
 
     -- Editor: authors and publishes content
@@ -120,6 +124,7 @@ from (values
     ('editor', 'news.read'), ('editor', 'news.write'), ('editor', 'news.publish'),
     ('editor', 'catalog.read'), ('editor', 'catalog.write'),
     ('editor', 'document.read'), ('editor', 'document.write'),
+    ('editor', 'clause.read'), ('editor', 'clause.process'), ('editor', 'clause.review'),
 
     -- Analyst: read-only, including the audit trail
 
