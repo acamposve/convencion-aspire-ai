@@ -10,8 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup Label="Aspire">
-    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.4" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.4" />
+    <!-- 13.6.5 remediates GHSA-f7vh-h5g3-7jrh / CVE-2026-120006 (High) in Aspire.Hosting and
+         Aspire.Hosting.AppHost. Both integrations move together so the Aspire set stays on one
+         version; no other package changes. -->
+    <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
   </ItemGroup>
 
   <ItemGroup Label="Data access">
@@ -62,9 +65,11 @@
     <PackageVersion Include="JsonSchema.Net" Version="9.6.0" />
     <!-- Entra client-credentials token acquisition for Document Intelligence and Foundry. -->
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
-    <!-- HttpClientFactory for the model client; no Azure SDK is needed for a chat-completions call. -->
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.13" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.13" />
+    <!-- HttpClientFactory for the model client; no Azure SDK is needed for a chat-completions call.
+         Central transitive pinning applies these versions to the whole graph, so they must be at or
+         above the minimum Aspire 13.6.5 requires (10.0.14); keeping 10.0.13 is a downgrade (NU1109). -->
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
   </ItemGroup>
 
 </Project>
