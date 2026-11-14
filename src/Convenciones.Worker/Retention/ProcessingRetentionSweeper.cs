@@ -16,12 +16,24 @@ public sealed class RetentionOptions
 /// Periodically removes AI output for documents that the tenant soft-deleted. The document row stays
 /// (it is the tenant's record); only runs, attempts, clauses and classifications are purged.
 /// </summary>
+/// <remarks>
+/// Retention belongs to the worker lifecycle. When <see cref="WorkerOptions.Enabled"/> is false the
+/// hosted service completes without sweeping, so neither the startup pass nor a later interval runs.
+/// A disabled worker must never be assumed to have swept.
+/// </remarks>
 public sealed class ProcessingRetentionSweeper(
     string connectionString,
     RetentionOptions options,
     WorkerOptions workerOptions,
     ILogger<ProcessingRetentionSweeper> logger) : BackgroundService
 {
+    /// <summary>
+    /// Delay between passes. Production always uses the real timer; tests replace it so the periodic
+    /// loop advances on an explicit signal instead of wall-clock time.
+    /// </summary>
+    internal Func<TimeSpan, CancellationToken, Task> DelayAsync { get; set; } =
+        static (delay, cancellationToken) => Task.Delay(delay, cancellationToken);
+
     public async Task<int> SweepAsync(CancellationToken cancellationToken)
     {
         if (workerOptions.RequireScope && workerOptions.AllowedCompanyId is null)
@@ -132,6 +144,13 @@ public sealed class ProcessingRetentionSweeper(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!workerOptions.Enabled)
+        {
+            logger.LogInformation(
+                "Retention sweeper is disabled (Worker:Enabled=false); no retention sweep will run.");
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -145,7 +164,10 @@ public sealed class ProcessingRetentionSweeper(
 
             try
             {
-                await Task.Delay(TimeSpan.FromMinutes(Math.Max(1, options.IntervalMinutes)), stoppingToken).ConfigureAwait(false);
+                await DelayAsync(
+                        TimeSpan.FromMinutes(Math.Max(1, options.IntervalMinutes)),
+                        stoppingToken)
+                    .ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

@@ -97,11 +97,12 @@ transaction as the expired-lease transition; covered by `ProcessingQueueTests.Ex
 - `DELETE /documents/{id}/processing` (capability `clause.manage`) removes the AI-derived output for a
   document — extracted text, classifications, clauses, attempts and runs — in one transaction, leaving
   the document row and its audit trail intact.
-- A background `ProcessingRetentionSweeper` runs in the worker container (independently of
-  `Worker:Enabled`) every `Retention:IntervalMinutes` (default 360) and purges AI output and extracted
+- A background `ProcessingRetentionSweeper` runs in the worker container while `Worker:Enabled` is
+  true, every `Retention:IntervalMinutes` (default 360), and purges AI output and extracted
   text for soft-deleted documents, in batches. A run-scoped sweep does not remove the shared extracted
-  text.
-- Evidence: `RetentionTests` (endpoint building block) and `RetentionSweepTests` (scheduled sweep).
+  text. A disabled worker does not sweep.
+- Evidence: `RetentionTests` (endpoint building block), `RetentionSweepTests` (sweep semantics) and
+  `RetentionSweeperLifecycleTests` (startup, periodic and disabled lifecycle).
 - The intended policy is: keep AI output while the tenant is active; purge on document deletion or
   tenant exit; legal hold overrides. Tenant-exit purge still has no dedicated trigger.
 

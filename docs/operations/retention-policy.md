@@ -35,8 +35,17 @@ document is re-read after the lock, and the correction check happens under the l
 
 ## Scheduling
 
-`ProcessingRetentionSweeper` runs every `Retention:IntervalMinutes` (default 360), processing at most
-`Retention:BatchSize` documents per pass (default 100). It is registered independently of
-`Worker:Enabled`; when the worker container is disabled, no sweeper runs.
+Retention runs as part of the worker lifecycle. `ProcessingRetentionSweeper` sweeps once at startup and
+then every `Retention:IntervalMinutes` (default 360), processing at most `Retention:BatchSize` documents
+per pass (default 100) — but **only while the worker is enabled** (`Worker:Enabled=true`, supplied by
+the `Worker__Enabled` environment variable).
+
+When `Worker__Enabled=false` the sweeper does **not** execute at all: there is no startup sweep and no
+periodic sweep. The hosted service completes immediately instead of entering its loop.
+
+Disabling the worker therefore disables retention as well. It is not a way to keep retention running
+without processing, and retention must never be assumed to have run while the worker is disabled:
+soft-deleted documents keep their AI output until the worker is enabled again, or until an operator
+purges them through `DELETE /documents/{id}/processing`.
 
 No schema migration is required.
