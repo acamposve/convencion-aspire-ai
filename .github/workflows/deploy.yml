@@ -152,9 +152,22 @@ jobs:
             ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" \
               'docker login ghcr.io --username "${{ github.actor }}" --password-stdin'
 
+      # Pre-start guarantee. Compose interpolates the shell environment before .env and also loads a
+      # docker-compose.override.yml implicitly, so writing Worker__Enabled=false into .env is not by
+      # itself proof that the worker starts disabled. Render the effective configuration on the host
+      # with the same export the start step uses, and refuse to touch any container unless the worker
+      # is explicitly false: the retention sweeper runs inside the worker container at startup.
+      - name: Verify the worker is disabled in the rendered configuration
+        run: |
+          set -euo pipefail
+          ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" \
+            'set -euo pipefail; cd /opt/convenciones; export Worker__Enabled=false; docker compose config --format json' \
+            > rendered-compose.json
+          python3 scripts/deploy/assert-worker-disabled.py rendered-compose.json
+
       - name: Migrate and start
         run: |
-          ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" 'set -euo pipefail; cd /opt/convenciones; docker compose pull -q; docker compose run --rm --no-deps migrator; docker compose stop web caddy >/dev/null 2>&1 || true; rm -f docker-compose.worker-on.yml; docker compose up -d --remove-orphans; docker compose up -d --force-recreate worker; for i in $(seq 1 60); do if curl -fsS --resolve 138-197-15-40.sslip.io:443:127.0.0.1 https://138-197-15-40.sslip.io/health/ready >/dev/null; then exit 0; fi; sleep 2; done; echo "readiness did not become available"; exit 1'
+          ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" 'set -euo pipefail; cd /opt/convenciones; export Worker__Enabled=false; docker compose pull -q; docker compose run --rm --no-deps migrator; docker compose stop web caddy >/dev/null 2>&1 || true; rm -f docker-compose.worker-on.yml; docker compose up -d --remove-orphans; docker compose up -d --force-recreate worker; for i in $(seq 1 60); do if curl -fsS --resolve 138-197-15-40.sslip.io:443:127.0.0.1 https://138-197-15-40.sslip.io/health/ready >/dev/null; then exit 0; fi; sleep 2; done; echo "readiness did not become available"; exit 1'
 
       - name: Verify over the public address
         run: |
@@ -173,4 +186,4 @@ jobs:
         if: failure()
         run: |
           ssh "${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}" \
-            'set -euo pipefail; cd /opt/convenciones; if [ -f .env.previous ]; then mv .env.previous .env; fi; if [ -f docker-compose.previous.yml ]; then mv docker-compose.previous.yml docker-compose.yml; fi; if [ -f Caddyfile.previous ]; then mv Caddyfile.previous Caddyfile; fi; rm -f docker-compose.worker-on.yml; docker compose up -d --remove-orphans; docker compose up -d --force-recreate worker'
+            'set -euo pipefail; cd /opt/convenciones; export Worker__Enabled=false; if [ -f .env.previous ]; then mv .env.previous .env; fi; if [ -f docker-compose.previous.yml ]; then mv docker-compose.previous.yml docker-compose.yml; fi; if [ -f Caddyfile.previous ]; then mv Caddyfile.previous Caddyfile; fi; rm -f docker-compose.worker-on.yml; docker compose up -d --remove-orphans; docker compose up -d --force-recreate worker'

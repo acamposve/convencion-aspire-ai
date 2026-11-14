@@ -133,3 +133,16 @@ jobs:
 
       - name: Scan tracked files
         run: pwsh ./tools/scan-secrets.ps1
+
+  # The deployment renders Compose on the host, where an inherited environment variable outranks
+  # .env. This proves the pre-start guard rejects anything but an explicitly disabled worker, and
+  # that the activation override remains a separate, explicit path.
+  deploy-guard:
+    name: Deployment worker guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prove the deployment cannot enable the worker
+        run: bash tests/deploy/worker-disabled-guard.test.sh
