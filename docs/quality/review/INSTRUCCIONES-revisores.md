@@ -13,8 +13,8 @@ Su planilla: `review-A-template.xlsx` o `review-B-template.xlsx` (según el revi
   comparar dos criterios independientes.
 - **No use un asistente de inteligencia artificial** para decidir las categorías. La revisión debe ser
   suya.
-- **No modifique las columnas A a G** (Clause ID, Documento, Tipo, Número, Encabezado, Páginas, Texto).
-  Son de referencia. Si las toca, la planilla no se podrá procesar.
+- **No modifique las columnas A, B, C, D, E ni H** (Clause ID, Documento, Tipo, Número, Encabezado y
+  Texto). Son de referencia. Si las toca, la planilla no se podrá procesar.
 - **No borre filas ni cambie los encabezados.**
 
 ## 2. Lo primero: identificarse
@@ -28,56 +28,66 @@ La celda **B4** (*Submission version*) ya trae `1`. Déjela así.
 
 ## 3. Revisar cada cláusula
 
-Cada fila, desde la **fila 8**, es una cláusula. Las columnas que usted completa son **H, I, J y K**.
-Las demás ya están llenas.
+Cada fila, desde la **fila 8**, es una cláusula. Las columnas con **fondo amarillo** son las que usted
+completa: **F, G, I, J, K y L**.
 
 | Columna | Qué escribir |
 |---|---|
-| **H — Categorías** | Una o varias claves de la hoja *Taxonomia*, separadas por comas |
-| **I — Categoría principal** | Una sola clave, que debe estar también en la columna H |
-| **J — ¿Ambigua?** | `Sí` o `No` |
-| **K — Notas** | Texto libre: por qué eligió, dudas, referencias |
+| **F — Página desde** | Número de la página donde empieza la cláusula en el PDF |
+| **G — Página hasta** | Número de la página donde termina |
+| **I — Categorías** | Una o varias claves de la hoja *Taxonomia*, separadas por comas |
+| **J — Categoría principal** | Una sola clave, que debe estar también en la columna I |
+| **K — ¿Ambigua?** | `Sí` o `No` |
+| **L — Notas** | Texto libre: por qué eligió, dudas, referencias |
+
+### Sobre las páginas (F y G)
+
+La planilla ya trae una propuesta de páginas tomada de la anotación anterior. **Compruébela contra el
+PDF** que está leyendo y corríjala si no coincide: abra el PDF, busque la cláusula y escriba la página
+real de inicio y de fin. Si la cláusula ocupa una sola página, escriba el mismo número en F y G.
+
+Escriba solo números (por ejemplo `1` y `2`). Si deja una celda vacía o escribe algo que no sea un
+número, la planilla se rechaza y se le indicará la fila.
 
 ### Cómo escribir varias categorías
 
-En la columna H escriba las claves separadas por **coma**, por ejemplo:
+En la columna I escriba las claves separadas por **coma**, por ejemplo:
 
 ```
 confidentiality, data_protection
 ```
 
-No use punto y coma, ni saltos de línea, ni agregue explicaciones en esa celda: solo las claves.
-Si se equivoca en una clave, la planilla se rechaza y se le indicará la fila exacta.
+No agregue explicaciones en esa celda: solo las claves. Las explicaciones van en L.
 
 ### La categoría principal
 
-En la columna I escriba **una** de las claves que ya puso en H. Es la categoría que mejor representa
-la cláusula. Si la cláusula tiene una sola categoría, repita esa misma clave en I.
+En la columna J escriba **una** de las claves que ya puso en I. Es la categoría que mejor representa la
+cláusula. Si la cláusula tiene una sola categoría, repita esa misma clave en J.
 
-Si escribe en I una categoría que no está en H, la planilla se rechaza: la principal debe ser parte de
-lo que usted seleccionó.
+Si escribe en J una categoría que no está en I, la planilla se rechaza.
 
 ### Si ninguna categoría aplica
 
-Deje **H e I vacías**. Eso es una respuesta válida y esperada: algunas cláusulas no encajan en ninguna
-categoría de la taxonomía actual. Explique brevemente en K por qué no aplica ninguna.
+Deje **I y J vacías**. Eso es una respuesta válida y esperada: algunas cláusulas no encajan en ninguna
+categoría de la taxonomía actual. Explique brevemente en L por qué no aplica ninguna.
 
 No invente claves nuevas. Solo se aceptan las 14 claves de la hoja *Taxonomia*.
 
 ### Cuándo marcar "Sí" en ambigua
 
-Marque `Sí` cuando usted considere que **otro revisor cuidadoso podría elegir distinto**. En K explique
+Marque `Sí` cuando usted considere que **otro revisor cuidadoso podría elegir distinto**. En L explique
 la alternativa que consideró. Esto no es un error: es información valiosa para la revisión final.
 
 Si lo tiene claro, escriba `No`.
 
 ## 4. Ejemplo de una fila completa
 
-Suponga una cláusula que trata sobre el precio y además impone reserva sobre la información de pago:
+Suponga una cláusula que ocupa las páginas 2 y 3, trata sobre el precio y además impone reserva sobre la
+información de pago:
 
-| H — Categorías | I — Principal | J — Ambigua | K — Notas |
-|---|---|---|---|
-| `pricing, confidentiality` | `pricing` | `No` | El precio es el objeto principal; la reserva es accesoria. |
+| F | G | I — Categorías | J — Principal | K — Ambigua | L — Notas |
+|---|---|---|---|---|---|
+| `2` | `3` | `pricing, confidentiality` | `pricing` | `No` | El precio es el objeto principal; la reserva es accesoria. |
 
 ## 5. Consultar la taxonomía
 
@@ -101,8 +111,8 @@ La hoja **Taxonomia** del mismo archivo tiene las 14 claves con su nombre y desc
 | `other` | Otros / Sin clasificar | Cláusulas sin categoría identificable |
 
 Use `other` solo cuando la cláusula sí tiene contenido identificable pero ninguna categoría encaja;
-si el contenido no encaja en la taxonomía por una razón de fondo, es preferible dejar H vacía y
-explicarlo en K.
+si el contenido no encaja en la taxonomía por una razón de fondo, es preferible dejar I vacía y
+explicarlo en L.
 
 ## 6. Guardar y entregar
 
@@ -119,13 +129,17 @@ No es necesario que usted convierta nada: quien coordina la revisión ejecuta la
 |---|---|
 | *Escriba su nombre o identificador en la celda B3* | Complete B3 |
 | *Categoría desconocida '...'* | Revise la clave en la hoja Taxonomia; suele ser un error de tipeo |
-| *'...' no está entre las categorías seleccionadas* | La columna I debe repetir alguna clave de la H |
+| *'...' no está entre las categorías seleccionadas* | La columna J debe repetir alguna clave de la I |
+| *Valor no válido ... Escriba un número de página* | Corrija F o G |
+| *La página final no puede ser menor que la inicial* | Revise F y G |
 | *Falta la cláusula '...'* | Se borró una fila: restaure la plantilla original y vuelva a empezar |
 | *Cláusula duplicada* | Hay dos filas con el mismo Clause ID |
-| *Valor no válido ... Escriba Sí o No* | Corrija la columna J |
+| *Valor no válido ... Escriba Sí o No* | Corrija la columna K |
 
 ## 8. Qué ocurre después
 
 La planilla se convierte al formato que ya usa el proyecto, se valida y luego se compara con la del
 otro revisor. Las diferencias **no se resuelven automáticamente**: las decide una persona y queda
 registrada la justificación. Su anotación original no se borra en ese proceso.
+
+Con esas decisiones se publica la versión 2 del corpus, que es la que se usa para medir calidad.

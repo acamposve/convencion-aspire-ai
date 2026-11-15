@@ -25,8 +25,9 @@ The Excel columns were derived from these types, not from assumptions.
 |---|---|
 | Sheet `Anotacion` | title, corpus and dataset version, identity cell **B3**, submission version **B4**, instructions, headers at row 7, **36 clause rows** from row 8 |
 | Sheet `Taxonomia` | the 14 keys with name, description and whether the key is active for this round |
-| Columns A–G | reference only: Clause ID, document, contract type, number, heading, pages, clause text (wrapped) |
-| Columns H–K | answers: categories, primary, ambiguous, notes |
+| Columns A–E, H | reference only: Clause ID, document, contract type, number, heading, clause text (wrapped) |
+| Columns F, G | **editable**: start and end page, pre-filled from the draft annotation so reviewers can correct them against the PDF |
+| Columns I–L | **editable**: categories, primary, ambiguous, notes |
 | Aesthetics | bold header, frozen rows above, sized columns, bordered cells, shading on the immutable id column |
 
 **No draft categories or model predictions appear anywhere in the workbook** — verified by reading
@@ -158,3 +159,30 @@ transitive pinning needed no extra entries — restore and build are clean.
 | Processing runs / staging quota | **none** |
 | Deployment, commit, push, merge | **none** |
 | `global.json` / SDK configuration | **untouched** |
+
+## 11. Update — editable pages and corpus publishing
+
+Two gaps in the first version are now closed.
+
+**Page ranges are editable.** The spreadsheet grew two columns (`F — Página desde`, `G — Página hasta`),
+pre-filled from the draft annotation so reviewers correct them against the PDF instead of inheriting a
+known-wrong pagination. They are validated as positive integers with `from <= to`; a blank or
+non-numeric value is rejected with the row and column name. The answer columns moved to `I–L`
+(categories, primary, ambiguous, notes).
+
+**Corpus v2 can be published without hand-editing JSON.**
+
+```
+corpus-materialize --dataset <corpus-v1.json> --adjudication <finalized.json> \
+                   --out <corpus-v2.json> --version 2
+```
+
+It reads the adjudication worksheet after a human has filled `resolution`, `rationale`, `adjudicator`,
+`finalCategories`, `finalPrimary` (and the final page range when reviewers disagreed on pages) and emits
+a `reviewed` corpus at the next dataset version. It refuses to publish when a clause has no adjudicator,
+when a disagreement has no final decision, when a page disagreement has no final range, or when the
+version would not change. The output is passed through the same validator as any hand-written corpus.
+
+Tests added: 3 page-field cases in `ReviewExcelTests`, 8 publishing cases in `CorpusPublishingTests`
+(agreement, unresolved disagreement, adjudicated decision, page disagreement, page override, anonymous
+adjudicator, version reuse, validation of the published corpus). Full unit suite: **233 passed**.

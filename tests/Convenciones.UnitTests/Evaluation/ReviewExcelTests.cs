@@ -232,7 +232,7 @@ public sealed class ReviewExcelTests
         try
         {
             ReviewExcelWorkbook.Write(path, dataset, Filled(dataset, "reviewer-a"));
-            SetCellText(path, "J8", "Quizás");
+            SetCellText(path, "K8", "Quizás");
 
             var error = Should.Throw<ReviewExcelException>(() => ReviewExcelWorkbook.Read(path, dataset, "A"));
 
@@ -258,6 +258,75 @@ public sealed class ReviewExcelTests
             var error = Should.Throw<ReviewExcelException>(() => ReviewExcelWorkbook.Read(path, dataset, "A"));
 
             error.Errors.ShouldContain(entry => entry.Field == "Planilla vacía");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Page_columns_are_read_and_preserved()
+    {
+        var dataset = Dataset();
+        var path = TempFile();
+        try
+        {
+            var package = Filled(dataset, "reviewer-a") with
+            {
+                Clauses =
+                [
+                    new ReviewClause("c1", "doc-1", "labour", null, null, "texto", 2, 3, ["scope"], "scope", false, null),
+                    new ReviewClause("c2", "doc-1", "labour", null, null, "texto", 1, 1, ["scope"], "scope", false, null),
+                ],
+            };
+            ReviewExcelWorkbook.Write(path, dataset, package);
+
+            var submission = ReviewExcelWorkbook.Read(path, dataset, "A");
+
+            submission.Clauses.Single(clause => clause.ClauseId == "c1").PageFrom.ShouldBe(2);
+            submission.Clauses.Single(clause => clause.ClauseId == "c1").PageTo.ShouldBe(3);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Non_numeric_page_is_rejected_with_the_row()
+    {
+        var dataset = Dataset();
+        var path = TempFile();
+        try
+        {
+            ReviewExcelWorkbook.Write(path, dataset, Filled(dataset, "reviewer-a"));
+            SetCellText(path, "F8", "primera");
+
+            var error = Should.Throw<ReviewExcelException>(() => ReviewExcelWorkbook.Read(path, dataset, "A"));
+
+            error.Errors.ShouldContain(entry => entry.Row == 8 && entry.Field == "Página desde");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Inverted_page_range_is_rejected()
+    {
+        var dataset = Dataset();
+        var path = TempFile();
+        try
+        {
+            ReviewExcelWorkbook.Write(path, dataset, Filled(dataset, "reviewer-a"));
+            SetCellText(path, "F8", "3");
+            SetCellText(path, "G8", "1");
+
+            var error = Should.Throw<ReviewExcelException>(() => ReviewExcelWorkbook.Read(path, dataset, "A"));
+
+            error.Errors.ShouldContain(entry => entry.Field == "Páginas");
         }
         finally
         {

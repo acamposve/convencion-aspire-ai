@@ -197,6 +197,28 @@ cannot resolve anything, and no AI is involved in adjudication.
 Both original answers stay in the worksheet permanently; adjudication adds a decision, it does not
 overwrite the inputs.
 
+### 3.4 Publishing corpus v2
+
+The worksheet is a draft of decisions, not ground truth. A human fills `resolution`, `rationale`,
+`adjudicator`, `finalCategories`, `finalPrimary` — and `finalPageFrom`/`finalPageTo` when the reviewers
+reported different page ranges — then the corpus is published:
+
+```
+corpus-materialize --dataset <corpus-v1.json> --adjudication <finalized.json> \
+                   --out <corpus-v2.json> --version 2
+```
+
+| Rule | Behaviour |
+|---|---|
+| Anonymous clause | refused: every clause needs an `adjudicator` |
+| Unresolved category disagreement | refused until `finalCategories` is set |
+| Unresolved page disagreement | refused until `finalPageFrom`/`finalPageTo` is set |
+| Final primary | must be one of the final categories |
+| Version | must differ from the source; publishing v1 over v1 is refused |
+| Output | `status: reviewed`, every clause `reviewed`, schema 2, passed through the same validator as any hand-written corpus |
+
+The command never edits the source corpus and never resolves a disagreement itself.
+
 ## 4. Versioning
 
 | Change | Action |
