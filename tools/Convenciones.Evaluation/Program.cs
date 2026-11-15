@@ -48,6 +48,11 @@ if (args.Length > 0 && args[0] is "review-excel")
     return ReviewExcel(args[1..]);
 }
 
+if (args.Length > 0 && args[0] is "corpus-materialize")
+{
+    return CorpusMaterialize(args[1..]);
+}
+
 var root = args.Length > 0 ? args[0] : "docs/test";
 if (!Directory.Exists(root) && !File.Exists(root))
 {
@@ -249,6 +254,58 @@ static int ReviewExcel(string[] options)
         }
 
         return 4;
+    }
+    catch (EvaluationInputException exception)
+    {
+        Console.Error.WriteLine(exception.Message);
+        return 3;
+    }
+}
+
+static int CorpusMaterialize(string[] options)
+{
+    string? datasetPath = null;
+    string? adjudicationPath = null;
+    string? outputPath = null;
+    var version = "2";
+
+    for (var index = 0; index < options.Length; index++)
+    {
+        switch (options[index])
+        {
+            case "--dataset": datasetPath = Value(options, ref index); break;
+            case "--adjudication": adjudicationPath = Value(options, ref index); break;
+            case "--out": outputPath = Value(options, ref index); break;
+            case "--version": version = Value(options, ref index) ?? "2"; break;
+            default:
+                Console.Error.WriteLine($"Unknown option: {options[index]}");
+                return 2;
+        }
+    }
+
+    if (datasetPath is null || adjudicationPath is null || outputPath is null)
+    {
+        Console.Error.WriteLine(
+            "usage: corpus-materialize --dataset <source.dataset.json> --adjudication <finalized.json> " +
+            "--out <corpus-v2.dataset.json> [--version 2]");
+        return 2;
+    }
+
+    try
+    {
+        var source = EvaluationJson.Load<EvaluationDataset>(datasetPath);
+        var worksheet = EvaluationJson.Load<AdjudicationWorksheet>(adjudicationPath);
+        var published = CorpusPublisher.Materialize(source, worksheet, version);
+
+        EvaluationJson.Save(outputPath, published);
+
+        var clauses = published.Documents.SelectMany(document => document.Clauses).ToList();
+        var disagreements = worksheet.Rows.Count(row => row.Agreement == "disagree");
+        Console.WriteLine(
+            $"published {published.CorpusId} v{published.DatasetVersion}: {clauses.Count} clauses, " +
+            $"{clauses.Count(clause => clause.Status == "reviewed")} reviewed, {disagreements} adjudicated disagreements");
+        Console.WriteLine($"wrote {outputPath}");
+        return 0;
     }
     catch (EvaluationInputException exception)
     {

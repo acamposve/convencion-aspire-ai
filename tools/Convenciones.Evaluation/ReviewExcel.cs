@@ -41,7 +41,8 @@ public static class ReviewExcelWorkbook
         "Tipo de contrato",
         "Número",
         "Encabezado",
-        "Páginas",
+        "Página desde",
+        "Página hasta",
         "Texto de la cláusula",
         "Categorías (separadas por comas)",
         "Categoría principal",
@@ -111,10 +112,12 @@ public static class ReviewExcelWorkbook
             TextCell("B4", package.SubmissionVersion, 2)));
         sheetData.Append(Row(5,
             TextCell("A5", "Cómo completar:", 4),
-            TextCell("B5", "Escriba una o varias categorías separadas por comas en la columna H. " +
-                "La categoría principal (columna I) debe ser una de las que escribió. " +
-                "Si ninguna categoría aplica, deje H e I vacías. Marque J con Sí o No.", 2)));
-        sheetData.Append(Row(6, TextCell("A6", "Las columnas A a G son de referencia: no las modifique.", 6)));
+            TextCell("B5", "Escriba una o varias categorías separadas por comas en la columna I. " +
+                "La categoría principal (columna J) debe ser una de las que escribió. " +
+                "Si ninguna categoría aplica, deje I y J vacías. Corrija las páginas en F y G si no " +
+                "coinciden con el PDF. Marque K con Sí o No.", 2)));
+        sheetData.Append(Row(6, TextCell("A6", "Las columnas A a E y H son de referencia: no las modifique. " +
+            "Las columnas con fondo amarillo son las que usted completa.", 6)));
 
         var headerCells = Headers.Select((header, index) => TextCell(Column(index + 1) + HeaderRow, header, 1)).ToArray();
         sheetData.Append(Row(HeaderRow, headerCells));
@@ -128,12 +131,13 @@ public static class ReviewExcelWorkbook
                 TextCell("C" + rowNumber, clause.ContractType, 2),
                 TextCell("D" + rowNumber, clause.Number, 2),
                 TextCell("E" + rowNumber, clause.Heading, 2),
-                TextCell("F" + rowNumber, Pages(clause), 2),
-                TextCell("G" + rowNumber, clause.Text, 2),
-                TextCell("H" + rowNumber, string.Join(", ", clause.Categories), 2),
-                TextCell("I" + rowNumber, clause.Primary, 2),
-                TextCell("J" + rowNumber, clause.Ambiguous ? "Sí" : string.Empty, 2),
-                TextCell("K" + rowNumber, clause.Notes, 2)));
+                TextCell("F" + rowNumber, clause.PageFrom.ToString(CultureInfo.InvariantCulture), 7),
+                TextCell("G" + rowNumber, clause.PageTo.ToString(CultureInfo.InvariantCulture), 7),
+                TextCell("H" + rowNumber, clause.Text, 2),
+                TextCell("I" + rowNumber, string.Join(", ", clause.Categories), 7),
+                TextCell("J" + rowNumber, clause.Primary, 7),
+                TextCell("K" + rowNumber, clause.Ambiguous ? "Sí" : string.Empty, 7),
+                TextCell("L" + rowNumber, clause.Notes, 7)));
             rowNumber++;
         }
 
@@ -153,12 +157,12 @@ public static class ReviewExcelWorkbook
                 new Column { Min = 3, Max = 3, Width = 14, CustomWidth = true },
                 new Column { Min = 4, Max = 4, Width = 18, CustomWidth = true },
                 new Column { Min = 5, Max = 5, Width = 20, CustomWidth = true },
-                new Column { Min = 6, Max = 6, Width = 9, CustomWidth = true },
-                new Column { Min = 7, Max = 7, Width = 70, CustomWidth = true },
-                new Column { Min = 8, Max = 8, Width = 32, CustomWidth = true },
-                new Column { Min = 9, Max = 9, Width = 22, CustomWidth = true },
-                new Column { Min = 10, Max = 10, Width = 16, CustomWidth = true },
-                new Column { Min = 11, Max = 11, Width = 40, CustomWidth = true }),
+                new Column { Min = 6, Max = 7, Width = 11, CustomWidth = true },
+                new Column { Min = 8, Max = 8, Width = 70, CustomWidth = true },
+                new Column { Min = 9, Max = 9, Width = 32, CustomWidth = true },
+                new Column { Min = 10, Max = 10, Width = 22, CustomWidth = true },
+                new Column { Min = 11, Max = 11, Width = 16, CustomWidth = true },
+                new Column { Min = 12, Max = 12, Width = 40, CustomWidth = true }),
             sheetData);
 
         var taxonomyPart = workbookPart.AddNewPart<WorksheetPart>();
@@ -263,7 +267,7 @@ public static class ReviewExcelWorkbook
             if (string.IsNullOrWhiteSpace(clauseId))
             {
                 // A whole blank row is padding; a row with answers but no id is a reviewer mistake.
-                var hasAnswer = new[] { 8, 9, 10, 11 }.Any(column => !string.IsNullOrWhiteSpace(CellText(row, column, sharedStrings)));
+                var hasAnswer = new[] { 9, 10, 11, 12 }.Any(column => !string.IsNullOrWhiteSpace(CellText(row, column, sharedStrings)));
                 if (hasAnswer)
                 {
                     errors.Add(new ExcelCellError(rowNumber, "Clause ID", "Fila con respuestas pero sin Clause ID."));
@@ -289,7 +293,7 @@ public static class ReviewExcelWorkbook
             }
 
             var selected = new List<string>();
-            foreach (var token in CellText(row, 8, sharedStrings)
+            foreach (var token in CellText(row, 9, sharedStrings)
                          .Split([',', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 if (taxonomy.TryGetValue(token, out var canonical))
@@ -306,7 +310,15 @@ public static class ReviewExcelWorkbook
                 }
             }
 
-            var primaryText = CellText(row, 9, sharedStrings).Trim();
+            var pageFrom = ParsePage(CellText(row, 6, sharedStrings), rowNumber, "Página desde", errors);
+            var pageTo = ParsePage(CellText(row, 7, sharedStrings), rowNumber, "Página hasta", errors);
+            if (pageFrom is not null && pageTo is not null && pageTo < pageFrom)
+            {
+                errors.Add(new ExcelCellError(rowNumber, "Páginas",
+                    $"La página final ({pageTo}) no puede ser menor que la inicial ({pageFrom})."));
+            }
+
+            var primaryText = CellText(row, 10, sharedStrings).Trim();
             string? primary = null;
             if (primaryText.Length > 0)
             {
@@ -326,11 +338,13 @@ public static class ReviewExcelWorkbook
                 }
             }
 
-            var ambiguous = ParseAmbiguous(CellText(row, 10, sharedStrings), rowNumber, errors);
-            var notes = CellText(row, 11, sharedStrings).Trim();
+            var ambiguous = ParseAmbiguous(CellText(row, 11, sharedStrings), rowNumber, errors);
+            var notes = CellText(row, 12, sharedStrings).Trim();
 
             answers.Add(template with
             {
+                PageFrom = pageFrom ?? template.PageFrom,
+                PageTo = pageTo ?? template.PageTo,
                 Categories = selected,
                 Primary = primary,
                 Ambiguous = ambiguous,
@@ -403,10 +417,24 @@ public static class ReviewExcelWorkbook
         return false;
     }
 
-    private static string Pages(ReviewClause clause) =>
-        clause.PageFrom == clause.PageTo
-            ? clause.PageFrom.ToString(CultureInfo.InvariantCulture)
-            : $"{clause.PageFrom}-{clause.PageTo}";
+    private static int? ParsePage(string raw, int row, string field, List<ExcelCellError> errors)
+    {
+        var value = raw.Trim();
+        if (value.Length == 0)
+        {
+            errors.Add(new ExcelCellError(row, field, "Escriba un número de página (1 o mayor)."));
+            return null;
+        }
+
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var page) || page < 1)
+        {
+            errors.Add(new ExcelCellError(row, field,
+                $"Valor no válido: '{value}'. Escriba un número de página (1 o mayor)."));
+            return null;
+        }
+
+        return page;
+    }
 
     private static Row Row(int index, params Cell[] cells) =>
         new(cells) { RowIndex = (uint)index };
@@ -513,8 +541,14 @@ public static class ReviewExcelWorkbook
                 FontId = 0, FillId = 4, BorderId = 1, ApplyFill = true, ApplyBorder = true,
                 Alignment = new Alignment { WrapText = true },
                 ApplyAlignment = true,
+            },
+            new CellFormat
+            {
+                FontId = 0, FillId = 4, BorderId = 1, ApplyFill = true, ApplyBorder = true,
+                Alignment = new Alignment { WrapText = true, Vertical = VerticalAlignmentValues.Top },
+                ApplyAlignment = true,
             })
-        { Count = 7 };
+        { Count = 8 };
 
         var cellStyleFormats = new CellStyleFormats(
             new CellFormat { FontId = 0, FillId = 0, BorderId = 0, NumberFormatId = 0 })

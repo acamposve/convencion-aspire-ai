@@ -50,7 +50,15 @@ public sealed record AdjudicationRow(
     string? Rationale,
     string? Adjudicator,
     IReadOnlyList<string>? FinalCategories,
-    string? FinalPrimary);
+    string? FinalPrimary,
+    int ReviewerAPageFrom = 0,
+    int ReviewerAPageTo = 0,
+    int ReviewerBPageFrom = 0,
+    int ReviewerBPageTo = 0,
+    int? FinalPageFrom = null,
+    int? FinalPageTo = null,
+    bool ReviewerAAmbiguous = false,
+    bool ReviewerBAmbiguous = false);
 
 public sealed record AdjudicationWorksheet(
     string PackageId,
@@ -228,6 +236,8 @@ public static class ReviewWorkflow
                 var b = answersB[clause.ClauseId];
                 var categoriesAgree = SetEquals(a.Categories, b.Categories);
                 var primaryAgree = string.Equals(a.Primary, b.Primary, StringComparison.OrdinalIgnoreCase);
+                var pagesAgree = a.PageFrom == b.PageFrom && a.PageTo == b.PageTo;
+                var agreed = categoriesAgree && primaryAgree && pagesAgree;
 
                 return new AdjudicationRow(
                     clause.ClauseId,
@@ -239,15 +249,26 @@ public static class ReviewWorkflow
                     a.Primary,
                     b.Categories,
                     b.Primary,
-                    categoriesAgree && primaryAgree ? "agree" : "disagree",
-                    categoriesAgree && primaryAgree
+                    agreed ? "agree" : "disagree",
+                    agreed
                         ? null
-                        : categoriesAgree ? "primary" : primaryAgree ? "categories" : "categories+primary",
+                        : !categoriesAgree && !primaryAgree ? "categories+primary"
+                            : !categoriesAgree ? "categories"
+                            : !primaryAgree ? "primary"
+                            : "pages",
                     null,
                     null,
                     null,
                     null,
-                    null);
+                    null,
+                    a.PageFrom,
+                    a.PageTo,
+                    b.PageFrom,
+                    b.PageTo,
+                    null,
+                    null,
+                    a.Ambiguous,
+                    b.Ambiguous);
             }))
             .ToList();
 
