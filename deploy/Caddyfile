@@ -6,3 +6,9 @@
 	encode zstd gzip
 	reverse_proxy web:80
 }
+
+# Bare-IP entry point: the IP can never hold a trusted certificate, so send
+# anyone who types it to the name that does.
+http://138.197.15.40 {
+	redir https://138-197-15-40.sslip.io{uri} permanent
+}
