@@ -1,0 +1,683 @@
+{
+  "datasetVersion": "2",
+  "corpusId": "synthetic-v2",
+  "promptVersion": "extraction/v2",
+  "taxonomyVersion": "20260109000100",
+  "documents": [
+    {
+      "documentId": "synthetic-d01-labour-construction",
+      "title": "Synthetic construction collective agreement (6 clauses)",
+      "clauses": [
+        {
+          "clauseId": "d01-c1",
+          "text": "Son partes del presente convenio colectivo la sociedad Construcciones del Norte, C.A., en lo sucesivo la empresa, y el Sindicato Unico de Trabajadores de la Construccion, en lo sucesivo el sindicato.",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "PARTES",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "parties"
+          ],
+          "primary": "parties",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d01-c2",
+          "text": "El presente convenio regula las condiciones de trabajo aplicables a todos los trabajadores de la empresa y establece las obligaciones reciprocas de las partes durante su vigencia.",
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "OBJETO",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d01-c3",
+          "text": "La jornada ordinaria de trabajo sera de cuarenta horas semanales, distribuidas de lunes a viernes en horario de siete de la manana a tres de la tarde.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "JORNADA",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [],
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Jornada/descansos/turnos: la taxonomía v1 no tiene categoría aplicable (working_conditions no existe). Se deja sin clasificar de forma deliberada; no es un fallo del modelo. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d01-c4",
+          "text": "La empresa pagara al personal obrero el salario basico mensual fijado en el anexo A, con los aumentos anuales alli previstos.",
+          "number": "CLAUSULA CUARTA",
+          "heading": "SALARIO",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d01-c5",
+          "text": "El convenio tendra una duracion de dos anos contados desde su deposito, prorrogable automaticamente por periodos iguales salvo denuncia de cualquiera de las partes.",
+          "number": "CLAUSULA QUINTA",
+          "heading": "VIGENCIA",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "duration",
+            "termination"
+          ],
+          "primary": "duration",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Etiquetas múltiples: se conservan las etiquetas secundarias válidas de A y B; primario = primario de A si está en la unión, si no el de B. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d01-c6",
+          "text": "Cualquiera de las partes podra dar por terminado el convenio mediante notificacion escrita con noventa dias de anticipacion.",
+          "number": "CLAUSULA SEXTA",
+          "heading": "TERMINACION",
+          "pageFrom": 2,
+          "pageTo": 2,
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 2-2.",
+          "ambiguous": false
+        }
+      ],
+      "contractType": "labour"
+    },
+    {
+      "documentId": "synthetic-d02-commercial-supply",
+      "title": "Synthetic equipment supply agreement (6 clauses)",
+      "clauses": [
+        {
+          "clauseId": "d02-c1",
+          "text": "El proveedor suministrara los equipos descritos en el anexo tecnico, en las cantidades y plazos alli indicados, conforme a las especificaciones acordadas.",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "OBJETO Y ALCANCE",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d02-c2",
+          "text": "El precio total asciende a ciento veinte mil dolares, pagaderos en tres cuotas iguales contra entrega de cada lote.",
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "PRECIO Y FORMA DE PAGO",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d02-c3",
+          "text": "El proveedor garantiza que los equipos estan libres de defectos de fabricacion por un periodo de doce meses desde la recepcion.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "GARANTIAS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "warranties"
+          ],
+          "primary": "warranties",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d02-c4",
+          "text": "La responsabilidad del proveedor por danos directos se limita al monto total del contrato, con exclusion de los danos indirectos.",
+          "number": "CLAUSULA CUARTA",
+          "heading": "RESPONSABILIDAD",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "liability"
+          ],
+          "primary": "liability",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d02-c5",
+          "text": "Ninguna parte sera responsable por incumplimientos causados por eventos de fuerza mayor, entendidos como aquellos ajenos a su control razonable.",
+          "number": "CLAUSULA QUINTA",
+          "heading": "FUERZA MAYOR",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "force_majeure"
+          ],
+          "primary": "force_majeure",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d02-c6",
+          "text": "Este contrato se rige por las leyes de la Republica Bolivariana de Venezuela y se interpreta conforme a ellas.",
+          "number": "CLAUSULA SEXTA",
+          "heading": "LEY APLICABLE",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        }
+      ],
+      "contractType": "commercial"
+    },
+    {
+      "documentId": "synthetic-d03-nda",
+      "title": "Synthetic mutual confidentiality agreement (5 clauses)",
+      "clauses": [
+        {
+          "clauseId": "d03-c1",
+          "text": "La parte receptora mantendra en reserva toda la informacion confidencial revelada por la parte divulgadora y no la utilizara para fines distintos del objeto del acuerdo.",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "CONFIDENCIALIDAD",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "confidentiality"
+          ],
+          "primary": "confidentiality",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d03-c2",
+          "text": "Cuando la informacion incluya datos personales, la parte receptora los tratara conforme a la normativa aplicable y solo por cuenta de la divulgadora.",
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "PROTECCION DE DATOS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "data_protection"
+          ],
+          "primary": "data_protection",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d03-c3",
+          "text": "Las obligaciones de confidencialidad subsistiran durante cinco anos contados desde la firma del acuerdo.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "DURACION",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "confidentiality",
+            "duration"
+          ],
+          "primary": "confidentiality",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Etiquetas múltiples: se conservan las etiquetas secundarias válidas de A y B; primario = primario de A si está en la unión, si no el de B. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d03-c4",
+          "text": "El acuerdo podra terminarse unilateralmente con aviso escrito de treinta dias, sin perjuicio de las obligaciones ya asumidas.",
+          "number": "CLAUSULA CUARTA",
+          "heading": "TERMINACION",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d03-c5",
+          "text": "Toda controversia se sometera a arbitraje administrado por el centro de arbitraje competente de Caracas.",
+          "number": "CLAUSULA QUINTA",
+          "heading": "RESOLUCION DE CONFLICTOS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "disputes"
+          ],
+          "primary": "disputes",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        }
+      ],
+      "contractType": "confidentiality"
+    },
+    {
+      "documentId": "synthetic-d04-service-sla",
+      "title": "Synthetic maintenance service agreement (5 clauses, one multi-label)",
+      "clauses": [
+        {
+          "clauseId": "d04-c1",
+          "text": "El prestador ejecutara las actividades de mantenimiento preventivo y correctivo descritas en el anexo de servicios, con el nivel de servicio alli definido.",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "ALCANCE DE LOS SERVICIOS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d04-c2",
+          "text": "El precio mensual se reajustara anualmente conforme al indice de precios al consumidor publicado por el banco central.",
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "PRECIO Y REAJUSTE",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d04-c3",
+          "text": "El prestador tratara como confidencial la informacion de la empresa y, cuando acceda a datos personales de sus empleados, los utilizara exclusivamente para ejecutar el servicio.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "CONFIDENCIALIDAD Y DATOS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "confidentiality",
+            "data_protection"
+          ],
+          "primary": "confidentiality",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Etiquetas múltiples: se conservan las etiquetas secundarias válidas de A y B; primario = primario de A si está en la unión, si no el de B. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d04-c4",
+          "text": "El prestador respondera por los danos derivados de su negligencia, hasta el limite del monto facturado en los tres meses anteriores al evento.",
+          "number": "CLAUSULA CUARTA",
+          "heading": "RESPONSABILIDAD",
+          "pageFrom": 2,
+          "pageTo": 2,
+          "categories": [
+            "liability"
+          ],
+          "primary": "liability",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 2-2.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d04-c5",
+          "text": "La empresa podra resolver el contrato por incumplimiento grave, previo requerimiento escrito no atendido en diez dias.",
+          "number": "CLAUSULA QUINTA",
+          "heading": "TERMINACION",
+          "pageFrom": 2,
+          "pageTo": 2,
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 2-2.",
+          "ambiguous": false
+        }
+      ],
+      "contractType": "service"
+    },
+    {
+      "documentId": "synthetic-d05-ip-licence",
+      "title": "Synthetic software licence (5 clauses, one multi-label)",
+      "clauses": [
+        {
+          "clauseId": "d05-c1",
+          "text": "El licenciante conserva la titularidad de las marcas y del software licenciado; el uso permitido se limita a lo expresamente autorizado.",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "PROPIEDAD INTELECTUAL",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "ip"
+          ],
+          "primary": "ip",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d05-c2",
+          "text": "El licenciatario asume la responsabilidad por el uso no autorizado del software y por cualquier reclamo de terceros derivado de ese uso.",
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "RESPONSABILIDAD POR USO",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "ip",
+            "liability"
+          ],
+          "primary": "liability",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Etiquetas múltiples: se conservan las etiquetas secundarias válidas de A y B; primario = primario de A si está en la unión, si no el de B. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d05-c3",
+          "text": "El licenciante garantiza que el software funciona conforme a la documentacion tecnica durante el periodo de licencia.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "GARANTIAS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "warranties"
+          ],
+          "primary": "warranties",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d05-c4",
+          "text": "La licencia se rige por las leyes de la Republica Bolivariana de Venezuela.",
+          "number": "CLAUSULA CUARTA",
+          "heading": "LEY APLICABLE",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d05-c5",
+          "text": "Las partes procuraran resolver amigablemente cualquier discrepancia y, de no lograrlo, acudiran a los tribunales competentes de Caracas.",
+          "number": "CLAUSULA QUINTA",
+          "heading": "CONTROVERSIAS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "disputes"
+          ],
+          "primary": "disputes",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": false
+        }
+      ],
+      "contractType": "supplier"
+    },
+    {
+      "documentId": "synthetic-d06-irregular-formatting",
+      "title": "Synthetic annex with irregular formatting, duplicates and cross-references",
+      "clauses": [
+        {
+          "clauseId": "d06-c1",
+          "text": "La empresa se obliga a mantener en condiciones operativas las instalaciones objeto de este anexo, a ejecutar las reparaciones que resulten necesarias dentro de los plazos aqui previstos, a informar por escrito al sindicato cualquier cambio de proceso que pueda afectar las condiciones de trabajo y a conservar los registros de mantenimiento durante al menos cinco anos para su consulta por cualquiera de las partes.",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "OBLIGACIONES GENERALES",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d06-c2",
+          "text": "Se aplica la ley venezolana.",
+          "number": "CLAUSULA SEGUNDA",
+          "pageFrom": 2,
+          "pageTo": 2,
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 2-2.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d06-c3",
+          "text": "Las obligaciones descritas en la clausula cuarta de este documento se aplican en cuanto sean compatibles con el presente anexo.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "REMISION",
+          "pageFrom": 2,
+          "pageTo": 2,
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 2-2.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d06-c4",
+          "text": "El anexo podra darse por terminado anticipadamente por mutuo acuerdo escrito de las partes.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "TERMINACION ANTICIPADA",
+          "pageFrom": 2,
+          "pageTo": 2,
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 2-2.",
+          "ambiguous": false
+        },
+        {
+          "clauseId": "d06-c5",
+          "text": "Las partes se reuniran trimestralmente para revisar la ejecucion del acuerdo y dejar constancia en acta.",
+          "number": "CLAUSULA CUARTA",
+          "heading": "REUNIONES DE SEGUIMIENTO",
+          "pageFrom": 2,
+          "pageTo": 2,
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope",
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Consenso A/B confirmado sin cambios. Páginas verificadas contra el PDF: 2-2.",
+          "ambiguous": true
+        }
+      ],
+      "contractType": "mixed"
+    },
+    {
+      "documentId": "synthetic-d07-unclassifiable",
+      "title": "Synthetic working-time schedule (4 clauses, none fit taxonomy v1)",
+      "clauses": [
+        {
+          "clauseId": "d07-c1",
+          "text": "El horario de trabajo se distribuira en dos turnos de cuatro horas con una pausa intermedia de treinta minutos.",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "HORARIO",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [],
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Jornada/descansos/turnos: la taxonomía v1 no tiene categoría aplicable (working_conditions no existe). Se deja sin clasificar de forma deliberada; no es un fallo del modelo. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d07-c2",
+          "text": "El personal tendra derecho a un descanso semanal de dos dias consecutivos.",
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "DESCANSOS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [],
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Jornada/descansos/turnos: la taxonomía v1 no tiene categoría aplicable (working_conditions no existe). Se deja sin clasificar de forma deliberada; no es un fallo del modelo. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d07-c3",
+          "text": "La empresa podra establecer turnos rotativos previa consulta con la organizacion sindical.",
+          "number": "CLAUSULA TERCERA",
+          "heading": "TURNOS ROTATIVOS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [],
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Jornada/descansos/turnos: la taxonomía v1 no tiene categoría aplicable (working_conditions no existe). Se deja sin clasificar de forma deliberada; no es un fallo del modelo. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        },
+        {
+          "clauseId": "d07-c4",
+          "text": "Las horas extraordinarias requeriran autorizacion escrita del supervisor y no excederan de diez semanales.",
+          "number": "CLAUSULA CUARTA",
+          "heading": "HORAS EXTRAORDINARIAS",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [],
+          "status": "reviewed",
+          "annotator": "ChatGPT — borrador asistido por IA (no es revisión humana) + ChatGPT — borrador asistido por IA (no es revisión humana)",
+          "reviewer": "ai-adjudicator-v1",
+          "notes": "Jornada/descansos/turnos: la taxonomía v1 no tiene categoría aplicable (working_conditions no existe). Se deja sin clasificar de forma deliberada; no es un fallo del modelo. Páginas verificadas contra el PDF: 1-1.",
+          "ambiguous": true
+        }
+      ],
+      "contractType": "labour"
+    }
+  ],
+  "schemaVersion": 2,
+  "status": "reviewed",
+  "taxonomyKeys": [
+    "parties",
+    "scope",
+    "pricing",
+    "duration",
+    "termination",
+    "confidentiality",
+    "data_protection",
+    "ip",
+    "liability",
+    "warranties",
+    "disputes",
+    "governing_law",
+    "force_majeure",
+    "other"
+  ],
+  "annotators": [
+    "ChatGPT — borrador asistido por IA (no es revisión humana)",
+    "ChatGPT — borrador asistido por IA (no es revisión humana)"
+  ],
+  "reviewers": [
+    "ai-adjudicator-v1"
+  ],
+  "notes": "AI-adjudicated reference ground truth (v2). Annotations drafted by ChatGPT from the rendered PDFs; adjudicated deterministically by ai-adjudicator-v1 against taxonomy 20260109000100. NOT human-validated. Page ranges verified from the PDFs with the pdf-pages command."
+}

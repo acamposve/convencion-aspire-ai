@@ -53,6 +53,12 @@ if (args.Length > 0 && args[0] is "corpus-materialize")
     return CorpusMaterialize(args[1..]);
 }
 
+if (args.Length > 0 && args[0] is "pdf-pages")
+{
+    return PdfPages(args[1..]);
+}
+
+
 var root = args.Length > 0 ? args[0] : "docs/test";
 if (!Directory.Exists(root) && !File.Exists(root))
 {
@@ -268,6 +274,7 @@ static int CorpusMaterialize(string[] options)
     string? adjudicationPath = null;
     string? outputPath = null;
     var version = "2";
+    string? note = null;
 
     for (var index = 0; index < options.Length; index++)
     {
@@ -277,6 +284,7 @@ static int CorpusMaterialize(string[] options)
             case "--adjudication": adjudicationPath = Value(options, ref index); break;
             case "--out": outputPath = Value(options, ref index); break;
             case "--version": version = Value(options, ref index) ?? "2"; break;
+            case "--note": note = Value(options, ref index); break;
             default:
                 Console.Error.WriteLine($"Unknown option: {options[index]}");
                 return 2;
@@ -287,7 +295,7 @@ static int CorpusMaterialize(string[] options)
     {
         Console.Error.WriteLine(
             "usage: corpus-materialize --dataset <source.dataset.json> --adjudication <finalized.json> " +
-            "--out <corpus-v2.dataset.json> [--version 2]");
+            "--out <corpus-v2.dataset.json> [--version 2] [--note <text>]");
         return 2;
     }
 
@@ -295,8 +303,12 @@ static int CorpusMaterialize(string[] options)
     {
         var source = EvaluationJson.Load<EvaluationDataset>(datasetPath);
         var worksheet = EvaluationJson.Load<AdjudicationWorksheet>(adjudicationPath);
-        var published = CorpusPublisher.Materialize(source, worksheet, version);
+        var published = CorpusPublisher.Materialize(source, worksheet, version) with
+        {
+            Notes = note ?? source.Notes,
+        };
 
+        EvaluationValidator.ValidateDataset(published);
         EvaluationJson.Save(outputPath, published);
 
         var clauses = published.Documents.SelectMany(document => document.Clauses).ToList();
@@ -308,6 +320,76 @@ static int CorpusMaterialize(string[] options)
         return 0;
     }
     catch (EvaluationInputException exception)
+    {
+        Console.Error.WriteLine(exception.Message);
+        return 3;
+    }
+}
+
+static int PdfPages(string[] options)
+{
+    string? datasetPath = null;
+    var pdfDirectory = "docs/quality/corpus/pdf";
+    string? outputPath = null;
+    string? dumpDocument = null;
+
+    for (var index = 0; index < options.Length; index++)
+    {
+        switch (options[index])
+        {
+            case "--dataset": datasetPath = Value(options, ref index); break;
+            case "--pdf-dir": pdfDirectory = Value(options, ref index) ?? pdfDirectory; break;
+            case "--out-json": outputPath = Value(options, ref index); break;
+            case "--dump": dumpDocument = Value(options, ref index); break;
+            default:
+                Console.Error.WriteLine($"Unknown option: {options[index]}");
+                return 2;
+        }
+    }
+
+    if (datasetPath is null)
+    {
+        Console.Error.WriteLine("usage: pdf-pages --dataset <corpus.json> [--pdf-dir <dir>] [--out-json <f>]");
+        return 2;
+    }
+
+    try
+    {
+        var dataset = EvaluationJson.Load<EvaluationDataset>(datasetPath);
+
+        if (dumpDocument is not null)
+        {
+            var pages = PdfPageLocator.RenderPages(Path.Combine(pdfDirectory, dumpDocument + ".pdf"));
+            for (var page = 0; page < pages.Count; page++)
+            {
+                Console.WriteLine($"--- page {page + 1} ---");
+                Console.WriteLine(PdfPageLocator.Normalize(pages[page]));
+            }
+
+            return 0;
+        }
+
+        var spans = PdfPageLocator.Locate(dataset, pdfDirectory);
+
+        Console.WriteLine("clause\tdraft\tpdf\tstatus");
+        foreach (var span in spans)
+        {
+            var status = !span.Found ? "NOT FOUND" : span.MatchesDraft ? "ok" : "MISMATCH";
+            Console.WriteLine(
+                $"{span.ClauseId}\t{span.DraftFrom}-{span.DraftTo}\t" +
+                $"{(span.Found ? $"{span.PdfFrom}-{span.PdfTo}" : "-")}\t{status}");
+        }
+
+        var mismatches = spans.Count(span => span.Found && !span.MatchesDraft);
+        var missing = spans.Count(span => !span.Found);
+        Console.WriteLine($"clauses: {spans.Count}, mismatches: {mismatches}, not found: {missing}");
+
+        var json = outputPath ?? Path.ChangeExtension(datasetPath, ".pages.json");
+        EvaluationJson.Save(json, spans);
+        Console.WriteLine($"wrote {json}");
+        return missing == 0 ? 0 : 4;
+    }
+    catch (Exception exception) when (exception is not OutOfMemoryException)
     {
         Console.Error.WriteLine(exception.Message);
         return 3;

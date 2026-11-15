@@ -10,4 +10,8 @@
     <PackageReference Include="PdfPig" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Convenciones.UnitTests" />
+  </ItemGroup>
+
 </Project>
