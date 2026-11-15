@@ -106,3 +106,28 @@ evaluate        --dataset docs/quality/corpus/synthetic-v2.dataset.json \
 ```
 
 No network, no database, no provider call at any step.
+
+## 6. Re-baseline against the render-v2 PDFs (2026-11-15)
+
+A fresh capture was taken after the heading rendering fix: 7 documents, 7 scoped worker windows,
+worker disabled after each, quota 14→21 of 35 (23 pages, $0.041).
+
+| Metric | v2 vs old capture | **v2 vs render-v2 capture** |
+|---|---:|---:|
+| Extraction F1 | 1.0000 | 1.0000 |
+| Number / text fidelity | 36/36 | 36/36 |
+| **Heading** | 31/36 | **36/36** |
+| Page range | 29/36 | **30/36** |
+| Macro-F1 | 0.8792 | 0.8792 |
+| Micro-F1 | 0.8649 | 0.8649 |
+| Exact set match | 26/36 | 26/36 |
+| Primary accuracy | 0.9677 | 0.9677 |
+
+The heading projection is now a measurement: **36/36**. The earlier 31/36 was entirely the rendering
+artifact, as diagnosed.
+
+Page accuracy improved to 30/36 but did not reach 36/36: the remaining six are genuine model errors —
+on the two-page documents the model assigns page 1 to clauses that start on page 2. Classification is
+unchanged, which also shows the model's labels are stable across renderings.
+
+Artifacts: `baseline-predictions-render-v2.json`, `results/baseline-render-v2.result.json`, `.report.md`.
