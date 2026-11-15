@@ -1,0 +1,51 @@
+{
+  "runId": "fbd16bc0-a520-420b-a8ec-08c00f3293e3",
+  "model": "clauses-mistral",
+  "datasetVersion": "1",
+  "promptVersion": "extraction/v2",
+  "classificationPromptVersion": "classification/v2",
+  "commit": "97a2cac09811af7579b4746fbfd08d283f1dfcfa",
+  "documents": [
+    {
+      "documentId": "synthetic-contract-2293bbef",
+      "clauses": [
+        {
+          "number": "CLAUSULA PRIMERA",
+          "heading": "OBJETO",
+          "text": "Las partes acuerdan regular sus relaciones laborales conforme al presente convenio colectivo sintetico.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": ["parties", "scope"],
+          "primary": "scope"
+        },
+        {
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "JORNADA",
+          "text": "La jornada semanal sera de cuarenta horas, distribuida de lunes a viernes.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [],
+          "primary": null
+        },
+        {
+          "number": "CLAUSULA TERCERA",
+          "heading": "SALARIO",
+          "text": "El salario base se abonara en doce pagas anuales.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": ["pricing"],
+          "primary": "pricing"
+        },
+        {
+          "number": "CLAUSULA CUARTA",
+          "heading": "VACACIONES",
+          "text": "El personal disfrutara de treinta dias naturales.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": ["other"],
+          "primary": "other"
+        }
+      ]
+    }
+  ]
+}

@@ -10,7 +10,7 @@ public sealed class ExtractionOptions
 
     public int MaxOutputTokens { get; set; } = 8_000;
 
-    public string PromptVersion { get; set; } = "extraction/v1";
+    public string PromptVersion { get; set; } = PromptCatalog.ExtractionVersion;
 
     /// <summary>Optional deployment override; the client uses its configured deployment by default.</summary>
     public string? Deployment { get; set; }

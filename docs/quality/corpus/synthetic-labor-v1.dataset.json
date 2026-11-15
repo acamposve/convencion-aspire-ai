@@ -1,0 +1,54 @@
+{
+  "datasetVersion": "1",
+  "corpusId": "synthetic-labor-v1",
+  "promptVersion": "extraction/v2",
+  "taxonomyVersion": "20260109000100",
+  "documents": [
+    {
+      "documentId": "synthetic-contract-2293bbef",
+      "title": "Synthetic single-page labour agreement (4 clauses)",
+      "clauses": [
+        {
+          "clauseId": "synthetic-contract-2293bbef-c1",
+          "number": "CLAUSULA PRIMERA",
+          "heading": "OBJETO",
+          "text": "Las partes acuerdan regular sus relaciones laborales conforme al presente convenio colectivo sintetico.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": ["parties", "scope"],
+          "primary": "scope"
+        },
+        {
+          "clauseId": "synthetic-contract-2293bbef-c2",
+          "number": "CLAUSULA SEGUNDA",
+          "heading": "JORNADA",
+          "text": "La jornada semanal sera de cuarenta horas, distribuida de lunes a viernes.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": [],
+          "primary": null
+        },
+        {
+          "clauseId": "synthetic-contract-2293bbef-c3",
+          "number": "CLAUSULA TERCERA",
+          "heading": "SALARIO",
+          "text": "El salario base se abonara en doce pagas anuales.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": ["pricing"],
+          "primary": "pricing"
+        },
+        {
+          "clauseId": "synthetic-contract-2293bbef-c4",
+          "number": "CLAUSULA CUARTA",
+          "heading": "VACACIONES",
+          "text": "El personal disfrutara de treinta dias naturales.",
+          "pageFrom": 1,
+          "pageTo": 1,
+          "categories": ["other"],
+          "primary": "other"
+        }
+      ]
+    }
+  ]
+}
