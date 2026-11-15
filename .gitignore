@@ -61,3 +61,10 @@ crash.log
 docs/client-feedback/
 docs/test/
 **/Properties/launchSettings.json
+
+# Internal audit reports and session handoffs: they map the staging host, tenant ids and quota
+# figures, and this repository is public. They stay local-only. The tracked diagnosis note below is
+# the one exception: it documents a tooling defect, not infrastructure.
+docs/audits/*
+!docs/audits/foundry-json-output-diagnosis.md
+docs/operations/session-handoff-*.md
