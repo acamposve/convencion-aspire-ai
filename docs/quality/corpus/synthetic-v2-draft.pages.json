@@ -1,0 +1,362 @@
+[
+  {
+    "documentId": "synthetic-d01-labour-construction",
+    "clauseId": "d01-c1",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d01-labour-construction",
+    "clauseId": "d01-c2",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d01-labour-construction",
+    "clauseId": "d01-c3",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d01-labour-construction",
+    "clauseId": "d01-c4",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d01-labour-construction",
+    "clauseId": "d01-c5",
+    "draftFrom": 1,
+    "draftTo": 2,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": false
+  },
+  {
+    "documentId": "synthetic-d01-labour-construction",
+    "clauseId": "d01-c6",
+    "draftFrom": 2,
+    "draftTo": 2,
+    "pdfFrom": 2,
+    "pdfTo": 2,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d02-commercial-supply",
+    "clauseId": "d02-c1",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d02-commercial-supply",
+    "clauseId": "d02-c2",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d02-commercial-supply",
+    "clauseId": "d02-c3",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d02-commercial-supply",
+    "clauseId": "d02-c4",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d02-commercial-supply",
+    "clauseId": "d02-c5",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d02-commercial-supply",
+    "clauseId": "d02-c6",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d03-nda",
+    "clauseId": "d03-c1",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d03-nda",
+    "clauseId": "d03-c2",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d03-nda",
+    "clauseId": "d03-c3",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d03-nda",
+    "clauseId": "d03-c4",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d03-nda",
+    "clauseId": "d03-c5",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d04-service-sla",
+    "clauseId": "d04-c1",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d04-service-sla",
+    "clauseId": "d04-c2",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d04-service-sla",
+    "clauseId": "d04-c3",
+    "draftFrom": 1,
+    "draftTo": 2,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": false
+  },
+  {
+    "documentId": "synthetic-d04-service-sla",
+    "clauseId": "d04-c4",
+    "draftFrom": 2,
+    "draftTo": 2,
+    "pdfFrom": 2,
+    "pdfTo": 2,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d04-service-sla",
+    "clauseId": "d04-c5",
+    "draftFrom": 2,
+    "draftTo": 2,
+    "pdfFrom": 2,
+    "pdfTo": 2,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d05-ip-licence",
+    "clauseId": "d05-c1",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d05-ip-licence",
+    "clauseId": "d05-c2",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d05-ip-licence",
+    "clauseId": "d05-c3",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d05-ip-licence",
+    "clauseId": "d05-c4",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d05-ip-licence",
+    "clauseId": "d05-c5",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d06-irregular-formatting",
+    "clauseId": "d06-c1",
+    "draftFrom": 1,
+    "draftTo": 2,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": false
+  },
+  {
+    "documentId": "synthetic-d06-irregular-formatting",
+    "clauseId": "d06-c2",
+    "draftFrom": 2,
+    "draftTo": 2,
+    "pdfFrom": 2,
+    "pdfTo": 2,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d06-irregular-formatting",
+    "clauseId": "d06-c3",
+    "draftFrom": 2,
+    "draftTo": 2,
+    "pdfFrom": 2,
+    "pdfTo": 2,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d06-irregular-formatting",
+    "clauseId": "d06-c4",
+    "draftFrom": 2,
+    "draftTo": 2,
+    "pdfFrom": 2,
+    "pdfTo": 2,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d06-irregular-formatting",
+    "clauseId": "d06-c5",
+    "draftFrom": 2,
+    "draftTo": 2,
+    "pdfFrom": 2,
+    "pdfTo": 2,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d07-unclassifiable",
+    "clauseId": "d07-c1",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d07-unclassifiable",
+    "clauseId": "d07-c2",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d07-unclassifiable",
+    "clauseId": "d07-c3",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  },
+  {
+    "documentId": "synthetic-d07-unclassifiable",
+    "clauseId": "d07-c4",
+    "draftFrom": 1,
+    "draftTo": 1,
+    "pdfFrom": 1,
+    "pdfTo": 1,
+    "found": true,
+    "matchesDraft": true
+  }
+]

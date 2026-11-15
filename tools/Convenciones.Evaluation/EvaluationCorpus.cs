@@ -45,7 +45,8 @@ public sealed record EvaluationDataset(
     string Status = "draft",
     IReadOnlyList<string>? TaxonomyKeys = null,
     IReadOnlyList<string>? Annotators = null,
-    IReadOnlyList<string>? Reviewers = null);
+    IReadOnlyList<string>? Reviewers = null,
+    string? Notes = null);
 
 public sealed record PredictedClauseRecord(
     string? Number,
