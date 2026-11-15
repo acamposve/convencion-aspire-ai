@@ -78,12 +78,13 @@ usage counters are monthly.
 would be wrong:
 
 - **Heading accuracy 31/36** — all five misses are in `d04`, where the model returned
-  `- ALCANCE DE LOS SERVICIOS` with a leading dash. The cause is my rendering: the PDF prints
+  `- ALCANCE DE LOS SERVICIOS` with a leading dash. The cause is my rendering: the PDF printed
   `CLAUSULA PRIMERA — ALCANCE DE LOS SERVICIOS` on one line, so the dash belongs to the source. The
-  annotation omits it. Fix: render number and heading on separate lines before the next run.
+  annotation omits it. **Fixed and verified** — see "Render v2" below.
 - **Page-range accuracy 28/36** — all eight misses are in `d04` and `d06`, where the draft annotations
   assume a pagination the rendered PDF does not have. The corpus was authored before the PDFs existed.
-  Fix: re-annotate page ranges against the rendered PDFs (new `datasetVersion`).
+  Fix: re-annotate page ranges against the rendered PDFs (new `datasetVersion`). Render v2 did not
+  change this; it is an annotation task, not a rendering one.
 
 **Extraction scoring is near-tautological** for this corpus: the PDFs were generated from the same text
 the annotations describe, so 36/36 boundary matching confirms the pipeline preserves clause text, not
@@ -113,3 +114,30 @@ dotnet run --project tools/Convenciones.Evaluation -- evaluate \
 ```
 
 No network, no database, no provider call.
+
+## Render v2 — heading fix (verified)
+
+The PDFs were re-rendered with the clause number and heading on separate lines instead of a single
+`NUMBER — HEADING` line. The seven documents keep the same page counts and text layers.
+
+`d04` was re-processed as the verification probe (it is the only document with the dash artifact): one
+scoped worker window, worker disabled immediately after.
+
+| Clause | Heading before (render v1) | Heading after (render v2) |
+|---|---|---|
+| d04-c1 | `- ALCANCE DE LOS SERVICIOS` | `ALCANCE DE LOS SERVICIOS` |
+| d04-c2 | `- PRECIO Y REAJUSTE` | `PRECIO Y REAJUSTE` |
+| d04-c3 | `- CONFIDENCIALIDAD Y DATOS` | `CONFIDENCIALIDAD Y DATOS` |
+| d04-c4 | `- RESPONSABILIDAD` | `RESPONSABILIDAD` |
+| d04-c5 | `- TERMINACION` | `TERMINACION` |
+
+Five of five repaired. A full re-run would be expected to move heading accuracy from 31/36 to 36/36;
+that is a projection, not a measurement — the full baseline has not been re-run.
+
+**Provenance consequence:** the committed PDFs are now render v2, while
+`baseline-predictions-97a2cac.json` was captured from render v1. Re-scoring the unchanged predictions
+file remains valid (it is a captured artefact), but re-processing the committed PDFs would produce a
+different result for `d04`. The next full baseline should be captured after the human review, against
+these render-v2 files, so corpus, PDFs and predictions share one generation.
+
+Cost of the verification: 1 document (quota 13 → 14 of 20).
