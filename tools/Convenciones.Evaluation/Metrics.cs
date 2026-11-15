@@ -12,6 +12,9 @@ public sealed record BoundaryResult(
     double Recall,
     double F1);
 
+/// <summary>A matched annotation/prediction pair, by index into the two input lists.</summary>
+public sealed record ClauseMatch(int AnnotatedIndex, int PredictedIndex);
+
 /// <summary>
 /// Clause-boundary comparison: greedy matching of each annotation to the unused prediction with the
 /// highest longest-common-substring ratio. A ratio of 0.8 means the predicted text covers at least
@@ -19,7 +22,7 @@ public sealed record BoundaryResult(
 /// </summary>
 public static class BoundaryMetrics
 {
-    public static BoundaryResult Compute(
+    public static IReadOnlyList<ClauseMatch> Match(
         IReadOnlyList<AnnotatedClause> annotated,
         IReadOnlyList<PredictedClause> predicted,
         double threshold = 0.8)
@@ -28,9 +31,9 @@ public static class BoundaryMetrics
         ArgumentNullException.ThrowIfNull(predicted);
 
         var used = new bool[predicted.Count];
-        var matched = 0;
+        var matches = new List<ClauseMatch>();
 
-        foreach (var annotation in annotated)
+        for (var annotationIndex = 0; annotationIndex < annotated.Count; annotationIndex++)
         {
             var bestIndex = -1;
             var bestRatio = 0.0;
@@ -42,7 +45,7 @@ public static class BoundaryMetrics
                     continue;
                 }
 
-                var ratio = OverlapRatio(annotation.Text, predicted[index].Text);
+                var ratio = OverlapRatio(annotated[annotationIndex].Text, predicted[index].Text);
                 if (ratio > bestRatio)
                 {
                     bestRatio = ratio;
@@ -53,9 +56,22 @@ public static class BoundaryMetrics
             if (bestIndex >= 0 && bestRatio >= threshold)
             {
                 used[bestIndex] = true;
-                matched++;
+                matches.Add(new ClauseMatch(annotationIndex, bestIndex));
             }
         }
+
+        return matches;
+    }
+
+    public static BoundaryResult Compute(
+        IReadOnlyList<AnnotatedClause> annotated,
+        IReadOnlyList<PredictedClause> predicted,
+        double threshold = 0.8)
+    {
+        ArgumentNullException.ThrowIfNull(annotated);
+        ArgumentNullException.ThrowIfNull(predicted);
+
+        var matched = Match(annotated, predicted, threshold).Count;
 
         var precision = predicted.Count == 0 ? 0 : (double)matched / predicted.Count;
         var recall = annotated.Count == 0 ? 0 : (double)matched / annotated.Count;

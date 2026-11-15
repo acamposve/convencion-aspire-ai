@@ -1,0 +1,108 @@
+{
+  "datasetVersion": "1",
+  "corpusId": "synthetic-labor-v1",
+  "promptVersion": "extraction/v2",
+  "taxonomyVersion": "20260109000100",
+  "predictionRunId": "fbd16bc0-a520-420b-a8ec-08c00f3293e3",
+  "predictionModel": "clauses-mistral",
+  "predictionCommit": "97a2cac09811af7579b4746fbfd08d283f1dfcfa",
+  "classificationPromptVersion": "classification/v2",
+  "generatedAtUtc": "2026-11-14T13:50:46.5852255+00:00",
+  "documents": [
+    {
+      "documentId": "synthetic-contract-2293bbef",
+      "annotated": 4,
+      "predicted": 4,
+      "matched": 4,
+      "missing": 0,
+      "extra": 0,
+      "precision": 1,
+      "recall": 1,
+      "f1": 1,
+      "numberCorrect": 4,
+      "headingCorrect": 4,
+      "pageCorrect": 4,
+      "textExact": 4
+    }
+  ],
+  "extraction": {
+    "annotated": 4,
+    "predicted": 4,
+    "matched": 4,
+    "precision": 1,
+    "recall": 1,
+    "f1": 1
+  },
+  "fields": {
+    "matched": 4,
+    "numberCorrect": 4,
+    "headingCorrect": 4,
+    "pageCorrect": 4,
+    "textExact": 4,
+    "numberRate": 1,
+    "headingRate": 1,
+    "pageRate": 1,
+    "textRate": 1
+  },
+  "classification": {
+    "evaluatedClauses": 4,
+    "exactMatch": 4,
+    "exactMatchRate": 1,
+    "macroF1": 1,
+    "microPrecision": 1,
+    "microRecall": 1,
+    "microF1": 1,
+    "primaryEvaluated": 3,
+    "primaryAccuracy": 1,
+    "unclassified": 1,
+    "unclassifiedRate": 0.25,
+    "expectedEmpty": 1,
+    "falsePositiveCategories": 0,
+    "perCategory": [
+      {
+        "category": "other",
+        "support": 1,
+        "predicted": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      {
+        "category": "parties",
+        "support": 1,
+        "predicted": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      {
+        "category": "pricing",
+        "support": 1,
+        "predicted": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      },
+      {
+        "category": "scope",
+        "support": 1,
+        "predicted": 1,
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      }
+    ]
+  }
+}

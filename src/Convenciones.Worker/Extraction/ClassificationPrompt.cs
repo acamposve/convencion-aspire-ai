@@ -6,7 +6,7 @@ public sealed class ClassificationOptions
 
     public int MaxOutputTokens { get; set; } = 4_000;
 
-    public string PromptVersion { get; set; } = "classification/v1";
+    public string PromptVersion { get; set; } = PromptCatalog.ClassificationVersion;
 
     public string? Deployment { get; set; }
 
