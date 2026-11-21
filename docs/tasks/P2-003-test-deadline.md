@@ -67,6 +67,7 @@ Three deliberate mutations were built and run against the final code; all were r
 | `dotnet build Convenciones.slnx -c Release -warnaserror` | 0 warnings, 0 errors |
 | `dotnet test Convenciones.slnx -c Release --no-build` — unit | **248 passed** (244 + 4) |
 | same run — integration | **365 passed** (3 new cases, ~5 s each); 2 m 44 s |
+| CI run [`44927047141`](https://github.com/acamposve/convencion-aspire-ai/actions/runs/44927047141) (commit `006e613`) | all five jobs pass; backend `3 m 25 s` |
 | Web | not run — no web change |
 
 ## Notes
