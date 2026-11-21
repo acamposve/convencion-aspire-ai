@@ -75,4 +75,12 @@ public sealed class PromptCatalogTests
     {
         PromptCatalog.Hash("contrato").ShouldNotBe(PromptCatalog.Hash("contratos"));
     }
+
+    [Fact]
+    public void Hashing_is_stable_across_line_endings()
+    {
+        // The working tree may be checked out with CRLF on Windows and LF on CI; the pin must not
+        // depend on that, or it fails for a reason unrelated to the prompt changing.
+        PromptCatalog.Hash("linea uno\nlinea dos").ShouldBe(PromptCatalog.Hash("linea uno\r\nlinea dos"));
+    }
 }
