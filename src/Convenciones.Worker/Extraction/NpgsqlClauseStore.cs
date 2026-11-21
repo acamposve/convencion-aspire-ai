@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Npgsql;
+using Convenciones.Ai;
 using Convenciones.Clauses;
 using Convenciones.Worker;
 
@@ -263,35 +264,133 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task RecordUsageAsync(
-        Guid companyId,
+    /// <summary>
+    /// Persists one billable provider invocation and its aggregate in a single transaction. The tenant
+    /// and document are taken from the run row, never from the caller, so a record cannot be attributed
+    /// to the wrong company.
+    /// </summary>
+    public async Task RecordInvocationAsync(
+        ProcessingJob job,
+        string stage,
+        int invocationNo,
+        AiCompletionResult result,
         int pages,
-        long inputTokens,
-        long outputTokens,
-        decimal costEstimateUsd,
+        AiPricing pricing,
         CancellationToken cancellationToken)
     {
+        var cost = pricing.EstimateCost(result.InputTokens, result.OutputTokens);
+
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new NpgsqlCommand(
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        var inserted = false;
+        await using (var insert = new NpgsqlCommand(
+            """
+            insert into platform.ai_usage_record
+                (company_id, document_id, run_id, attempt_id, stage, invocation_no, provider, model,
+                 deployment, input_tokens, output_tokens, usage_source, estimated_cost_usd, currency,
+                 pricing_version, pricing_input_per_million, pricing_output_per_million)
+            select r.company_id, r.document_id, r.id, a.id, @stage, @invocation, @provider, @model,
+                   @deployment, @input, @output, @source, @cost, @currency, @pricing_version,
+                   @input_price, @output_price
+            from platform.processing_run r
+            join platform.processing_attempt a on a.id = @attempt and a.run_id = r.id
+            where r.id = @run
+            on conflict (attempt_id, stage, invocation_no) do nothing
+            returning id;
+            """, connection, transaction))
+        {
+            insert.Parameters.AddWithValue("stage", stage);
+            insert.Parameters.AddWithValue("invocation", invocationNo);
+            insert.Parameters.AddWithValue("provider", result.Provider);
+            insert.Parameters.AddWithValue("model", (object?)result.Model ?? DBNull.Value);
+            insert.Parameters.AddWithValue("deployment", (object?)result.Deployment ?? DBNull.Value);
+            insert.Parameters.Add(new NpgsqlParameter("input", NpgsqlTypes.NpgsqlDbType.Bigint)
+            {
+                Value = (object?)result.InputTokens ?? DBNull.Value,
+            });
+            insert.Parameters.Add(new NpgsqlParameter("output", NpgsqlTypes.NpgsqlDbType.Bigint)
+            {
+                Value = (object?)result.OutputTokens ?? DBNull.Value,
+            });
+            insert.Parameters.AddWithValue("source", cost is null ? "unavailable" : "provider");
+            insert.Parameters.Add(new NpgsqlParameter("cost", NpgsqlTypes.NpgsqlDbType.Numeric)
+            {
+                Value = (object?)cost ?? DBNull.Value,
+            });
+            insert.Parameters.AddWithValue("currency", pricing.Currency);
+            insert.Parameters.AddWithValue("pricing_version", pricing.Version);
+            insert.Parameters.AddWithValue("input_price", pricing.InputPerMillion);
+            insert.Parameters.AddWithValue("output_price", pricing.OutputPerMillion);
+            insert.Parameters.AddWithValue("run", job.RunId);
+            insert.Parameters.AddWithValue("attempt", job.AttemptId);
+
+            inserted = await insert.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;
+        }
+
+        if (!inserted)
+        {
+            // Either this invocation is already recorded (replay) or the attempt is not the run's.
+            await using var existing = new NpgsqlCommand(
+                """
+                select 1 from platform.ai_usage_record
+                where attempt_id = @attempt and stage = @stage and invocation_no = @invocation;
+                """, connection, transaction);
+            existing.Parameters.AddWithValue("attempt", job.AttemptId);
+            existing.Parameters.AddWithValue("stage", stage);
+            existing.Parameters.AddWithValue("invocation", invocationNo);
+
+            if (await existing.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
+            {
+                throw new InvalidOperationException(
+                    $"Attempt '{job.AttemptId}' does not belong to run '{job.RunId}'; usage was not recorded.");
+            }
+
+            // Already recorded: do not touch the aggregate again, or a replay would double-count it.
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await using (var aggregate = new NpgsqlCommand(
             """
             insert into platform.processing_usage
                 (company_id, period, pages, input_tokens, output_tokens, cost_estimate_usd, updated_at)
-            values
-                (@company, date_trunc('month', now())::date, @pages, @input, @output, @cost, now())
+            select r.company_id,
+                   date_trunc('month', now())::date,
+                   @pages,
+                   coalesce(@input, 0),
+                   coalesce(@output, 0),
+                   coalesce(@cost, 0),
+                   now()
+            from platform.processing_run r
+            where r.id = @run
             on conflict (company_id, period) do update
             set pages = platform.processing_usage.pages + excluded.pages,
                 input_tokens = platform.processing_usage.input_tokens + excluded.input_tokens,
                 output_tokens = platform.processing_usage.output_tokens + excluded.output_tokens,
                 cost_estimate_usd = platform.processing_usage.cost_estimate_usd + excluded.cost_estimate_usd,
                 updated_at = now();
-            """, connection);
-        command.Parameters.AddWithValue("company", companyId);
-        command.Parameters.AddWithValue("pages", pages);
-        command.Parameters.AddWithValue("input", inputTokens);
-        command.Parameters.AddWithValue("output", outputTokens);
-        command.Parameters.AddWithValue("cost", costEstimateUsd);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            """, connection, transaction))
+        {
+            aggregate.Parameters.AddWithValue("pages", pages);
+            aggregate.Parameters.Add(new NpgsqlParameter("input", NpgsqlTypes.NpgsqlDbType.Bigint)
+            {
+                Value = (object?)result.InputTokens ?? DBNull.Value,
+            });
+            aggregate.Parameters.Add(new NpgsqlParameter("output", NpgsqlTypes.NpgsqlDbType.Bigint)
+            {
+                Value = (object?)result.OutputTokens ?? DBNull.Value,
+            });
+            aggregate.Parameters.Add(new NpgsqlParameter("cost", NpgsqlTypes.NpgsqlDbType.Numeric)
+            {
+                Value = (object?)cost ?? DBNull.Value,
+            });
+            aggregate.Parameters.AddWithValue("run", job.RunId);
+            await aggregate.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task EnsureNoHumanCorrectionsAsync(

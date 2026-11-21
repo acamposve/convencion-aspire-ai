@@ -14,7 +14,7 @@ public sealed class ClassificationPipelineTests
         new(Guid.NewGuid(), "pricing", "Precio y pago", "Salarios y aumentos");
 
     private static readonly ClauseCategoryInfo Termination =
-        new(Guid.NewGuid(), "termination", "TerminaciÃ³n", "Causas de terminaciÃ³n");
+        new(Guid.NewGuid(), "termination", "TerminaciÃƒÂ³n", "Causas de terminaciÃƒÂ³n");
 
     [Fact]
     public async Task Multi_label_is_persisted_and_unclassified_is_counted()
@@ -89,7 +89,7 @@ public sealed class ClassificationPipelineTests
         var store = new FakeClassificationStore();
         for (var ordinal = 1; ordinal <= count; ordinal++)
         {
-            store.Clauses.Add(new StoredClause(Guid.NewGuid(), ordinal, null, null, $"ClÃ¡usula {ordinal}."));
+            store.Clauses.Add(new StoredClause(Guid.NewGuid(), ordinal, null, null, $"ClÃƒÂ¡usula {ordinal}."));
         }
 
         return store;
@@ -149,12 +149,13 @@ public sealed class ClassificationPipelineTests
             return Task.CompletedTask;
         }
 
-        public Task RecordUsageAsync(
-            Guid companyId,
+        public Task RecordInvocationAsync(
+            ProcessingJob job,
+            string stage,
+            int invocationNo,
+            AiCompletionResult result,
             int pages,
-            long inputTokens,
-            long outputTokens,
-            decimal costEstimateUsd,
+            AiPricing pricing,
             CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

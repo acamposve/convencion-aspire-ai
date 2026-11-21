@@ -13,6 +13,9 @@ public sealed class ClassificationOptions
     public double InputPricePerMillion { get; set; } = 0.61;
 
     public double OutputPricePerMillion { get; set; } = 1.82;
+
+    /// <summary>Identifier of the price list above; recorded on every usage row.</summary>
+    public string PricingVersion { get; set; } = "configured-v1";
 }
 
 public static class ClassificationSchema

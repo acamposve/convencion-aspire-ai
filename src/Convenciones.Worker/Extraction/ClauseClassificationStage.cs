@@ -32,8 +32,9 @@ public sealed class ClauseClassificationStage(
         var byKey = categories.ToDictionary(category => category.Key, StringComparer.OrdinalIgnoreCase);
         var byOrdinal = clauses.ToDictionary(clause => clause.Ordinal);
         var assignments = new List<ClassificationAssignment>();
-        long inputTokens = 0;
-        long outputTokens = 0;
+        var pricing = AiPricing.FromConfiguration(
+            options.PricingVersion, options.InputPricePerMillion, options.OutputPricePerMillion);
+        var invocation = 0;
         var classifiedOrdinals = new HashSet<int>();
 
         foreach (var batch in Batches(clauses, options.BatchSize))
@@ -57,9 +58,20 @@ public sealed class ClauseClassificationStage(
                 throw new PermanentProcessingException("invalid_model_output", exception.Message);
             }
 
+            // Recorded before parsing and before persistence, for the same reason as extraction: the
+            // call is already billable when it returns.
+            invocation++;
+            await store.RecordInvocationAsync(
+                    job,
+                    "classification",
+                    invocation,
+                    result,
+                    pages: 0,
+                    pricing,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
             Parse(result.Content, batch, byOrdinal, byKey, assignments, classifiedOrdinals);
-            inputTokens += result.InputTokens ?? 0;
-            outputTokens += result.OutputTokens ?? 0;
         }
 
         await store.SaveClassificationsAsync(
@@ -67,11 +79,6 @@ public sealed class ClauseClassificationStage(
             assignments,
             clauses.Count - classifiedOrdinals.Count,
             cancellationToken).ConfigureAwait(false);
-
-        var cost = (decimal)((inputTokens / 1_000_000.0 * options.InputPricePerMillion)
-            + (outputTokens / 1_000_000.0 * options.OutputPricePerMillion));
-        await store.RecordUsageAsync(job.CompanyId, 0, inputTokens, outputTokens, cost, cancellationToken)
-            .ConfigureAwait(false);
 
         logger.LogInformation(
             "Classified {Classified} of {Total} clause(s) in run {RunId}.",

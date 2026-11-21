@@ -122,7 +122,8 @@ public sealed class AzureFoundryAiModelClient : IAiModelClient
                     request.Deployment ?? _options.Deployment,
                     inputTokens,
                     outputTokens,
-                    stopwatch.Elapsed);
+                    stopwatch.Elapsed,
+                    "azure-foundry");
             }
         }
     }
