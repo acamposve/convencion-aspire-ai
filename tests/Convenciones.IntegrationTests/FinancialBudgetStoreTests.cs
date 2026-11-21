@@ -306,7 +306,151 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
         counters.Spent.ShouldBe(10m, "unknown usage is charged at the estimate, never at zero");
     }
 
+    [Fact]
+    public async Task Activation_converts_submitted_shadow_invocations_and_releases_the_rest()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var submitted = Guid.NewGuid();
+        var neverSubmitted = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", submitted, 10m, CancellationToken.None);
+        await budget.ReserveAsync(job, "extraction", neverSubmitted, 4m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, submitted, CancellationToken.None);
+
+        var result = await budget.ActivateAsync(
+            job.CompanyId, CurrentPeriod(), "operator@test", "first enforced month", null, CancellationToken.None);
+
+        result.Converted.ShouldBe(1);
+        result.Released.ShouldBe(1);
+        result.Spent.ShouldBe(10m);
+
+        var counters = await BudgetAsync(budgetId);
+        counters.Spent.ShouldBe(10m);
+        (await ScalarAsync($"select enforcement from platform.ai_budget where id = '{budgetId}'"))
+            .ShouldBe("enforced");
+        (await ScalarAsync($"select status from platform.ai_budget_reservation where invocation_id = '{submitted}'"))
+            .ShouldBe("settled_estimated");
+        (await ScalarAsync($"select origin from platform.ai_budget_reservation where invocation_id = '{submitted}'"))
+            .ShouldBe("shadow_cutover");
+        (await ScalarAsync($"select status from platform.ai_budget_shadow where invocation_id = '{submitted}'"))
+            .ShouldBe("converted");
+        (await ScalarAsync($"select status from platform.ai_budget_shadow where invocation_id = '{neverSubmitted}'"))
+            .ShouldBe("released");
+        (await ScalarAsync($"select count(*) from platform.ai_budget_audit where company_id = '{job.CompanyId}'"))
+            .ShouldBe("1");
+    }
+
+    [Fact]
+    public async Task Activation_after_conversion_reconciles_the_liability_by_delta()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await budget.ActivateAsync(job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None);
+
+        await budget.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
+
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(12m, "the recognised estimate is corrected, not doubled");
+    }
+
+    [Fact]
+    public async Task Activation_fails_closed_when_unknown_usage_is_unresolved()
+    {
+        var job = await CreateJobAsync();
+        await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.RecordInvocationAsync(
+            job, "extraction", invocationId, 1, Result(null, null, "m", "d"), 0,
+            new AiPricing("test-v1", "USD", 0.61m, 1.82m), CancellationToken.None);
+
+        await Should.ThrowAsync<InvalidOperationException>(() => budget.ActivateAsync(
+            job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None));
+
+        (await ScalarAsync($"select enforcement from platform.ai_budget where company_id = '{job.CompanyId}'"))
+            .ShouldBe("shadow", "a refused activation changes nothing");
+    }
+
+    [Fact]
+    public async Task Activation_without_a_budget_row_is_refused()
+    {
+        var job = await CreateJobAsync();
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+
+        await Should.ThrowAsync<InvalidOperationException>(() => budget.ActivateAsync(
+            job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Activation_is_idempotent()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+
+        var result = await budget.ActivateAsync(
+            job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None);
+
+        result.Converted.ShouldBe(0);
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(0m);
+        (await ScalarAsync($"select count(*) from platform.ai_budget_audit where company_id = '{job.CompanyId}'"))
+            .ShouldBe("0", "no audit row is written for a no-op activation");
+    }
+
+    [Fact]
+    public async Task Sweep_settles_an_expired_submitted_reservation_at_its_estimate()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await ExecuteAsync(
+            $"update platform.ai_budget_reservation set expires_at = now() - interval '1 hour' where invocation_id = '{invocationId}';");
+
+        var settled = await budget.SweepAsync(CancellationToken.None);
+
+        settled.ShouldBeGreaterThanOrEqualTo(1);
+        (await ReservationStatusAsync(invocationId)).ShouldBe("settled_estimated");
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(0m);
+        counters.Spent.ShouldBe(10m);
+    }
+
+    [Fact]
+    public async Task Financial_history_blocks_deleting_the_run()
+    {
+        var job = await CreateJobAsync();
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.RecordInvocationAsync(
+            job, "extraction", invocationId, 1, Result(1_000, 500, "m", "d"), 0,
+            new AiPricing("test-v1", "USD", 0.61m, 1.82m), CancellationToken.None);
+
+        await Should.ThrowAsync<PostgresException>(() =>
+            ExecuteAsync($"delete from platform.processing_run where id = '{job.RunId}';"));
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    private static DateOnly CurrentPeriod()
+    {
+        var now = DateTime.UtcNow;
+        return new DateOnly(now.Year, now.Month, 1);
+    }
 
     private static AiCompletionResult Result(int? input, int? output, string model, string deployment)
     {

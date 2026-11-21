@@ -108,6 +108,15 @@ public sealed class ProcessingRetentionSweeper(
                 continue;
             }
 
+            if (await HasFinancialHistoryAsync(connection, transaction, documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false))
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                logger.LogWarning(
+                    "Skipping retention for document {DocumentId}: financial history is protected.",
+                    documentId);
+                continue;
+            }
+
             purged += await DeleteAsync(connection, transaction,
                 "delete from platform.clause_classification where clause_id in (select id from platform.extracted_clause where document_id = @document and (@run is null or run_id = @run));",
                 documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
@@ -197,6 +206,31 @@ public sealed class ProcessingRetentionSweeper(
         }
 
         return ids;
+    }
+
+    private static async Task<bool> HasFinancialHistoryAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid documentId,
+        Guid? runId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            select exists(
+                select 1
+                from platform.processing_run r
+                where r.document_id = @document
+                  and (@run is null or r.id = @run)
+                  and (exists (select 1 from platform.ai_usage_record u where u.run_id = r.id)
+                    or exists (select 1 from platform.ai_budget_reservation b where b.run_id = r.id)));
+            """, connection, transaction);
+        command.Parameters.AddWithValue("document", documentId);
+        command.Parameters.Add(new NpgsqlParameter("run", NpgsqlTypes.NpgsqlDbType.Uuid)
+        {
+            Value = (object?)runId ?? DBNull.Value,
+        });
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
     private static async Task<bool> HasCorrectionsAsync(

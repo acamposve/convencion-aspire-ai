@@ -14,6 +14,9 @@ public sealed class WorkerOptions
     /// </summary>
     public int RecoveryIntervalSeconds { get; set; } = 60;
 
+    /// <summary>How often an enabled worker settles submitted financial reservations whose response never arrived.</summary>
+    public int SweepIntervalSeconds { get; set; } = 300;
+
     /// <summary>How long a claimed run stays leased before recovery may reclaim it.</summary>
     public int LeaseSeconds { get; set; } = 600;
 

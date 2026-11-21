@@ -13,6 +13,9 @@ public enum ReservationMode
 /// <summary>The outcome of asking the budget for permission to call the provider.</summary>
 public sealed record ReservationDecision(ReservationMode Mode, bool Admitted, Guid? BudgetId, decimal Estimate);
 
+/// <summary>What an enforcement activation converted, released and recognised.</summary>
+public sealed record ActivationResult(int Converted, int Released, decimal Spent);
+
 /// <summary>
 /// Financial budget accounting for one provider invocation.
 /// </summary>
@@ -396,6 +399,319 @@ public sealed class FinancialBudgetStore(string connectionString) : IFinancialBu
         }
 
         return expired.Count;
+    }
+
+    /// <summary>
+    /// Sweeps every company that has a submitted reservation whose provider response never arrived and
+    /// settles it at its estimate. Returns the number of invocations settled.
+    /// </summary>
+    public async Task<int> SweepAsync(CancellationToken cancellationToken)
+    {
+        var companies = new List<Guid>();
+
+        await using (var connection = new NpgsqlConnection(connectionString))
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await using var command = new NpgsqlCommand(
+                """
+                select distinct company_id
+                from platform.ai_budget_reservation
+                where status = 'submitted' and expires_at < now();
+                """, connection);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                companies.Add(reader.GetGuid(0));
+            }
+        }
+
+        var settled = 0;
+        foreach (var company in companies)
+        {
+            settled += await ExpireAsync(company, cancellationToken).ConfigureAwait(false);
+        }
+
+        return settled;
+    }
+
+    /// <summary>
+    /// Activates enforcement for one company-period. Every shadow invocation is itemised: a submitted one
+    /// becomes a reservation already settled at its estimate (so a later provider figure corrects it by
+    /// delta), and one that was never submitted is released. Activation fails closed when unresolved
+    /// unavailable usage exists, because recognising an unknown amount would mean inventing it.
+    /// </summary>
+    public async Task<ActivationResult> ActivateAsync(
+        Guid companyId,
+        DateOnly period,
+        string actor,
+        string rationale,
+        decimal? additionalAdjustment,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actor);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rationale);
+        ArgumentOutOfRangeException.ThrowIfNegative(additionalAdjustment ?? 0m);
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        await LockAsync(connection, transaction, companyId, period, cancellationToken).ConfigureAwait(false);
+
+        Guid budgetId = Guid.Empty;
+        var enforcement = string.Empty;
+        decimal alreadySpent = 0m;
+        var found = false;
+        await using (var budget = new NpgsqlCommand(
+            """
+            select id, enforcement, spent_amount
+            from platform.ai_budget
+            where company_id = @company and period_start = @period and currency = 'USD'
+            for update;
+            """, connection, transaction))
+        {
+            budget.Parameters.AddWithValue("company", companyId);
+            budget.Parameters.Add(new NpgsqlParameter("period", NpgsqlDbType.Date) { Value = period });
+            await using var reader = await budget.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                budgetId = reader.GetGuid(0);
+                enforcement = reader.GetString(1);
+                alreadySpent = reader.GetDecimal(2);
+                found = true;
+            }
+        }
+
+        if (!found)
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException(
+                $"No budget is configured for company '{companyId}' in period '{period:yyyy-MM-dd}'; enforcement cannot be activated.");
+        }
+
+        if (enforcement == "enforced")
+        {
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return new ActivationResult(0, 0, alreadySpent);
+        }
+
+        var unresolved = await ScalarLongAsync(connection, transaction,
+            "select count(*) from platform.ai_usage_record " +
+            "where company_id = @company and period = @period and usage_source = 'unavailable';",
+            companyId, period, cancellationToken).ConfigureAwait(false);
+        if (unresolved > 0)
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException(
+                $"Cannot activate enforcement: {unresolved} invocation(s) have unresolved unavailable usage. " +
+                "Reconcile them first; an unknown amount is not zero.");
+        }
+
+        var shadow = new List<(Guid Invocation, decimal Estimate, bool Submitted)>();
+        await using (var command = new NpgsqlCommand(
+            """
+            select invocation_id, estimated_cost, submitted_at is not null
+            from platform.ai_budget_shadow
+            where company_id = @company and period = @period and status = 'shadowed';
+            """, connection, transaction))
+        {
+            command.Parameters.AddWithValue("company", companyId);
+            command.Parameters.Add(new NpgsqlParameter("period", NpgsqlDbType.Date) { Value = period });
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                shadow.Add((reader.GetGuid(0), reader.GetDecimal(1), reader.GetBoolean(2)));
+            }
+        }
+
+        var converted = 0;
+        var released = 0;
+        foreach (var item in shadow)
+        {
+            if (!item.Submitted)
+            {
+                await SetShadowStatusAsync(connection, transaction, item.Invocation, "released", cancellationToken)
+                    .ConfigureAwait(false);
+                released++;
+                continue;
+            }
+
+            await ConvertShadowInvocationAsync(connection, transaction, budgetId, item.Invocation, cancellationToken)
+                .ConfigureAwait(false);
+            await SetShadowStatusAsync(connection, transaction, item.Invocation, "converted", cancellationToken)
+                .ConfigureAwait(false);
+            converted++;
+        }
+
+        var knownUsage = await ScalarDecimalAsync(connection, transaction,
+            "select coalesce(sum(estimated_cost_usd), 0) from platform.ai_usage_record " +
+            "where company_id = @company and period = @period and estimated_cost_usd is not null;",
+            companyId, period, cancellationToken).ConfigureAwait(false);
+
+        var liabilities = await ScalarDecimalAsync(connection, transaction,
+            "select coalesce(sum(settled_amount), 0) from platform.ai_budget_reservation " +
+            "where budget_id = @budget and status = 'settled_estimated';",
+            budgetId, cancellationToken).ConfigureAwait(false);
+
+        var spent = knownUsage + liabilities + (additionalAdjustment ?? 0m);
+
+        await using (var update = new NpgsqlCommand(
+            """
+            update platform.ai_budget
+            set reserved_amount = 0, spent_amount = @spent, enforcement = 'enforced', updated_at = now()
+            where id = @budget and enforcement = 'shadow';
+            """, connection, transaction))
+        {
+            update.Parameters.AddWithValue("budget", budgetId);
+            update.Parameters.Add(new NpgsqlParameter("spent", NpgsqlDbType.Numeric) { Value = spent });
+            var affected = await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            if (affected != 1)
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw new InvalidOperationException("Enforcement activation lost its budget row; nothing was changed.");
+            }
+        }
+
+        var details = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            converted,
+            released,
+            knownUsage,
+            liabilities,
+            adjustment = additionalAdjustment ?? 0m,
+            invocations = shadow.Select(item => new { invocation = item.Invocation, estimate = item.Estimate, item.Submitted }),
+        });
+
+        await using (var audit = new NpgsqlCommand(
+            """
+            insert into platform.ai_budget_audit
+                (company_id, period_start, actor, action, amount, details)
+            values (@company, @period, @actor, 'enforcement_activated', @amount, @details::jsonb);
+            """, connection, transaction))
+        {
+            audit.Parameters.AddWithValue("company", companyId);
+            audit.Parameters.Add(new NpgsqlParameter("period", NpgsqlDbType.Date) { Value = period });
+            audit.Parameters.AddWithValue("actor", actor);
+            audit.Parameters.Add(new NpgsqlParameter("amount", NpgsqlDbType.Numeric)
+            {
+                Value = additionalAdjustment ?? 0m,
+            });
+            audit.Parameters.AddWithValue("details", details);
+            await audit.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return new ActivationResult(converted, released, spent);
+    }
+
+    private static async Task ConvertShadowInvocationAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid budgetId,
+        Guid invocationId,
+        CancellationToken cancellationToken)
+    {
+        await using (var insert = new NpgsqlCommand(
+            """
+            insert into platform.ai_budget_reservation
+                (invocation_id, budget_id, company_id, run_id, attempt_id, stage, estimated_cost,
+                 settled_amount, currency, status, origin, settled_at, expires_at)
+            select s.invocation_id, @budget, s.company_id, s.run_id, s.attempt_id, s.stage,
+                   s.estimated_cost, s.estimated_cost, 'USD', 'settled_estimated', 'shadow_cutover', now(), now()
+            from platform.ai_budget_shadow s
+            where s.invocation_id = @invocation
+            on conflict (invocation_id) do nothing;
+            """, connection, transaction))
+        {
+            insert.Parameters.AddWithValue("budget", budgetId);
+            insert.Parameters.AddWithValue("invocation", invocationId);
+            await insert.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        // An existing reservation is only acceptable when it describes the same liability; anything else
+        // is a conflict that must stop the activation rather than be silently absorbed.
+        await using (var existing = new NpgsqlCommand(
+            """
+            select estimated_cost, settled_amount, origin, status
+            from platform.ai_budget_reservation
+            where invocation_id = @invocation;
+            """, connection, transaction))
+        {
+            existing.Parameters.AddWithValue("invocation", invocationId);
+            await using var reader = await existing.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                throw new InvalidOperationException($"Shadow invocation '{invocationId}' could not be converted.");
+            }
+
+            var matches = reader.GetDecimal(0) == reader.GetDecimal(1)
+                && reader.GetString(2) == "shadow_cutover"
+                && reader.GetString(3) == "settled_estimated";
+
+            if (!matches)
+            {
+                throw new InvalidOperationException(
+                    $"Shadow invocation '{invocationId}' already has a different reservation; enforcement was not activated.");
+            }
+        }
+    }
+
+    private static async Task SetShadowStatusAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid invocationId,
+        string status,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            update platform.ai_budget_shadow
+            set status = @status, converted_at = now()
+            where invocation_id = @invocation and status = 'shadowed';
+            """, connection, transaction);
+        command.Parameters.AddWithValue("invocation", invocationId);
+        command.Parameters.AddWithValue("status", status);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<long> ScalarLongAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string sql,
+        Guid companyId,
+        DateOnly period,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("company", companyId);
+        command.Parameters.Add(new NpgsqlParameter("period", NpgsqlDbType.Date) { Value = period });
+        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<decimal> ScalarDecimalAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string sql,
+        Guid companyId,
+        DateOnly period,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("company", companyId);
+        command.Parameters.Add(new NpgsqlParameter("period", NpgsqlDbType.Date) { Value = period });
+        return Convert.ToDecimal(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<decimal> ScalarDecimalAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string sql,
+        Guid budgetId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        command.Parameters.AddWithValue("budget", budgetId);
+        return Convert.ToDecimal(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
     }
 
     // ------------------------------------------------------------------ helpers
