@@ -105,6 +105,10 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
                 updated_at = now()
             from candidate c
             where r.id = c.id
+              -- Explicit terminal guard: a concurrent delete cancels active runs in its own
+              -- transaction, so the row may have stopped being Queued between the candidate scan and
+              -- this update. The row lock makes that ordering small; this predicate makes it harmless.
+              and r.status = 'Queued'::platform.processing_status
             returning r.id, r.document_id, r.company_id, r.attempts;
             """, connection, transaction);
 
