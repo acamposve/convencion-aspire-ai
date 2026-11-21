@@ -1,0 +1,321 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Convenciones.Worker;
+using Convenciones.Worker.Financial;
+using Npgsql;
+using Shouldly;
+using Xunit;
+
+namespace Convenciones.IntegrationTests;
+
+/// <summary>
+/// P1-005 PR B: budget reservation accounting on PostgreSQL. No provider is involved; the estimate is
+/// supplied by the caller, exactly as the settlement wiring will supply it.
+/// </summary>
+[Collection(PostgresCollection.Name)]
+public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncLifetime
+{
+    private readonly List<(Guid Company, Guid User, Guid Document)> _created = [];
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
+    {
+        foreach (var (company, user, document) in _created)
+        {
+            await ExecuteAsync($"delete from platform.ai_budget_reservation where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.ai_budget_shadow where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.ai_budget_audit where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.ai_budget where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.ai_usage_record where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.processing_run where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.processing_usage where company_id = '{company}';");
+            await ExecuteAsync($"delete from platform.document where id = '{document}';");
+            await ExecuteAsync($"delete from platform.user_account where id = '{user}';");
+            await ExecuteAsync($"delete from app.company where id = '{company}';");
+        }
+    }
+
+    [Fact]
+    public async Task No_budget_row_runs_in_shadow_without_touching_counters()
+    {
+        var job = await CreateJobAsync();
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+
+        var decision = await store.ReserveAsync(job, "extraction", Guid.NewGuid(), 10m, CancellationToken.None);
+
+        decision.Mode.ShouldBe(ReservationMode.Shadow);
+        decision.Admitted.ShouldBeTrue();
+        (await CountAsync("ai_budget_shadow", job.CompanyId)).ShouldBe(1);
+        (await CountAsync("ai_budget_reservation", job.CompanyId)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Shadow_budget_records_the_estimate_and_moves_nothing()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+
+        var decision = await store.ReserveAsync(job, "extraction", Guid.NewGuid(), 10m, CancellationToken.None);
+
+        decision.Mode.ShouldBe(ReservationMode.Shadow);
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(0m);
+        counters.Spent.ShouldBe(0m);
+        (await CountAsync("ai_budget_shadow", job.CompanyId)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task An_enforced_budget_reserves_the_estimate()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        var decision = await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+
+        decision.Mode.ShouldBe(ReservationMode.Enforced);
+        decision.Admitted.ShouldBeTrue();
+        (await BudgetAsync(budgetId)).Reserved.ShouldBe(10m);
+        (await ReservationStatusAsync(invocationId)).ShouldBe("reserved");
+    }
+
+    [Fact]
+    public async Task Reserving_the_same_invocation_twice_moves_the_counter_once()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+
+        (await BudgetAsync(budgetId)).Reserved.ShouldBe(10m);
+        (await CountAsync("ai_budget_reservation", job.CompanyId)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_refused_reservation_leaves_no_partial_state()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 5m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+
+        var decision = await store.ReserveAsync(job, "extraction", Guid.NewGuid(), 10m, CancellationToken.None);
+
+        decision.Admitted.ShouldBeFalse();
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(0m);
+        (await CountAsync("ai_budget_reservation", job.CompanyId)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Concurrent_reservations_cannot_exceed_the_budget()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+
+        var first = store.ReserveAsync(job, "extraction", Guid.NewGuid(), 60m, CancellationToken.None);
+        var second = store.ReserveAsync(job, "extraction", Guid.NewGuid(), 60m, CancellationToken.None);
+
+        var decisions = await Task.WhenAll(first, second);
+
+        decisions.Count(decision => decision.Admitted).ShouldBe(1);
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(60m);
+        (await CountAsync("ai_budget_reservation", job.CompanyId)).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Settlement_above_the_estimate_spends_the_actual_cost()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.SettleAsync(job, invocationId, 12m, CancellationToken.None);
+
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(0m);
+        counters.Spent.ShouldBe(12m);
+        (await ReservationStatusAsync(invocationId)).ShouldBe("settled");
+    }
+
+    [Fact]
+    public async Task Settlement_below_the_estimate_releases_the_difference()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.SettleAsync(job, invocationId, 7m, CancellationToken.None);
+
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(0m);
+        counters.Spent.ShouldBe(7m);
+    }
+
+    [Fact]
+    public async Task Unknown_usage_is_settled_at_the_estimate_and_reconciled_by_delta()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.SettleAsync(job, invocationId, null, CancellationToken.None);
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("settled_estimated");
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(10m);
+
+        await store.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
+
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(12m, "the delta is applied, not the full actual cost");
+        (await ReservationStatusAsync(invocationId)).ShouldBe("reconciled");
+    }
+
+    [Fact]
+    public async Task An_identical_reconciliation_is_a_no_op()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.SettleAsync(job, invocationId, null, CancellationToken.None);
+        await store.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
+        await store.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
+
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(12m);
+    }
+
+    [Fact]
+    public async Task A_conflicting_reconciliation_raises_and_changes_nothing()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.SettleAsync(job, invocationId, null, CancellationToken.None);
+        await store.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
+
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            store.ReconcileAsync(job, invocationId, 14m, CancellationToken.None));
+
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(12m);
+        (await ReservationStatusAsync(invocationId)).ShouldBe("reconciled");
+    }
+
+    [Fact]
+    public async Task A_submitted_invocation_cannot_be_released()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.ReleaseAsync(job.CompanyId, invocationId, CancellationToken.None);
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("submitted");
+        (await BudgetAsync(budgetId)).Reserved.ShouldBe(10m);
+    }
+
+    [Fact]
+    public async Task A_reservation_that_was_never_submitted_is_released()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var store = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await store.ReleaseAsync(job.CompanyId, invocationId, CancellationToken.None);
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("released");
+        (await BudgetAsync(budgetId)).Reserved.ShouldBe(0m);
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    private async Task<ProcessingJob> CreateJobAsync()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var companyId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var documentId = Guid.NewGuid();
+        var runId = Guid.NewGuid();
+        var attemptId = Guid.NewGuid();
+
+        await ExecuteAsync(
+            $"insert into app.company (id, name) values ('{companyId}', 'Budget test {suffix}');" +
+            $"insert into platform.user_account (id, email, display_name) values ('{userId}', 'budget-{suffix}@example.test', 'Budget Test');" +
+            $"insert into platform.document (id, storage_path, file_name, content_type, size_bytes, uploaded_by, company_id) " +
+            $"values ('{documentId}', 'budget/{suffix}.pdf', 'budget.pdf', 'application/pdf', 1024, '{userId}', '{companyId}');" +
+            $"insert into platform.processing_run (id, document_id, company_id) values ('{runId}', '{documentId}', '{companyId}');" +
+            $"insert into platform.processing_attempt (id, run_id, company_id, attempt_no) values ('{attemptId}', '{runId}', '{companyId}', 1);" +
+            $"update platform.processing_run set status = 'Running' where id = '{runId}';");
+
+        _created.Add((companyId, userId, documentId));
+        return new ProcessingJob(runId, documentId, companyId, 1, attemptId);
+    }
+
+    private async Task<Guid> CreateBudgetAsync(Guid companyId, decimal limit, string enforcement)
+    {
+        var id = Guid.NewGuid();
+        await ExecuteAsync(
+            $"insert into platform.ai_budget (id, company_id, period_start, period_end, limit_amount, enforcement) " +
+            $"values ('{id}', '{companyId}', (date_trunc('month', now()))::date, " +
+            $"(date_trunc('month', now()) + interval '1 month - 1 day')::date, {limit.ToString(System.Globalization.CultureInfo.InvariantCulture)}, '{enforcement}');");
+        return id;
+    }
+
+    private async Task<(decimal Reserved, decimal Spent)> BudgetAsync(Guid budgetId) =>
+        (await ScalarDecimalAsync($"select reserved_amount from platform.ai_budget where id = '{budgetId}'"),
+         await ScalarDecimalAsync($"select spent_amount from platform.ai_budget where id = '{budgetId}'"));
+
+    private async Task<string> ReservationStatusAsync(Guid invocationId) =>
+        await ScalarAsync($"select status from platform.ai_budget_reservation where invocation_id = '{invocationId}'");
+
+    private async Task<int> CountAsync(string table, Guid companyId) =>
+        Convert.ToInt32(await ScalarAsync($"select count(*) from platform.{table} where company_id = '{companyId}'"));
+
+    private async Task ExecuteAsync(string sql)
+    {
+        await using var connection = new NpgsqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private async Task<string> ScalarAsync(string sql)
+    {
+        await using var connection = new NpgsqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(sql, connection);
+        return Convert.ToString(await command.ExecuteScalarAsync()) ?? string.Empty;
+    }
+
+    private async Task<decimal> ScalarDecimalAsync(string sql) => Convert.ToDecimal(await ScalarAsync(sql));
+}
