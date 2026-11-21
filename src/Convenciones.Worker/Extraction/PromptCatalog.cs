@@ -30,6 +30,11 @@ public static class PromptCatalog
     internal static string Hash(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
+
+        // Normalise line endings before hashing: the same prompt text must hash identically whether the
+        // working tree was checked out with LF (CI) or CRLF (Windows). Without this, the pin fails for
+        // reasons unrelated to the prompt having changed.
+        var normalized = content.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized))).ToLowerInvariant();
     }
 }

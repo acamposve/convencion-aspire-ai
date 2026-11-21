@@ -5,6 +5,7 @@ using Convenciones.Clauses;
 using Convenciones.Documents;
 using Convenciones.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 using System.Text.Json;
 using System.Security.Cryptography;
@@ -116,9 +117,16 @@ public static class ProcessingEndpoints
         }
 
         var maxActiveRuns = configuration.GetValue<int?>("Processing:MaxActiveRunsPerCompany") ?? 1;
-        var quota = await quotas.TryReserveAsync(companyId, maxActiveRuns, cancellationToken).ConfigureAwait(false);
+
+        // The reservation joins this transaction: the counter increment, the active-run check and the
+        // run insert either commit together or not at all.
+        var connection = (NpgsqlConnection)db.Database.GetDbConnection();
+        var transaction = (NpgsqlTransaction)db.Database.CurrentTransaction!.GetDbTransaction();
+        var quota = await quotas.TryReserveAsync(connection, transaction, companyId, maxActiveRuns, cancellationToken).ConfigureAwait(false);
         if (!quota.Allowed)
         {
+            await startTransaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+
             return Problem(
                 StatusCodes.Status409Conflict,
                 quota.Code ?? "quota_exceeded",

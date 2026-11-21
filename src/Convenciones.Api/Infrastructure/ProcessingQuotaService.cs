@@ -32,17 +32,24 @@ public sealed class ProcessingQuotaService(string connectionString)
         return new QuotaStatus(period, limits, usage);
     }
 
-    public Task<QuotaDecision> TryReserveAsync(Guid companyId, CancellationToken cancellationToken) =>
-        TryReserveAsync(companyId, 0, cancellationToken);
-
+    /// <summary>
+    /// Reserves one document against the monthly quota inside the caller's transaction.
+    /// </summary>
+    /// <remarks>
+    /// This deliberately does not open or commit a transaction. The run insert and the counter increment
+    /// must share one commit, otherwise a failure after the reservation leaves an orphan charge and the
+    /// active-run cap can be exceeded by concurrent starts. The advisory lock is transaction-scoped, so
+    /// it serialises concurrent reservations until the caller commits.
+    /// </remarks>
     public async Task<QuotaDecision> TryReserveAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
         Guid companyId,
         int maxActiveRuns,
         CancellationToken cancellationToken)
     {
-        await using var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
 
         await using (var lockCommand = new NpgsqlCommand(
             "select pg_advisory_xact_lock(hashtext(@company::text));", connection, transaction))
@@ -50,6 +57,10 @@ public sealed class ProcessingQuotaService(string connectionString)
             lockCommand.Parameters.AddWithValue("company", companyId);
             await lockCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        var period = await EnsureUsageAsync(connection, transaction, companyId, cancellationToken).ConfigureAwait(false);
+        var limits = await ReadLimitsAsync(connection, transaction, companyId, cancellationToken).ConfigureAwait(false);
+        var usage = await ReadUsageForUpdateAsync(connection, transaction, companyId, period, cancellationToken).ConfigureAwait(false);
 
         if (maxActiveRuns > 0)
         {
@@ -63,19 +74,13 @@ public sealed class ProcessingQuotaService(string connectionString)
             var active = Convert.ToInt32(await activeCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
             if (active >= maxActiveRuns)
             {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                var blocked = await GetAsync(companyId, cancellationToken).ConfigureAwait(false);
                 return new QuotaDecision(
                     false,
-                    blocked,
+                    new QuotaStatus(period, limits, usage),
                     "The company already has the maximum number of active runs.",
                     "concurrency_limit");
             }
         }
-
-        var period = await EnsureUsageAsync(connection, transaction, companyId, cancellationToken).ConfigureAwait(false);
-        var limits = await ReadLimitsAsync(connection, transaction, companyId, cancellationToken).ConfigureAwait(false);
-        var usage = await ReadUsageForUpdateAsync(connection, transaction, companyId, period, cancellationToken).ConfigureAwait(false);
 
         var exceeded = (limits.Documents is { } documents && usage.Documents >= documents)
             || (limits.Pages is { } pages && usage.Pages >= pages)
@@ -83,7 +88,6 @@ public sealed class ProcessingQuotaService(string connectionString)
 
         if (exceeded)
         {
-            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             return new QuotaDecision(
                 false,
                 new QuotaStatus(period, limits, usage),
@@ -103,7 +107,6 @@ public sealed class ProcessingQuotaService(string connectionString)
             await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return new QuotaDecision(
             true,
             new QuotaStatus(period, limits, usage with { Documents = usage.Documents + 1 }),
