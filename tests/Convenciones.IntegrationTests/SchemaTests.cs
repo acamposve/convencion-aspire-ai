@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Npgsql;
 using Shouldly;
@@ -32,7 +32,7 @@ public sealed class SchemaTests(PostgresFixture fixture)
         var count = await QueryAsync<long>(
             "select count(*) from information_schema.tables where table_schema in ('app', 'platform') and table_type = 'BASE TABLE'");
 
-        count.Single().ShouldBe(44L);
+        count.Single().ShouldBe(45L);
     }
 
     [Fact]

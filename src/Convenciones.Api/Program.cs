@@ -256,6 +256,21 @@ builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
 // that there is. See docs/architecture/security-model.md.
 builder.Services.AddSingleton(new ProcessingQuotaService(connectionString));
 builder.Services.AddSingleton(new ProcessingRetentionService(connectionString));
+
+var deletionOptions = new DocumentDeletionOptions
+{
+    IntervalSeconds = int.TryParse(builder.Configuration["Documents:DeletionIntervalSeconds"], out var deletionInterval)
+        ? deletionInterval
+        : 60,
+    BatchSize = int.TryParse(builder.Configuration["Documents:DeletionBatchSize"], out var deletionBatch)
+        ? deletionBatch
+        : 10,
+};
+builder.Services.AddSingleton(deletionOptions);
+builder.Services.AddSingleton(new DocumentDeletionStore(connectionString));
+builder.Services.AddSingleton<DocumentDeletionSweeper>();
+builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<DocumentDeletionSweeper>());
+
 builder.Services.AddConvencionesIdentity(builder.Configuration, connectionString);
 
 builder.Services
