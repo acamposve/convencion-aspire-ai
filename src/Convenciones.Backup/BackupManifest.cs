@@ -42,6 +42,8 @@ public sealed record CheckReport(
     IReadOnlyList<string> ReferentialViolations,
     IReadOnlyList<string> MissingObjects,
     IReadOnlyList<string> OrphanObjects,
+    IReadOnlyList<string> IncompleteTables,
+    bool FailedRestore,
     bool Passed);
 
 /// <summary>Raised when a backup cannot be trusted: tampering, truncation or a format mismatch.</summary>

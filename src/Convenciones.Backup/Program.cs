@@ -20,15 +20,23 @@ if (args.Length == 0)
 
 var command = args[0];
 var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-for (var index = 1; index < args.Length; index += 2)
+for (var index = 1; index < args.Length; index++)
 {
-    if (index + 1 >= args.Length || !args[index].StartsWith("--", StringComparison.Ordinal))
+    if (!args[index].StartsWith("--", StringComparison.Ordinal))
     {
         Console.Error.WriteLine(Usage);
         return 2;
     }
 
-    options[args[index][2..]] = args[index + 1];
+    var name = args[index][2..];
+    if (index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal))
+    {
+        options[name] = args[++index];
+    }
+    else
+    {
+        options[name] = "true";
+    }
 }
 
 string Required(string name) =>
@@ -75,6 +83,7 @@ try
                 Required("confirm"),
                 Required("migrations"),
                 options.GetValueOrDefault("storage-root"),
+                options.ContainsKey("replace"),
                 CancellationToken.None);
 
             Console.WriteLine(JsonSerializer.Serialize(report));
@@ -86,6 +95,7 @@ try
             var report = await BackupManager.CheckAsync(
                 Required("connection"),
                 options.GetValueOrDefault("storage-root"),
+                options.GetValueOrDefault("directory"),
                 CancellationToken.None);
 
             Console.WriteLine(JsonSerializer.Serialize(report));

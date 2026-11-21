@@ -1,4 +1,4 @@
-# P1-007 — Backup and restore
+# P1-007 â€” Backup and restore
 
 **Status:** implemented and tested for the database; object storage covered by a directory-level backup and
 consistency checks. Scheduling, retention and RPO/RTO remain open.
@@ -30,11 +30,23 @@ consistency checks. Scheduling, retention and RPO/RTO remain open.
 database with all row counts matching; tenant/financial/audit preservation verified by value; refusal on
 non-empty and mis-confirmed targets; storage backup/restore plus missing and orphan detection.
 
-Full suite at the time of writing: unit 244, integration 320, Release build 0 warnings / 0 errors.
+Full suite at the time of writing: unit 244, integration 328, Release build 0 warnings / 0 errors.
+
+## Hardening (audit follow-up)
+
+- Manifest-derived paths are confined to the backup/storage root; schema and table names must match a SQL
+  identifier allowlist; storage capture skips reparse points and de-duplicates paths.
+- The data load is one transaction; a failure rolls back, removes the migration history and schemas it
+  created, and writes `restore-failed.json`. A retry with a good set works from an empty target.
+- The applied migration high-water mark must match the manifest, and the schema fingerprint now covers
+  constraints, indexes, triggers, RLS policies and RLS status, not only columns.
+- `check --directory` compares every table's row count to the manifest; checks also cover cross-tenant
+  attribution and identity-sequence alignment.
+- Storage restore refuses a non-empty root unless `--replace` is passed.
 
 ## Open decisions
 
 - Backup frequency and retention (not invented here).
-- Managed PITR availability and cost — must be verified with the provider.
+- Managed PITR availability and cost â€” must be verified with the provider.
 - Whether storage backup is scheduled or operator-run.
 - Measured RTO, to be established by a drill on production-sized data.

@@ -2,6 +2,9 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Convenciones.Backup;
@@ -77,7 +80,7 @@ public sealed class BackupRestoreTests(PostgresFixture fixture) : IAsyncLifetime
         try
         {
             var report = await BackupManager.RestoreAsync(
-                target, backup, database, MigrationsDirectory(), null, CancellationToken.None);
+                target, backup, database, MigrationsDirectory(), null, false, CancellationToken.None);
 
             report.AppliedMigrations.ShouldBeGreaterThan(20);
             report.RestoredRows.ShouldBeGreaterThan(0);
@@ -134,10 +137,10 @@ public sealed class BackupRestoreTests(PostgresFixture fixture) : IAsyncLifetime
 
         try
         {
-            await BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), null, CancellationToken.None);
+            await BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), null, false, CancellationToken.None);
 
             await Should.ThrowAsync<InvalidOperationException>(() =>
-                BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), null, CancellationToken.None));
+                BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), null, false, CancellationToken.None));
         }
         finally
         {
@@ -157,7 +160,7 @@ public sealed class BackupRestoreTests(PostgresFixture fixture) : IAsyncLifetime
         try
         {
             await Should.ThrowAsync<InvalidOperationException>(() =>
-                BackupManager.RestoreAsync(target, backup, "some_other_database", MigrationsDirectory(), null, CancellationToken.None));
+                BackupManager.RestoreAsync(target, backup, "some_other_database", MigrationsDirectory(), null, false, CancellationToken.None));
         }
         finally
         {
@@ -190,28 +193,284 @@ public sealed class BackupRestoreTests(PostgresFixture fixture) : IAsyncLifetime
         try
         {
             var report = await BackupManager.RestoreAsync(
-                target, backup, database, MigrationsDirectory(), restoredRoot, CancellationToken.None);
+                target, backup, database, MigrationsDirectory(), restoredRoot, false, CancellationToken.None);
 
             report.RestoredStorageFiles.ShouldBeGreaterThanOrEqualTo(1);
             File.Exists(Path.Combine(restoredRoot, relative)).ShouldBeTrue();
 
-            var clean = await BackupManager.CheckAsync(target, restoredRoot, CancellationToken.None);
+            var clean = await BackupManager.CheckAsync(target, restoredRoot, null, CancellationToken.None);
             clean.MissingObjects.ShouldBeEmpty();
             clean.Passed.ShouldBeTrue();
 
             File.Delete(Path.Combine(restoredRoot, relative));
-            var missing = await BackupManager.CheckAsync(target, restoredRoot, CancellationToken.None);
+            var missing = await BackupManager.CheckAsync(target, restoredRoot, null, CancellationToken.None);
             missing.MissingObjects.ShouldContain(relative);
             missing.Passed.ShouldBeFalse();
 
             await File.WriteAllTextAsync(Path.Combine(restoredRoot, "orphan.bin"), "x");
-            var orphan = await BackupManager.CheckAsync(target, restoredRoot, CancellationToken.None);
+            var orphan = await BackupManager.CheckAsync(target, restoredRoot, null, CancellationToken.None);
             orphan.OrphanObjects.ShouldContain("orphan.bin");
         }
         finally
         {
             await DropDatabaseAsync(database);
         }
+    }
+
+    [Fact]
+    public async Task Verify_rejects_path_traversal_in_storage_entries()
+    {
+        var storageRoot = Path.Combine(_workingDirectory, "traversal-storage");
+        Directory.CreateDirectory(storageRoot);
+        await File.WriteAllTextAsync(Path.Combine(storageRoot, "doc.pdf"), "x");
+
+        var backup = Path.Combine(_workingDirectory, "traversal-set");
+        await BackupManager.CreateAsync(fixture.ConnectionString, backup, storageRoot, CancellationToken.None);
+
+        var manifestPath = Path.Combine(backup, "manifest.json");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!;
+        manifest["Storage"]!["Files"]![0]!["Path"] = "../../escape.txt";
+        await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString());
+
+        await Should.ThrowAsync<BackupIntegrityException>(() =>
+            BackupManager.VerifyAsync(backup, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Verify_rejects_invalid_table_identifiers()
+    {
+        var backup = Path.Combine(_workingDirectory, "identifier-set");
+        await BackupManager.CreateAsync(fixture.ConnectionString, backup, null, CancellationToken.None);
+
+        var manifestPath = Path.Combine(backup, "manifest.json");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!;
+        manifest["Tables"]![0]!["Name"] = "../evil";
+        await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString());
+
+        await Should.ThrowAsync<BackupIntegrityException>(() =>
+            BackupManager.VerifyAsync(backup, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Restore_rejects_a_migration_mismatch_and_leaves_the_target_empty()
+    {
+        var backup = Path.Combine(_workingDirectory, "migration-set");
+        await BackupManager.CreateAsync(fixture.ConnectionString, backup, null, CancellationToken.None);
+
+        var manifestPath = Path.Combine(backup, "manifest.json");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!;
+        manifest["MigrationVersion"] = "9999_not_applied.sql";
+        await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString());
+
+        var database = "restore_" + Guid.NewGuid().ToString("N")[..12];
+        var target = await CreateDatabaseAsync(database);
+
+        try
+        {
+            await Should.ThrowAsync<BackupIntegrityException>(() =>
+                BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), null, false, CancellationToken.None));
+
+            (await ScalarAsync(target,
+                "select count(*) from information_schema.tables where table_schema in ('app','platform');"))
+                .ShouldBe("0", "a refused restore cleans the migrated schema");
+        }
+        finally
+        {
+            await DropDatabaseAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task A_failed_restore_rolls_back_and_can_be_retried()
+    {
+        var good = Path.Combine(_workingDirectory, "good-set");
+        await BackupManager.CreateAsync(fixture.ConnectionString, good, null, CancellationToken.None);
+
+        var corrupt = Path.Combine(_workingDirectory, "corrupt-set");
+        CopyDirectory(good, corrupt);
+
+        var tableFile = Path.Combine(corrupt, "data", "app.company.csv");
+        await File.AppendAllTextAsync(tableFile, "only-one-column\n");
+        await RewriteManifestFileEntryAsync(corrupt, "app.company");
+
+        var database = "restore_" + Guid.NewGuid().ToString("N")[..12];
+        var target = await CreateDatabaseAsync(database);
+
+        try
+        {
+            await Should.ThrowAsync<PostgresException>(() =>
+                BackupManager.RestoreAsync(target, corrupt, database, MigrationsDirectory(), null, false, CancellationToken.None));
+
+            File.Exists(Path.Combine(corrupt, "restore-failed.json")).ShouldBeTrue("a failure marker is written");
+            (await ScalarAsync(target,
+                "select count(*) from information_schema.tables where table_schema in ('app','platform');"))
+                .ShouldBe("0", "the transactional load and cleanup leave an empty target");
+
+            var report = await BackupManager.RestoreAsync(
+                target, good, database, MigrationsDirectory(), null, false, CancellationToken.None);
+
+            report.RestoredRows.ShouldBeGreaterThan(0);
+            File.Exists(Path.Combine(good, "restore-failed.json")).ShouldBeFalse();
+        }
+        finally
+        {
+            await DropDatabaseAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task Check_reports_incomplete_tables_against_the_manifest()
+    {
+        await SeedMarkerAsync();
+
+        var backup = Path.Combine(_workingDirectory, "count-set");
+        await BackupManager.CreateAsync(fixture.ConnectionString, backup, null, CancellationToken.None);
+
+        var database = "restore_" + Guid.NewGuid().ToString("N")[..12];
+        var target = await CreateDatabaseAsync(database);
+
+        try
+        {
+            await BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), null, false, CancellationToken.None);
+            await ExecuteAsync(target, "delete from platform.ai_budget_audit;");
+
+            var check = await BackupManager.CheckAsync(target, null, backup, CancellationToken.None);
+
+            check.IncompleteTables.ShouldContain(item => item.StartsWith("platform.ai_budget_audit", StringComparison.Ordinal));
+            check.Passed.ShouldBeFalse();
+        }
+        finally
+        {
+            await DropDatabaseAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task Check_reports_cross_tenant_attribution()
+    {
+        var first = await SeedMarkerAsync();
+        var second = await SeedMarkerAsync();
+        var invocation = Guid.NewGuid();
+
+        await ExecuteAsync(fixture.ConnectionString,
+            $"insert into platform.ai_usage_record (invocation_id, company_id, document_id, run_id, attempt_id, stage, " +
+            $"invocation_no, provider, input_tokens, output_tokens, usage_source, estimated_cost_usd, currency, " +
+            $"pricing_version, pricing_input_per_million, pricing_output_per_million, period) values " +
+            $"('{invocation}', '{second.Company}', '{first.Document}', '{first.Run}', '{first.Attempt}', 'extraction', 2, " +
+            $"'azure-foundry', 1, 1, 'provider', 0.000001, 'USD', 'test-v1', 0.61, 1.82, (date_trunc('month', now()))::date);");
+
+        try
+        {
+            var check = await BackupManager.CheckAsync(fixture.ConnectionString, null, null, CancellationToken.None);
+
+            check.ReferentialViolations.ShouldContain(item => item.Contains("different company", StringComparison.Ordinal));
+            check.Passed.ShouldBeFalse();
+        }
+        finally
+        {
+            await ExecuteAsync(fixture.ConnectionString,
+                $"delete from platform.ai_usage_record where invocation_id = '{invocation}';");
+        }
+    }
+
+    [Fact]
+    public async Task Sequence_is_aligned_after_restoring_identity_rows()
+    {
+        await ExecuteAsync(fixture.ConnectionString,
+            "insert into platform.audit_entry (module, entity_type, entity_id, action) values " +
+            "('audit', 'backup', 'one', 'created'), ('audit', 'backup', 'two', 'created');");
+
+        var backup = Path.Combine(_workingDirectory, "sequence-set");
+        await BackupManager.CreateAsync(fixture.ConnectionString, backup, null, CancellationToken.None);
+
+        var database = "restore_" + Guid.NewGuid().ToString("N")[..12];
+        var target = await CreateDatabaseAsync(database);
+
+        try
+        {
+            await BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), null, false, CancellationToken.None);
+
+            var maximum = Convert.ToInt64(await ScalarAsync(target, "select max(id) from platform.audit_entry;"));
+            maximum.ShouldBeGreaterThan(0);
+
+            await ExecuteAsync(target,
+                "insert into platform.audit_entry (module, entity_type, entity_id, action) values " +
+                "('audit', 'backup', 'three', 'created');");
+
+            var newId = Convert.ToInt64(await ScalarAsync(target,
+                "select id from platform.audit_entry where entity_id = 'three';"));
+            newId.ShouldBeGreaterThan(maximum, "the identity sequence continues after the restored maximum");
+        }
+        finally
+        {
+            await DropDatabaseAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task Restore_refuses_a_non_empty_storage_root_without_replace()
+    {
+        var storageRoot = Path.Combine(_workingDirectory, "replace-src");
+        Directory.CreateDirectory(storageRoot);
+        await File.WriteAllTextAsync(Path.Combine(storageRoot, "doc.pdf"), "x");
+
+        var backup = Path.Combine(_workingDirectory, "replace-set");
+        await BackupManager.CreateAsync(fixture.ConnectionString, backup, storageRoot, CancellationToken.None);
+
+        var restoredRoot = Path.Combine(_workingDirectory, "replace-dst");
+        Directory.CreateDirectory(restoredRoot);
+        await File.WriteAllTextAsync(Path.Combine(restoredRoot, "existing.bin"), "keep");
+
+        var database = "restore_" + Guid.NewGuid().ToString("N")[..12];
+        var target = await CreateDatabaseAsync(database);
+
+        try
+        {
+            await Should.ThrowAsync<InvalidOperationException>(() =>
+                BackupManager.RestoreAsync(target, backup, database, MigrationsDirectory(), restoredRoot, false, CancellationToken.None));
+        }
+        finally
+        {
+            await DropDatabaseAsync(database);
+        }
+    }
+    private static void CopyDirectory(string source, string destination)
+    {
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, directory)));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
+    }
+
+    private static async Task RewriteManifestFileEntryAsync(string backup, string table)
+    {
+        var manifestPath = Path.Combine(backup, "manifest.json");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!;
+
+        foreach (var entry in manifest["Tables"]!.AsArray())
+        {
+            if (entry is null
+                || (string?)entry["Schema"] != table.Split('.')[0]
+                || (string?)entry["Name"] != table.Split('.')[1])
+            {
+                continue;
+            }
+
+            var path = Path.Combine(backup, "data", $"{table}.csv");
+            var bytes = new FileInfo(path).Length;
+            using var stream = File.OpenRead(path);
+            entry["Bytes"] = bytes;
+            entry["Sha256"] = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        }
+
+        await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString());
     }
 
     // ---------------------------------------------------------------- helpers

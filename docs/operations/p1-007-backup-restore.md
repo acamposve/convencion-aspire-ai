@@ -1,10 +1,10 @@
-# P1-007 — Backup and restore
+# P1-007 â€” Backup and restore
 
 **Status:** logical backup, isolated restore, consistency checks and object-storage recovery are implemented
 and tested against PostgreSQL 17. Scheduling, retention and RPO/RTO commitments remain operator/product
 decisions and are **not** set by this work.
 
-## 1. What this protects — and what it does not
+## 1. What this protects â€” and what it does not
 
 | Protected | How |
 |---|---|
@@ -41,12 +41,19 @@ backup set/
 - **Reference data is merged, not duplicated.** Migrations seed roles, capabilities and taxonomy; those
   tables are merged with `ON CONFLICT DO NOTHING` when the target already contains them. Tenant data is
   copied verbatim, and its row counts must match the manifest exactly.
+- **Restore is atomic.** The whole data load runs in one transaction with `SET LOCAL
+  session_replication_role = replica`; a failure rolls back to the migrated, empty schema, the tool removes
+  the migration history and schemas it created, and writes `restore-failed.json`. A retry with a good set
+  starts from an empty target again.
+- **Manifest paths are untrusted.** Schema and table names must match `^[a-z][a-z0-9_]*$`, and every
+  manifest path is canonicalized and must stay inside the backup or storage root. Absolute paths and `..`
+  segments are rejected.
 - **Storage is a separate recovery domain.** The database never contains document bytes, and a database
   backup alone cannot recover a lost document.
 
 ## 3. Commands
 
-The tool is `src/Convenciones.Backup` (`dotnet run --project src/Convenciones.Backup -- …`).
+The tool is `src/Convenciones.Backup` (`dotnet run --project src/Convenciones.Backup -- â€¦`).
 
 ```bash
 # create a set (optionally including a storage root)
@@ -58,11 +65,15 @@ verify  --directory ./backups/2026-11-21
 # restore into an EMPTY database whose name is explicitly confirmed
 restore --connection "<target cs>" --directory ./backups/2026-11-21 \
         --migrations ./supabase/migrations --confirm convenciones_restore \
-        [--storage-root /var/restore/documents]
+        [--storage-root /var/restore/documents] [--replace]
 
-# post-restore consistency report (exit code 0 only when it passes)
-check   --connection "<target cs>" [--storage-root /var/restore/documents]
+# post-restore consistency report (exit code 0 only when every check passes)
+check   --connection "<target cs>" [--storage-root /var/restore/documents] [--directory ./backups/2026-11-21]
 ```
+
+`--replace` is required to write into a non-empty storage root. `check --directory` compares every table's
+row count against the manifest (so an incomplete restore cannot pass) and reports a `restore-failed.json`
+marker if one is present.
 
 Exit codes: `0` success, `1` failure, `2` usage, `3` integrity failure (tampering, truncation, schema
 mismatch, failed post-restore checks).
@@ -75,9 +86,11 @@ mismatch, failed post-restore checks).
 2. **Create the cluster roles** if the target is a fresh cluster (the application roles are created by the
    bootstrap migrations; a cluster restored from scratch also needs the login roles the deployment uses).
 3. **Verify the set** with `verify`. Do not proceed on an integrity failure.
-4. **Restore the database** with `restore`. It applies migrations, checks the schema fingerprint, loads
-   data inside `session_replication_role = replica` (requires a role with the replication attribute),
-   resets sequences, then runs `check` and writes `restore-report.json`. It aborts if the checks fail.
+4. **Restore the database** with `restore`. It applies migrations, compares the applied migration
+   high-water mark and the schema fingerprint (columns, constraints, indexes, triggers, RLS policies and
+   RLS status), loads data in one transaction with `session_replication_role = replica` (requires a role
+   with the replication attribute), resets sequences, then runs `check` and writes
+   `restore-report.json`. It aborts and rolls back if the checks fail.
 5. **Restore object storage** by copying the `storage/` directory into the target storage root (the tool
    does this when `--storage-root` is supplied), or by re-hydrating the bucket from the provider's export.
 6. **Run `check` again** with the storage root: it reports missing objects (database rows without a file)
@@ -91,7 +104,7 @@ The two domains are captured at different moments. After a restore:
 
 | Situation | Action |
 |---|---|
-| Row exists, object missing | restore that object from the storage backup; if it is gone, the document is unreadable — mark it (do not delete the row or its financial history) and inform the tenant |
+| Row exists, object missing | restore that object from the storage backup; if it is gone, the document is unreadable â€” mark it (do not delete the row or its financial history) and inform the tenant |
 | Object exists, no row | orphan: quarantine the object, do not delete it automatically |
 | Row + object from different instants | content may differ from metadata; re-extract or re-verify the document rather than trusting the pair |
 | Processing run in flight at backup time | it restores as it was; leases expire and the worker's recovery reclaims it. Financial reservations remain and the sweeper settles unknown outcomes at their estimate |
@@ -108,7 +121,7 @@ The two domains are captured at different moments. After a restore:
   silently replace an existing deployment.
 - Tenant isolation is preserved because the restore is a whole-database load; no per-tenant path exists.
 
-## 7. RPO / RTO — capability, not a promise
+## 7. RPO / RTO â€” capability, not a promise
 
 This tool provides **on-demand logical backups**. It does not schedule them, and it does not provide
 point-in-time recovery.
@@ -124,7 +137,7 @@ No numerical RPO/RTO is asserted by this document.
 
 ## 8. Limitations
 
-- Logical, consistent-snapshot backup — not WAL/PITR. A crash between backups loses everything since the
+- Logical, consistent-snapshot backup â€” not WAL/PITR. A crash between backups loses everything since the
   last set.
 - `restore` requires `session_replication_role`, i.e. a superuser or a role with `REPLICATION`.
 - Reference-data tables are merged; rows deleted from a reference table after the backup are not
