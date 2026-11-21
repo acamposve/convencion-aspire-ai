@@ -43,9 +43,14 @@ public interface IClauseStore
     /// list used. Written as soon as the call returns, before parsing or persistence, so a later failure
     /// in the same stage cannot lose a charge the provider already booked.
     /// </summary>
+    /// <param name="invocationId">
+    /// Durable identity of this logical provider call, generated once before submission. A replay of the
+    /// same insert reuses it; a second call always carries a new one.
+    /// </param>
     Task RecordInvocationAsync(
         ProcessingJob job,
         string stage,
+        Guid invocationId,
         int invocationNo,
         AiCompletionResult result,
         int pages,

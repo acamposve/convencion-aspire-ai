@@ -272,13 +272,13 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
     public async Task RecordInvocationAsync(
         ProcessingJob job,
         string stage,
+        Guid invocationId,
         int invocationNo,
         AiCompletionResult result,
         int pages,
         AiPricing pricing,
         CancellationToken cancellationToken)
-    {
-        var cost = pricing.EstimateCost(result.InputTokens, result.OutputTokens);
+    {        var cost = pricing.EstimateCost(result.InputTokens, result.OutputTokens);
 
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
@@ -288,19 +288,20 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         await using (var insert = new NpgsqlCommand(
             """
             insert into platform.ai_usage_record
-                (company_id, document_id, run_id, attempt_id, stage, invocation_no, provider, model,
-                 deployment, input_tokens, output_tokens, usage_source, estimated_cost_usd, currency,
+                (invocation_id, company_id, document_id, run_id, attempt_id, stage, invocation_no, provider,
+                 model, deployment, input_tokens, output_tokens, usage_source, estimated_cost_usd, currency,
                  pricing_version, pricing_input_per_million, pricing_output_per_million)
-            select r.company_id, r.document_id, r.id, a.id, @stage, @invocation, @provider, @model,
-                   @deployment, @input, @output, @source, @cost, @currency, @pricing_version,
+            select @invocation_id, r.company_id, r.document_id, r.id, a.id, @stage, @invocation, @provider,
+                   @model, @deployment, @input, @output, @source, @cost, @currency, @pricing_version,
                    @input_price, @output_price
             from platform.processing_run r
             join platform.processing_attempt a on a.id = @attempt and a.run_id = r.id
             where r.id = @run
-            on conflict (attempt_id, stage, invocation_no) do nothing
+            on conflict (invocation_id) do nothing
             returning id;
             """, connection, transaction))
         {
+            insert.Parameters.AddWithValue("invocation_id", invocationId);
             insert.Parameters.AddWithValue("stage", stage);
             insert.Parameters.AddWithValue("invocation", invocationNo);
             insert.Parameters.AddWithValue("provider", result.Provider);
@@ -331,23 +332,42 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
 
         if (!inserted)
         {
-            // Either this invocation is already recorded (replay) or the attempt is not the run's.
-            await using var existing = new NpgsqlCommand(
+            // A row already exists for this identity: either an identical replay (no aggregate change) or
+            // a conflicting record, which must never be overwritten.
+            var same = false;
+            await using (var existing = new NpgsqlCommand(
                 """
-                select 1 from platform.ai_usage_record
-                where attempt_id = @attempt and stage = @stage and invocation_no = @invocation;
-                """, connection, transaction);
-            existing.Parameters.AddWithValue("attempt", job.AttemptId);
-            existing.Parameters.AddWithValue("stage", stage);
-            existing.Parameters.AddWithValue("invocation", invocationNo);
-
-            if (await existing.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
+                select run_id, attempt_id, stage, input_tokens, output_tokens, estimated_cost_usd,
+                       currency, usage_source
+                from platform.ai_usage_record
+                where invocation_id = @invocation_id;
+                """, connection, transaction))
             {
-                throw new InvalidOperationException(
-                    $"Attempt '{job.AttemptId}' does not belong to run '{job.RunId}'; usage was not recorded.");
+                existing.Parameters.AddWithValue("invocation_id", invocationId);
+                await using var reader = await existing.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    throw new InvalidOperationException(
+                        $"Invocation '{invocationId}' was neither inserted nor found; attempt '{job.AttemptId}' does not belong to run '{job.RunId}'.");
+                }
+
+                same = reader.GetGuid(0) == job.RunId
+                    && reader.GetGuid(1) == job.AttemptId
+                    && reader.GetString(2) == stage
+                    && (reader.IsDBNull(3) ? (int?)null : (int)reader.GetInt64(3)) == result.InputTokens
+                    && (reader.IsDBNull(4) ? (int?)null : (int)reader.GetInt64(4)) == result.OutputTokens
+                    && (reader.IsDBNull(5) ? (decimal?)null : reader.GetDecimal(5)) == cost
+                    && reader.GetString(6) == pricing.Currency
+                    && reader.GetString(7) == (cost is null ? "unavailable" : "provider");
             }
 
-            // Already recorded: do not touch the aggregate again, or a replay would double-count it.
+            if (!same)
+            {
+                throw new InvalidOperationException(
+                    $"Invocation '{invocationId}' already exists with different financial data; refusing to overwrite it.");
+            }
+
+            // Identical replay: the aggregate must not be incremented a second time.
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return;
         }

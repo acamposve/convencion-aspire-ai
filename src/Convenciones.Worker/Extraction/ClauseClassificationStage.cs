@@ -41,6 +41,8 @@ public sealed class ClauseClassificationStage(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Identity exists before submission so reservation, submission marker and usage agree.
+            var invocationId = Guid.NewGuid();
             AiCompletionResult result;
             try
             {
@@ -64,6 +66,7 @@ public sealed class ClauseClassificationStage(
             await store.RecordInvocationAsync(
                     job,
                     "classification",
+                    invocationId,
                     invocation,
                     result,
                     pages: 0,

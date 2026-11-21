@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using Npgsql;
 using Shouldly;
@@ -60,7 +60,7 @@ public sealed class SchemaTests(PostgresFixture fixture)
 
         // 22 original capabilities plus company.read_all, added because company.read already means
         // "read the company catalogue" and is granted to every role.
-        capabilities.Single().ShouldBe(28L);
+        capabilities.Single().ShouldBe(29L);
         // Decision Q-9: SuperAdmin, Admin, Editor, Transcriptor, Negotiator.
         roles.Single().ShouldBe(5L);
         users.Single().ShouldBe(0L, "constitution Art. VI.6 forbids seeding a user account");

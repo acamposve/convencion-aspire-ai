@@ -52,6 +52,9 @@ public sealed class ClauseExtractionStage(
             await store.UpdateProgressAsync(job, "ExtractingClauses", parsed.Count, cancellationToken)
                 .ConfigureAwait(false);
 
+            // The identity exists before submission so the reservation, the submission marker and the
+            // usage row can all refer to the same logical call.
+            var invocationId = Guid.NewGuid();
             AiCompletionResult result;
             try
             {
@@ -75,6 +78,7 @@ public sealed class ClauseExtractionStage(
             await store.RecordInvocationAsync(
                     job,
                     "extraction",
+                    invocationId,
                     invocation,
                     result,
                     invocation == 1 ? layout.PageCount : 0,

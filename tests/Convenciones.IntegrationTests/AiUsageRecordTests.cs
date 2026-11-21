@@ -44,7 +44,7 @@ public sealed class AiUsageRecordTests(PostgresFixture fixture) : IAsyncLifetime
         var pricing = new AiPricing("test-v1", "USD", 0.61m, 1.82m);
 
         await store.RecordInvocationAsync(
-            job, "extraction", 1, Result(1_000, 500, "mistral-large", "claude-deployment"), pages: 3, pricing,
+            job, "extraction", Guid.NewGuid(), 1, Result(1_000, 500, "mistral-large", "claude-deployment"), pages: 3, pricing,
             CancellationToken.None);
 
         var row = await ReadSingleAsync(job);
@@ -71,7 +71,7 @@ public sealed class AiUsageRecordTests(PostgresFixture fixture) : IAsyncLifetime
         var store = new NpgsqlClauseStore(fixture.ConnectionString);
 
         await store.RecordInvocationAsync(
-            job, "extraction", 1, Result(null, null, "m", "d"), pages: 0,
+            job, "extraction", Guid.NewGuid(), 1, Result(null, null, "m", "d"), pages: 0,
             new AiPricing("test-v1", "USD", 0.61m, 1.82m), CancellationToken.None);
 
         var row = await ReadSingleAsync(job);
@@ -87,9 +87,10 @@ public sealed class AiUsageRecordTests(PostgresFixture fixture) : IAsyncLifetime
         var (job, _) = await CreateClaimedJobAsync();
         var store = new NpgsqlClauseStore(fixture.ConnectionString);
         var pricing = new AiPricing("test-v1", "USD", 0.61m, 1.82m);
+        var invocationId = Guid.NewGuid();
 
-        await store.RecordInvocationAsync(job, "extraction", 1, Result(1_000, 500, "m", "d"), 2, pricing, CancellationToken.None);
-        await store.RecordInvocationAsync(job, "extraction", 1, Result(1_000, 500, "m", "d"), 2, pricing, CancellationToken.None);
+        await store.RecordInvocationAsync(job, "extraction", invocationId, 1, Result(1_000, 500, "m", "d"), 2, pricing, CancellationToken.None);
+        await store.RecordInvocationAsync(job, "extraction", invocationId, 1, Result(1_000, 500, "m", "d"), 2, pricing, CancellationToken.None);
 
         (await RecordCountAsync(job)).ShouldBe(1);
         var aggregate = await AggregateAsync(job.CompanyId);
@@ -104,8 +105,8 @@ public sealed class AiUsageRecordTests(PostgresFixture fixture) : IAsyncLifetime
         var store = new NpgsqlClauseStore(fixture.ConnectionString);
         var pricing = new AiPricing("test-v1", "USD", 0.61m, 1.82m);
 
-        await store.RecordInvocationAsync(job, "extraction", 1, Result(1_000, 500, "m", "d"), 2, pricing, CancellationToken.None);
-        await store.RecordInvocationAsync(job, "extraction", 2, Result(2_000, 1_000, "m", "d"), 0, pricing, CancellationToken.None);
+        await store.RecordInvocationAsync(job, "extraction", Guid.NewGuid(), 1, Result(1_000, 500, "m", "d"), 2, pricing, CancellationToken.None);
+        await store.RecordInvocationAsync(job, "extraction", Guid.NewGuid(), 2, Result(2_000, 1_000, "m", "d"), 0, pricing, CancellationToken.None);
 
         (await RecordCountAsync(job)).ShouldBe(2);
         var aggregate = await AggregateAsync(job.CompanyId);
@@ -120,10 +121,10 @@ public sealed class AiUsageRecordTests(PostgresFixture fixture) : IAsyncLifetime
         var store = new NpgsqlClauseStore(fixture.ConnectionString);
 
         await store.RecordInvocationAsync(
-            job, "extraction", 1, Result(1_000_000, 0, "m", "d"), 0,
+            job, "extraction", Guid.NewGuid(), 1, Result(1_000_000, 0, "m", "d"), 0,
             new AiPricing("price-a", "USD", 0.61m, 1.82m), CancellationToken.None);
         await store.RecordInvocationAsync(
-            job, "extraction", 2, Result(1_000_000, 0, "m", "d"), 0,
+            job, "extraction", Guid.NewGuid(), 2, Result(1_000_000, 0, "m", "d"), 0,
             new AiPricing("price-b", "USD", 2.00m, 1.82m), CancellationToken.None);
 
         var rows = await ReadAllAsync(job);
@@ -141,7 +142,7 @@ public sealed class AiUsageRecordTests(PostgresFixture fixture) : IAsyncLifetime
         var store = new NpgsqlClauseStore(fixture.ConnectionString);
 
         await store.RecordInvocationAsync(
-            job, "extraction", 1, Result(1_000, 500, "m", "d"), 2,
+            job, "extraction", Guid.NewGuid(), 1, Result(1_000, 500, "m", "d"), 2,
             new AiPricing("test-v1", "USD", 0.61m, 1.82m), CancellationToken.None);
 
         await queue.FailAsync(job, "invalid_model_output", "Parsing failed after the call.", retryable: false, CancellationToken.None);
@@ -160,10 +161,57 @@ public sealed class AiUsageRecordTests(PostgresFixture fixture) : IAsyncLifetime
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             store.RecordInvocationAsync(
-                foreign, "extraction", 1, Result(1, 1, "m", "d"), 0,
+                foreign, "extraction", Guid.NewGuid(), 1, Result(1, 1, "m", "d"), 0,
                 new AiPricing("test-v1", "USD", 0.61m, 1.82m), CancellationToken.None));
 
         (await RecordCountAsync(job)).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_stage_re_executed_in_the_same_attempt_records_a_new_charge()
+    {
+        var (job, _) = await CreateClaimedJobAsync();
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+        var pricing = new AiPricing("test-v1", "USD", 0.61m, 1.82m);
+
+        // Same attempt, same stage, same ordinal, different logical call: the second call was billed
+        // and must not be mistaken for a replay of the first.
+        await store.RecordInvocationAsync(job, "extraction", Guid.NewGuid(), 1, Result(1_000, 500, "m", "d"), 0, pricing, CancellationToken.None);
+        await store.RecordInvocationAsync(job, "extraction", Guid.NewGuid(), 1, Result(1_000, 500, "m", "d"), 0, pricing, CancellationToken.None);
+
+        (await RecordCountAsync(job)).ShouldBe(2);
+        (await AggregateAsync(job.CompanyId)).InputTokens.ShouldBe(2_000);
+    }
+
+    [Fact]
+    public async Task A_conflicting_replay_is_refused_and_the_counters_do_not_move()
+    {
+        var (job, _) = await CreateClaimedJobAsync();
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+        var pricing = new AiPricing("test-v1", "USD", 0.61m, 1.82m);
+        var invocationId = Guid.NewGuid();
+
+        await store.RecordInvocationAsync(job, "extraction", invocationId, 1, Result(1_000, 500, "m", "d"), 2, pricing, CancellationToken.None);
+
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            store.RecordInvocationAsync(job, "extraction", invocationId, 1, Result(9_999, 500, "m", "d"), 2, pricing, CancellationToken.None));
+
+        (await RecordCountAsync(job)).ShouldBe(1);
+        (await AggregateAsync(job.CompanyId)).InputTokens.ShouldBe(1_000);
+    }
+
+    [Fact]
+    public async Task Currency_is_enforced_by_the_database()
+    {
+        var (job, _) = await CreateClaimedJobAsync();
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+
+        await store.RecordInvocationAsync(
+            job, "extraction", Guid.NewGuid(), 1, Result(1_000, 500, "m", "d"), 0,
+            new AiPricing("test-v1", "USD", 0.61m, 1.82m), CancellationToken.None);
+
+        await Should.ThrowAsync<PostgresException>(() =>
+            ExecuteAsync($"update platform.ai_usage_record set currency = 'EUR' where run_id = '{job.RunId}';"));
     }
 
     // ---------------------------------------------------------------- helpers
