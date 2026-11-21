@@ -197,8 +197,14 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
 
         await AuditAsync(connection, transaction, job, "processing.completed", "Running", "Completed", null, cancellationToken)
             .ConfigureAwait(false);
-        await FinishAttemptAsync(connection, transaction, job, "Completed", null, null, cancellationToken)
+        var attemptClosed = await FinishAttemptAsync(connection, transaction, job, "Completed", null, null, cancellationToken)
             .ConfigureAwait(false);
+        if (attemptClosed != 1)
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            EnsureAttemptClosedExactlyOnce(attemptClosed, job);
+        }
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -289,8 +295,14 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
                 retry ? "Queued" : "Failed",
                 code,
                 cancellationToken).ConfigureAwait(false);
-        await FinishAttemptAsync(connection, transaction, job, "Failed", code, message, cancellationToken)
+        var attemptClosed = await FinishAttemptAsync(connection, transaction, job, "Failed", code, message, cancellationToken)
             .ConfigureAwait(false);
+        if (attemptClosed != 1)
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            EnsureAttemptClosedExactlyOnce(attemptClosed, job);
+        }
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -387,8 +399,9 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
                 "Cancelled",
                 code,
                 cancellationToken).ConfigureAwait(false);
-        await FinishAttemptAsync(connection, transaction, job, "Cancelled", code, message, cancellationToken)
+        var attemptClosed = await FinishAttemptAsync(connection, transaction, job, "Cancelled", code, message, cancellationToken)
             .ConfigureAwait(false);
+        EnsureAttemptClosedExactlyOnce(attemptClosed, job);
         return true;
     }
 
@@ -625,7 +638,7 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task FinishAttemptAsync(
+    private async Task<int> FinishAttemptAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         ProcessingJob job,
@@ -653,7 +666,21 @@ public sealed class ProcessingQueue(string connectionString, WorkerOptions optio
         command.Parameters.AddWithValue("attempt_id", job.AttemptId);
         command.Parameters.AddWithValue("run", job.RunId);
         command.Parameters.AddWithValue("attempt", job.Attempt);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A run transition and the attempt close must be one outcome: if the run moved to a terminal state,
+    /// exactly one attempt row must close. Anything else is an inconsistent transaction and is rolled back
+    /// before it can commit an audit entry or a run state that no attempt explains.
+    /// </summary>
+    private static void EnsureAttemptClosedExactlyOnce(int affected, ProcessingJob job)
+    {
+        if (affected != 1)
+        {
+            throw new InvalidOperationException(
+                $"Run '{job.RunId}' changed state but attempt '{job.AttemptId}' was not closed exactly once.");
+        }
     }
 
     private int BackoffFor(int attempt)
