@@ -70,6 +70,7 @@ Both mutations were applied, the architecture tests run, and the changes reverte
 | `dotnet build Convenciones.slnx -c Release -warnaserror` | 0 warnings, 0 errors |
 | Architecture tests | **10 passed** |
 | `dotnet test Convenciones.slnx -c Release --no-build` | 248 unit + 365 integration + 10 architecture |
+| CI run [`44929548779`](https://github.com/acamposve/convencion-aspire-ai/actions/runs/44929548779) (commit `b652ba6`) | all five jobs pass; the .NET job builds and runs the new project |
 
 ## Notes
 
