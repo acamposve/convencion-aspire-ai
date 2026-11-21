@@ -19,6 +19,7 @@
     <Project Path="src/Convenciones.Worker/Convenciones.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Convenciones.ArchitectureTests/Convenciones.ArchitectureTests.csproj" />
     <Project Path="tests/Convenciones.IntegrationTests/Convenciones.IntegrationTests.csproj" />
     <Project Path="tests/Convenciones.UnitTests/Convenciones.UnitTests.csproj" />
   </Folder>
