@@ -141,4 +141,66 @@ describe('ClauseProcessingDialog', () => {
       await screen.findByText(/El PDF no tiene texto suficiente; se requiere OCR/),
     ).toBeInTheDocument();
   });
+
+  it('reaches clauses beyond the first hundred and keeps a decision across pages', async () => {
+    const api = new FakeApi();
+    api.documents = [
+      makeDocument({ id: 'doc-101', fileName: 'grande.pdf', extractionStatus: 'Completed' }),
+    ];
+    api.processingRuns.set(
+      'doc-101',
+      run({ documentId: 'doc-101', clauseCount: 101, classifiedCount: 101 }),
+    );
+    api.processingClauses.set(
+      'doc-101',
+      Array.from({ length: 101 }, (_, index) => {
+        const ordinal = index + 1;
+        return {
+          id: `clause-${ordinal}`,
+          ordinal,
+          number: `Cl\u00e1usula ${ordinal}`,
+          heading: null,
+          text: `Texto ${ordinal}`,
+          pageFrom: 1,
+          pageTo: 1,
+          sourceCharStart: index * 10,
+          sourceCharEnd: index * 10 + 5,
+          confidence: 0.9,
+          needsReview: false,
+          reviewStatus: 'Pending' as const,
+          classifications: [
+            {
+              key: 'pricing',
+              name: 'Precio y pago',
+              confidence: 0.9,
+              isPrimary: true,
+              rationale: null,
+              source: 'ai' as const,
+            },
+          ],
+          classificationVersion: 'v0',
+        };
+      }),
+    );
+
+    const { user } = renderDocuments(api);
+
+    await user.click(await screen.findByRole('button', { name: 'Procesar cl\u00e1usulas' }));
+    expect(await screen.findByText('Texto 1')).toBeInTheDocument();
+    expect(screen.queryByText('Texto 101')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Go to next page' }));
+    expect(await screen.findByText('Texto 101')).toBeInTheDocument();
+
+    const acceptButtons = screen.getAllByRole('button', { name: 'Aceptar' });
+    await user.click(acceptButtons[acceptButtons.length - 1]!);
+    await waitFor(() => expect(screen.getByText('Accepted')).toBeInTheDocument());
+
+    // Navigating away and back reloads from the API; the persisted decision is still there.
+    await user.click(screen.getByRole('button', { name: 'Go to previous page' }));
+    await user.click(screen.getByRole('button', { name: 'Go to next page' }));
+    await waitFor(() => expect(screen.getByText('Accepted')).toBeInTheDocument());
+
+    expect(api.processingClauses.get('doc-101')?.at(-1)?.reviewStatus).toBe('Accepted');
+  });
 });

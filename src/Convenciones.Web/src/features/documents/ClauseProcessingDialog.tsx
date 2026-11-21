@@ -11,6 +11,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import FormGroup from '@mui/material/FormGroup';
 import LinearProgress from '@mui/material/LinearProgress';
+import Pagination from '@mui/material/Pagination';
 import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import Stack from '@mui/material/Stack';
@@ -26,6 +27,7 @@ import type {
 } from '../../lib/api';
 
 const POLL_MS = 2000;
+const PAGE_SIZE = 100;
 
 const ERROR_COPY: Record<string, string> = {
   text_not_extracted: 'Primero hay que extraer el texto del PDF.',
@@ -71,31 +73,48 @@ export function ClauseProcessingDialog({
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [categories, setCategories] = useState<ClauseCategoryView[]>([]);
   const [editing, setEditing] = useState<ProcessingClause | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [editedKeys, setEditedKeys] = useState<string[]>([]);
   const [editedPrimary, setEditedPrimary] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const loadClauses = useCallback(
-    async (documentId: string) => {
-      const page = await api.listClauses(documentId, 1, 100);
-      setClauses(page.items);
+    async (documentId: string, pageNumber: number) => {
+      const result = await api.listClauses(documentId, pageNumber, PAGE_SIZE);
+      setClauses(result.items);
+      setTotal(result.total);
+      setPage(result.page);
     },
     [api],
   );
 
   const refresh = useCallback(
-    async (documentId: string) => {
+    async (documentId: string, pageNumber = 1) => {
       const current = await api.getProcessing(documentId);
       setRun(current);
 
       if (current.status === 'Completed') {
-        await loadClauses(documentId);
+        await loadClauses(documentId, pageNumber);
       }
 
       return current;
     },
     [api, loadClauses],
   );
+
+  const goToPage = async (nextPage: number) => {
+    if (document === null) {
+      return;
+    }
+
+    setError(null);
+    try {
+      await loadClauses(document.id, nextPage);
+    } catch (failure) {
+      setError(describeError(failure));
+    }
+  };
 
   useEffect(() => {
     if (!open || document === null) {
@@ -125,6 +144,8 @@ export function ClauseProcessingDialog({
     const start = async () => {
       setRun(null);
       setClauses([]);
+      setTotal(0);
+      setPage(1);
       setError(null);
       setBusy(true);
 
@@ -238,7 +259,7 @@ export function ClauseProcessingDialog({
       // A conflict means another correction won. Reload the effective state so the user can retry
       // against the current version instead of resubmitting the stale one.
       if (document) {
-        await loadClauses(document.id);
+        await loadClauses(document.id, page);
       }
     } finally {
       setSavingEdit(false);
@@ -384,6 +405,22 @@ export function ClauseProcessingDialog({
                   </Stack>
                 </Box>
               ))}
+            </Stack>
+          ) : null}
+
+          {total > PAGE_SIZE ? (
+            <Stack spacing={1} alignItems="center" sx={{ mt: 2 }} data-testid="clause-pagination">
+              <Pagination
+                count={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+                page={page}
+                onChange={(_, value) => void goToPage(value)}
+                color="primary"
+                showFirstButton
+                showLastButton
+              />
+              <Typography variant="caption" color="text.secondary">
+                Mostrando {clauses.length} de {total} cláusulas
+              </Typography>
             </Stack>
           ) : null}
         </Stack>
