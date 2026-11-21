@@ -77,6 +77,33 @@ public sealed class RetentionSweepTests(PostgresFixture fixture) : IAsyncLifetim
     }
 
     [Fact]
+    public async Task Sweep_skips_documents_that_only_have_shadow_rows()
+    {
+        await ExecuteAsync(
+            $"insert into platform.processing_attempt (id, run_id, company_id, attempt_no) " +
+            $"select gen_random_uuid(), id, '{_companyId}', 1 from platform.processing_run where document_id = '{_documentId}';" +
+            $"insert into platform.ai_budget_shadow (invocation_id, company_id, run_id, attempt_id, stage, period, " +
+            $"estimated_cost, would_admit) " +
+            $"select gen_random_uuid(), '{_companyId}', r.id, a.id, 'extraction', " +
+            $"(date_trunc('month', now()))::date, 1.00, true " +
+            $"from platform.processing_run r join platform.processing_attempt a on a.run_id = r.id " +
+            $"where r.document_id = '{_documentId}';");
+
+        var sweeper = new ProcessingRetentionSweeper(
+            fixture.ConnectionString,
+            new RetentionOptions { BatchSize = 100 },
+            new WorkerOptions(),
+            NullLogger<ProcessingRetentionSweeper>.Instance);
+
+        await sweeper.SweepAsync(CancellationToken.None);
+
+        (await ScalarAsync($"select count(*) from platform.processing_run where document_id = '{_documentId}'"))
+            .ShouldBe("1", "shadow rows also protect the run");
+        (await ScalarAsync($"select count(*) from platform.ai_budget_shadow where company_id = '{_companyId}'"))
+            .ShouldBe("1", "the shadow record survives retention");
+    }
+
+    [Fact]
     public async Task Sweep_purges_ai_rows_for_soft_deleted_documents()
     {
         var sweeper = new ProcessingRetentionSweeper(
