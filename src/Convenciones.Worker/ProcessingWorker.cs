@@ -87,6 +87,12 @@ public sealed class ProcessingWorker(
                     job.Attempt);
 
                 var attemptTimeout = TimeSpan.FromSeconds(options.AttemptTimeoutSeconds);
+                // True when the timeout was shortened by the worker deadline. The timer runs on the
+                // monotonic clock while DeadlineUtc is wall-clock time, and the two can differ by a
+                // few milliseconds while the wall clock is slewed. Without this flag, a timer that
+                // fires just before the deadline would be classified as a retryable attempt timeout
+                // and the run would be requeued after the worker had already exited on the deadline.
+                var deadlineBoundTimeout = false;
                 if (options.DeadlineUtc is { } absoluteDeadline)
                 {
                     var remaining = absoluteDeadline - DateTimeOffset.UtcNow;
@@ -105,6 +111,7 @@ public sealed class ProcessingWorker(
                     if (remaining < attemptTimeout)
                     {
                         attemptTimeout = remaining;
+                        deadlineBoundTimeout = true;
                     }
                 }
 
@@ -132,7 +139,10 @@ public sealed class ProcessingWorker(
                 }
                 catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
                 {
-                    if (options.DeadlineUtc is { } expiredAt && DateTimeOffset.UtcNow >= expiredAt)
+                    // The timeout was derived from the deadline, so this cancellation is the
+                    // deadline's even when wall-clock time has not quite reached it yet.
+                    if (WorkerDeadlinePolicy.IsDeadlineFailure(
+                            deadlineBoundTimeout, options.DeadlineUtc, DateTimeOffset.UtcNow))
                     {
                         await queue.FailAsync(
                             job,

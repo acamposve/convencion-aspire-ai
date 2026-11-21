@@ -31,4 +31,20 @@ public static class WorkerDeadlinePolicy
 
         return null;
     }
+
+    /// <summary>
+    /// Decides whether a cancelled attempt is recorded as a deadline failure.
+    /// </summary>
+    /// <remarks>
+    /// A timeout shortened by the deadline is deadline-bound by construction, so the wall-clock
+    /// comparison is only a fallback for other cancellation sources. The timer is monotonic while
+    /// <c>DeadlineUtc</c> is wall-clock time; the two can differ by a few milliseconds while the
+    /// clock is slewed, and a timer that fires just before the deadline must not be recorded as a
+    /// retryable attempt timeout: the worker exits on the deadline and the run would never retry.
+    /// </remarks>
+    public static bool IsDeadlineFailure(
+        bool deadlineBoundTimeout,
+        DateTimeOffset? deadlineUtc,
+        DateTimeOffset now) =>
+        deadlineBoundTimeout || (deadlineUtc is { } deadline && now >= deadline);
 }
