@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { FakeApi, FakeAuth, makeDocument } from '../../test/fakes';
+import { ApiError } from '../../lib/errors';
 import { renderApp } from '../../test/renderApp';
 
 function renderDocuments(api: FakeApi) {
@@ -202,5 +203,66 @@ describe('ClauseProcessingDialog', () => {
     await waitFor(() => expect(screen.getByText('Accepted')).toBeInTheDocument());
 
     expect(api.processingClauses.get('doc-101')?.at(-1)?.reviewStatus).toBe('Accepted');
+  });
+
+  it('does not start processing when the run query fails', async () => {
+    const api = new FakeApi();
+    api.documents = [makeDocument({ id: 'doc-err', fileName: 'error.pdf', extractionStatus: 'Completed' })];
+    api.processingQueryErrors.set(
+      'doc-err',
+      new ApiError(500, 'internal_error', 'El servidor no respondió.'),
+    );
+
+    const { user } = renderDocuments(api);
+    await user.click(await screen.findByRole('button', { name: 'Procesar cláusulas' }));
+
+    expect(await screen.findByText('El servidor no respondió.')).toBeInTheDocument();
+    expect(api.processingCalls).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+  });
+
+  it('does not start processing when the caller is not allowed', async () => {
+    const api = new FakeApi();
+    api.documents = [makeDocument({ id: 'doc-forbidden', fileName: 'x.pdf', extractionStatus: 'Completed' })];
+    api.processingQueryErrors.set(
+      'doc-forbidden',
+      new ApiError(403, 'forbidden', 'No tiene permiso para ver este documento.'),
+    );
+
+    const { user } = renderDocuments(api);
+    await user.click(await screen.findByRole('button', { name: 'Procesar cláusulas' }));
+
+    expect(await screen.findByText('No tiene permiso para ver este documento.')).toBeInTheDocument();
+    expect(api.processingCalls).toHaveLength(0);
+  });
+
+  it('starts only when the run is confirmed absent', async () => {
+    const api = new FakeApi();
+    api.documents = [makeDocument({ id: 'doc-new', fileName: 'nuevo.pdf', extractionStatus: 'Completed' })];
+
+    const { user } = renderDocuments(api);
+    await user.click(await screen.findByRole('button', { name: 'Procesar cláusulas' }));
+
+    await waitFor(() => expect(api.processingCalls).toContain('doc-new'));
+  });
+
+  it('retries a transient failure without starting work', async () => {
+    const api = new FakeApi();
+    api.documents = [makeDocument({ id: 'doc-retry', fileName: 'retry.pdf', extractionStatus: 'Completed' })];
+    api.processingRuns.set('doc-retry', run({ documentId: 'doc-retry' }));
+    api.processingQueryErrors.set(
+      'doc-retry',
+      new ApiError(500, 'internal_error', 'Fallo temporal.'),
+    );
+
+    const { user } = renderDocuments(api);
+    await user.click(await screen.findByRole('button', { name: 'Procesar cláusulas' }));
+    expect(await screen.findByText('Fallo temporal.')).toBeInTheDocument();
+
+    api.processingQueryErrors.clear();
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }));
+
+    await waitFor(() => expect(screen.queryByText('Fallo temporal.')).not.toBeInTheDocument());
+    expect(api.processingCalls).toHaveLength(0);
   });
 });

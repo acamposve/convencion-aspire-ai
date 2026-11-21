@@ -223,7 +223,12 @@ public static class ProcessingEndpoints
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return run is null ? NotFoundRun(id) : Results.Ok(ToResponse(run));
+        return run is null
+            ? Problem(
+                StatusCodes.Status404NotFound,
+                ErrorCodes.RunNotFound,
+                $"Document '{id}' has no processing run yet.")
+            : Results.Ok(ToResponse(run));
     }
 
     private static async Task<IResult> GetRunAsync(
