@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using Shouldly;
@@ -46,6 +46,7 @@ public sealed class MigrationFileTests
         "20260111000000_processing_quotas.sql",
         "20261121000100_ai_usage_records.sql",
         "20261121000200_ai_usage_invocation_identity.sql",
+        "20261121000300_financial_budget.sql",
     ];
 
     [Fact]
