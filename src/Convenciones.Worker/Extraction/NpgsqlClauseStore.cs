@@ -278,11 +278,22 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         int pages,
         AiPricing pricing,
         CancellationToken cancellationToken)
-    {        var cost = pricing.EstimateCost(result.InputTokens, result.OutputTokens);
+    {
+        var cost = pricing.EstimateCost(result.InputTokens, result.OutputTokens);
 
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        // The reservation (or shadow row) supplies the financial period and is the settlement target for
+        // this call. The advisory lock matches every other financial writer.
+        var settlement = await ReadSettlementAsync(connection, transaction, invocationId, cancellationToken)
+            .ConfigureAwait(false);
+        if (settlement is not null)
+        {
+            await LockFinancialAsync(connection, transaction, job.CompanyId, settlement.Period, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         var inserted = false;
         await using (var insert = new NpgsqlCommand(
@@ -290,10 +301,10 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             insert into platform.ai_usage_record
                 (invocation_id, company_id, document_id, run_id, attempt_id, stage, invocation_no, provider,
                  model, deployment, input_tokens, output_tokens, usage_source, estimated_cost_usd, currency,
-                 pricing_version, pricing_input_per_million, pricing_output_per_million)
+                 pricing_version, pricing_input_per_million, pricing_output_per_million, period)
             select @invocation_id, r.company_id, r.document_id, r.id, a.id, @stage, @invocation, @provider,
                    @model, @deployment, @input, @output, @source, @cost, @currency, @pricing_version,
-                   @input_price, @output_price
+                   @input_price, @output_price, @period
             from platform.processing_run r
             join platform.processing_attempt a on a.id = @attempt and a.run_id = r.id
             where r.id = @run
@@ -326,6 +337,10 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             insert.Parameters.AddWithValue("output_price", pricing.OutputPerMillion);
             insert.Parameters.AddWithValue("run", job.RunId);
             insert.Parameters.AddWithValue("attempt", job.AttemptId);
+            insert.Parameters.Add(new NpgsqlParameter("period", NpgsqlTypes.NpgsqlDbType.Date)
+            {
+                Value = (object?)settlement?.Period ?? DBNull.Value,
+            });
 
             inserted = await insert.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;
         }
@@ -372,6 +387,12 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             return;
         }
 
+        if (settlement is not null && settlement.Status is "reserved" or "submitted" or "outcome_unknown")
+        {
+            await ApplySettlementAsync(connection, transaction, invocationId, settlement, cost, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         await using (var aggregate = new NpgsqlCommand(
             """
             insert into platform.processing_usage
@@ -411,6 +432,118 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private sealed record SettlementContext(Guid BudgetId, decimal Estimate, string Status, DateOnly Period);
+
+    /// <summary>
+    /// Finds the financial reservation (or shadow row) for an invocation. Returns null for invocations
+    /// recorded before the budget model existed, which keep working without settlement.
+    /// </summary>
+    private static async Task<SettlementContext?> ReadSettlementAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid invocationId,
+        CancellationToken cancellationToken)
+    {
+        await using (var reservation = new NpgsqlCommand(
+            """
+            select r.budget_id, r.estimated_cost, r.status, b.period_start
+            from platform.ai_budget_reservation r
+            join platform.ai_budget b on b.id = r.budget_id
+            where r.invocation_id = @invocation;
+            """, connection, transaction))
+        {
+            reservation.Parameters.AddWithValue("invocation", invocationId);
+            await using var reader = await reservation.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return new SettlementContext(
+                    reader.GetGuid(0),
+                    reader.GetDecimal(1),
+                    reader.GetString(2),
+                    DateOnly.FromDateTime(reader.GetDateTime(3)));
+            }
+        }
+
+        await using (var shadow = new NpgsqlCommand(
+            "select period from platform.ai_budget_shadow where invocation_id = @invocation;",
+            connection, transaction))
+        {
+            shadow.Parameters.AddWithValue("invocation", invocationId);
+            var period = await shadow.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (period is DateOnly value)
+            {
+                return new SettlementContext(Guid.Empty, 0m, "shadow", value);
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task LockFinancialAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid companyId,
+        DateOnly period,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "select pg_advisory_xact_lock(platform.fin_lock_key(@company, @period));", connection, transaction);
+        command.Parameters.AddWithValue("company", companyId);
+        command.Parameters.Add(new NpgsqlParameter("period", NpgsqlTypes.NpgsqlDbType.Date) { Value = period });
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Closes the reservation against the actual cost in the same transaction as the ledger row.</summary>
+    private static async Task ApplySettlementAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid invocationId,
+        SettlementContext settlement,
+        decimal? cost,
+        CancellationToken cancellationToken)
+    {
+        var amount = cost ?? settlement.Estimate;
+        var status = cost is null ? "settled_estimated" : "settled";
+
+        await using (var update = new NpgsqlCommand(
+            """
+            update platform.ai_budget_reservation
+            set status = @status, settled_amount = @amount, settled_at = now(), updated_at = now()
+            where invocation_id = @invocation
+              and status in ('reserved', 'submitted', 'outcome_unknown');
+            """, connection, transaction))
+        {
+            update.Parameters.AddWithValue("invocation", invocationId);
+            update.Parameters.AddWithValue("status", status);
+            update.Parameters.Add(new NpgsqlParameter("amount", NpgsqlTypes.NpgsqlDbType.Numeric)
+            {
+                Value = amount,
+            });
+            await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        await using (var budget = new NpgsqlCommand(
+            """
+            update platform.ai_budget
+            set reserved_amount = reserved_amount - @estimate,
+                spent_amount    = spent_amount + @amount,
+                updated_at      = now()
+            where id = @budget;
+            """, connection, transaction))
+        {
+            budget.Parameters.AddWithValue("budget", settlement.BudgetId);
+            budget.Parameters.Add(new NpgsqlParameter("estimate", NpgsqlTypes.NpgsqlDbType.Numeric)
+            {
+                Value = settlement.Estimate,
+            });
+            budget.Parameters.Add(new NpgsqlParameter("amount", NpgsqlTypes.NpgsqlDbType.Numeric)
+            {
+                Value = amount,
+            });
+            await budget.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static async Task EnsureNoHumanCorrectionsAsync(

@@ -2,6 +2,7 @@ using Convenciones.Ai;
 using Convenciones.Ai.DocumentIntelligence;
 using Convenciones.Documents;
 using Convenciones.Worker.Extraction;
+using Convenciones.Worker.Financial;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -75,6 +76,7 @@ public static class WorkerComposition
         }
 
         services.AddSingleton<IClauseStore>(new NpgsqlClauseStore(connectionString));
+        services.AddSingleton<IFinancialBudget>(new FinancialBudgetStore(connectionString));
         services.AddSingleton(new ExtractionOptions
         {
             ChunkCharacters = ReadInt(configuration, "Extraction:ChunkCharacters", 10_000),

@@ -2,6 +2,7 @@ using Convenciones.Ai;
 using Convenciones.Ai.DocumentIntelligence;
 using Convenciones.Documents;
 using Convenciones.Worker;
+using Convenciones.Worker.Financial;
 using Microsoft.Extensions.Logging;
 
 namespace Convenciones.Worker.Extraction;
@@ -15,6 +16,7 @@ public sealed class ClauseExtractionStage(
     IDocumentLayoutClient layoutClient,
     IAiModelClient modelClient,
     IClauseStore store,
+    IFinancialBudget budget,
     ExtractionOptions options,
     ILogger<ClauseExtractionStage> logger) : IProcessingStage
 {
@@ -55,13 +57,29 @@ public sealed class ClauseExtractionStage(
             // The identity exists before submission so the reservation, the submission marker and the
             // usage row can all refer to the same logical call.
             var invocationId = Guid.NewGuid();
+            var prompt = ExtractionPrompt.User(chunk);
+            var estimate = AiCostEstimator.ReserveEstimate(
+                pricing, ExtractionPrompt.System, prompt, options.MaxOutputTokens);
+
+            var decision = await budget
+                .ReserveAsync(job, "extraction", invocationId, estimate, cancellationToken)
+                .ConfigureAwait(false);
+            if (!decision.Admitted)
+            {
+                throw new PermanentProcessingException(
+                    "budget_exceeded",
+                    "The company financial budget cannot cover this invocation.");
+            }
+
+            await budget.MarkSubmittedAsync(job, invocationId, cancellationToken).ConfigureAwait(false);
+
             AiCompletionResult result;
             try
             {
                 result = await modelClient.CompleteAsync(
                     new AiCompletionRequest(
                         ExtractionPrompt.System,
-                        ExtractionPrompt.User(chunk),
+                        prompt,
                         ExtractionSchema.Json,
                         options.MaxOutputTokens,
                         options.Deployment),
@@ -69,7 +87,15 @@ public sealed class ClauseExtractionStage(
             }
             catch (AiInvalidResponseException exception)
             {
+                await budget.SettleAsync(job.CompanyId, invocationId, null, cancellationToken).ConfigureAwait(false);
                 throw new PermanentProcessingException("invalid_model_output", exception.Message);
+            }
+            catch
+            {
+                // The provider may bill a timed-out or aborted request; unknown usage settles at the
+                // estimate rather than disappearing.
+                await budget.SettleAsync(job.CompanyId, invocationId, null, cancellationToken).ConfigureAwait(false);
+                throw;
             }
 
             // Recorded before parsing and before persistence: the provider has already billed this

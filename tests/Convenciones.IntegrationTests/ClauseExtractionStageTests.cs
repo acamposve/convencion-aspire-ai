@@ -9,6 +9,7 @@ using Convenciones.Ai.DocumentIntelligence;
 using Convenciones.Documents;
 using Convenciones.Worker;
 using Convenciones.Worker.Extraction;
+using Convenciones.Worker.Financial;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Shouldly;
@@ -27,6 +28,10 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
     {
         foreach (var item in _created)
         {
+            await ExecuteAsync($"delete from platform.ai_budget_reservation where run_id = '{item.Run}';");
+            await ExecuteAsync($"delete from platform.ai_budget_shadow where run_id = '{item.Run}';");
+            await ExecuteAsync($"delete from platform.ai_budget where company_id = '{item.Company}';");
+            await ExecuteAsync($"delete from platform.ai_usage_record where run_id = '{item.Run}';");
             await ExecuteAsync($"delete from platform.processing_run where id = '{item.Run}';");
             await ExecuteAsync($"delete from platform.document where id = '{item.Document}';");
             await ExecuteAsync($"delete from platform.user_account where id = '{item.User}';");
@@ -43,6 +48,7 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
             new FakeLayout(),
             new FakeModel(),
             new NpgsqlClauseStore(fixture.ConnectionString),
+            new FinancialBudgetStore(fixture.ConnectionString),
             new ExtractionOptions { ChunkCharacters = 10_000, OverlapCharacters = 1_000, MaxChunks = 30 },
             NullLogger<ClauseExtractionStage>.Instance);
 
@@ -52,7 +58,7 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
         count.ShouldBe("2");
         var first = await ScalarAsync(
             $"select text from platform.extracted_clause where run_id = '{job.RunId}' and ordinal = 1");
-        first.ShouldContain("Cláusula primera");
+        first.ShouldContain("ClÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡usula primera");
         var clauseCount = await ScalarAsync($"select clause_count::text from platform.processing_run where id = '{job.RunId}'");
         clauseCount.ShouldBe("2");
     }
@@ -67,11 +73,13 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
             new FakeLayout(),
             new FakeModel(),
             store,
+            new FinancialBudgetStore(fixture.ConnectionString),
             new ExtractionOptions { ChunkCharacters = 10_000, OverlapCharacters = 1_000, MaxChunks = 30 },
             NullLogger<ClauseExtractionStage>.Instance);
         var classification = new ClauseClassificationStage(
             new FakeClassificationModel(),
             store,
+            new FinancialBudgetStore(fixture.ConnectionString),
             new ClassificationOptions { BatchSize = 20 },
             NullLogger<ClauseClassificationStage>.Instance);
 
@@ -139,7 +147,7 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
     {
         public Task<DocumentLayout> AnalyzeAsync(Stream pdf, CancellationToken cancellationToken)
         {
-            var text = "Cláusula primera. Objeto del contrato.\nCláusula segunda. Jornada.";
+            var text = "ClÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡usula primera. Objeto del contrato.\nClÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡usula segunda. Jornada.";
             var normalized = TextNormalization.Normalize(text);
             return Task.FromResult(new DocumentLayout(
                 1,
@@ -156,8 +164,8 @@ public sealed class ClauseExtractionStageTests(PostgresFixture fixture) : IAsync
         {
             var clauses = new[]
             {
-                new { number = (string?)"Primera", heading = (string?)"Objeto", text = "Cláusula primera. Objeto del contrato.", page_from = 1, page_to = 1, confidence = 0.9 },
-                new { number = (string?)null, heading = (string?)null, text = "Cláusula segunda. Jornada.", page_from = 1, page_to = 1, confidence = 0.8 },
+                new { number = (string?)"Primera", heading = (string?)"Objeto", text = "ClÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡usula primera. Objeto del contrato.", page_from = 1, page_to = 1, confidence = 0.9 },
+                new { number = (string?)null, heading = (string?)null, text = "ClÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡usula segunda. Jornada.", page_from = 1, page_to = 1, confidence = 0.8 },
             };
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { clauses }));
             return Task.FromResult(new AiCompletionResult(

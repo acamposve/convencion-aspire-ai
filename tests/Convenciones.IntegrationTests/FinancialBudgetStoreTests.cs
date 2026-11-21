@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Convenciones.Ai;
 using Convenciones.Worker;
 using Convenciones.Worker.Financial;
+using Convenciones.Worker.Extraction;
 using Npgsql;
 using Shouldly;
 using Xunit;
@@ -143,7 +145,7 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
 
         await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
         await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
-        await store.SettleAsync(job, invocationId, 12m, CancellationToken.None);
+        await store.SettleAsync(job.CompanyId, invocationId, 12m, CancellationToken.None);
 
         var counters = await BudgetAsync(budgetId);
         counters.Reserved.ShouldBe(0m);
@@ -161,7 +163,7 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
 
         await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
         await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
-        await store.SettleAsync(job, invocationId, 7m, CancellationToken.None);
+        await store.SettleAsync(job.CompanyId, invocationId, 7m, CancellationToken.None);
 
         var counters = await BudgetAsync(budgetId);
         counters.Reserved.ShouldBe(0m);
@@ -178,7 +180,7 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
 
         await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
         await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
-        await store.SettleAsync(job, invocationId, null, CancellationToken.None);
+        await store.SettleAsync(job.CompanyId, invocationId, null, CancellationToken.None);
 
         (await ReservationStatusAsync(invocationId)).ShouldBe("settled_estimated");
         (await BudgetAsync(budgetId)).Spent.ShouldBe(10m);
@@ -199,7 +201,7 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
 
         await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
         await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
-        await store.SettleAsync(job, invocationId, null, CancellationToken.None);
+        await store.SettleAsync(job.CompanyId, invocationId, null, CancellationToken.None);
         await store.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
         await store.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
 
@@ -216,7 +218,7 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
 
         await store.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
         await store.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
-        await store.SettleAsync(job, invocationId, null, CancellationToken.None);
+        await store.SettleAsync(job.CompanyId, invocationId, null, CancellationToken.None);
         await store.ReconcileAsync(job, invocationId, 12m, CancellationToken.None);
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
@@ -257,7 +259,61 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
         (await BudgetAsync(budgetId)).Reserved.ShouldBe(0m);
     }
 
+    [Fact]
+    public async Task Usage_recording_settles_the_reservation_in_the_same_transaction()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+        var pricing = new AiPricing("test-v1", "USD", 0.61m, 1.82m);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.RecordInvocationAsync(
+            job, "extraction", invocationId, 1, Result(1_000_000, 0, "m", "d"), pages: 2, pricing,
+            CancellationToken.None);
+
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(0m);
+        counters.Spent.ShouldBe(0.61m);
+        (await ReservationStatusAsync(invocationId)).ShouldBe("settled");
+
+        var period = await ScalarAsync(
+            $"select period::text from platform.ai_usage_record where invocation_id = '{invocationId}'");
+        period.ShouldNotBeNullOrWhiteSpace("the ledger row carries the reservation period");
+    }
+
+    [Fact]
+    public async Task Unreported_tokens_settle_at_the_reservation_estimate()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+
+        var invocationId = Guid.NewGuid();
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await store.RecordInvocationAsync(
+            job, "extraction", invocationId, 1, Result(null, null, "m", "d"), pages: 0,
+            new AiPricing("test-v1", "USD", 0.61m, 1.82m), CancellationToken.None);
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("settled_estimated");
+        var counters = await BudgetAsync(budgetId);
+        counters.Reserved.ShouldBe(0m);
+        counters.Spent.ShouldBe(10m, "unknown usage is charged at the estimate, never at zero");
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    private static AiCompletionResult Result(int? input, int? output, string model, string deployment)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("{}");
+        return new AiCompletionResult(
+            document.RootElement.Clone(), model, deployment, input, output, TimeSpan.Zero, "azure-foundry");
+    }
 
     private async Task<ProcessingJob> CreateJobAsync()
     {
