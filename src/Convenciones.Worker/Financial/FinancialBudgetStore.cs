@@ -205,6 +205,20 @@ public sealed class FinancialBudgetStore(string connectionString) : IFinancialBu
 
         if (affected == 0)
         {
+            // The guarded update missed: either this is a repeat submission by the same owner, or the
+            // reservation has moved on (released, settled, or owned by another attempt).
+            var ownership = await ReadReservationOwnershipAsync(connection, transaction, invocationId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (ownership is not null
+                && ownership.Status == "submitted"
+                && ownership.AttemptId == job.AttemptId
+                && ownership.RunId == job.RunId)
+            {
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
             await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             throw new StaleProcessingAttemptException(job.RunId, job.AttemptId);
         }
@@ -779,6 +793,29 @@ public sealed class FinancialBudgetStore(string connectionString) : IFinancialBu
     // ------------------------------------------------------------------ helpers
 
     private sealed record BudgetRow(Guid Id, string Enforcement, decimal Remaining);
+
+    private sealed record ReservationOwnership(string Status, Guid AttemptId, Guid RunId);
+
+    private static async Task<ReservationOwnership?> ReadReservationOwnershipAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid invocationId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            select status, attempt_id, run_id
+            from platform.ai_budget_reservation
+            where invocation_id = @invocation
+            for update;
+            """, connection, transaction);
+        command.Parameters.AddWithValue("invocation", invocationId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
+            ? new ReservationOwnership(reader.GetString(0), reader.GetGuid(1), reader.GetGuid(2))
+            : null;
+    }
 
     private sealed record ReservationRow(Guid BudgetId, decimal EstimatedCost, decimal? SettledAmount, string Status);
 

@@ -487,12 +487,240 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
             .ShouldBe("none", "a released invocation must not be marked as submitted");
     }
 
+    [Fact]
+    public async Task Repeated_submission_by_the_same_attempt_is_idempotent()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("submitted");
+        (await BudgetAsync(budgetId)).Reserved.ShouldBe(10m, "the reservation is held once");
+    }
+
+    [Fact]
+    public async Task Submission_from_a_different_attempt_is_rejected()
+    {
+        var job = await CreateJobAsync();
+        await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+
+        await Should.ThrowAsync<StaleProcessingAttemptException>(() =>
+            budget.MarkSubmittedAsync(job with { AttemptId = Guid.NewGuid() }, invocationId, CancellationToken.None));
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("reserved");
+    }
+
+    [Fact]
+    public async Task Submission_of_a_released_reservation_is_rejected()
+    {
+        var job = await CreateJobAsync();
+        await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.ReleaseAsync(job.CompanyId, invocationId, CancellationToken.None);
+
+        await Should.ThrowAsync<StaleProcessingAttemptException>(() =>
+            budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None));
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("released");
+    }
+
+    [Fact]
+    public async Task Submission_of_a_settled_reservation_is_rejected()
+    {
+        var job = await CreateJobAsync();
+        await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await budget.SettleAsync(job.CompanyId, invocationId, 12m, CancellationToken.None);
+
+        await Should.ThrowAsync<StaleProcessingAttemptException>(() =>
+            budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None));
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("settled");
+    }
+
+    [Fact]
+    public async Task Concurrent_repeated_submission_is_idempotent()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+
+        var first = budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        var second = budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await Task.WhenAll(first, second);
+
+        (await ReservationStatusAsync(invocationId)).ShouldBe("submitted");
+        (await BudgetAsync(budgetId)).Reserved.ShouldBe(10m);
+    }
+
+    [Fact]
+    public async Task Shadow_submission_blocks_on_the_financial_lock()
+    {
+        var job = await CreateJobAsync();
+        await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+
+        await using var holder = new NpgsqlConnection(fixture.ConnectionString);
+        await holder.OpenAsync();
+        await using var holderTransaction = await holder.BeginTransactionAsync();
+        await using (var command = new NpgsqlCommand(
+            "select pg_advisory_xact_lock(platform.fin_lock_key(@company, @period));", holder, holderTransaction))
+        {
+            command.Parameters.AddWithValue("company", job.CompanyId);
+            command.Parameters.Add(new NpgsqlParameter("period", NpgsqlTypes.NpgsqlDbType.Date)
+            {
+                Value = CurrentPeriod(),
+            });
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var submission = budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await WaitForAdvisoryWaiterAsync();
+        await holderTransaction.CommitAsync();
+        await submission;
+
+        (await ScalarAsync(
+            $"select coalesce(submitted_at::text, 'none') from platform.ai_budget_shadow where invocation_id = '{invocationId}'"))
+            .ShouldNotBe("none", "the marker was written after the lock was released");
+    }
+
+    [Fact]
+    public async Task Activation_before_submission_releases_and_cannot_be_submitted()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        var activation = await budget.ActivateAsync(
+            job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None);
+
+        activation.Converted.ShouldBe(0);
+        activation.Released.ShouldBe(1);
+
+        await Should.ThrowAsync<StaleProcessingAttemptException>(() =>
+            budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None));
+
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(0m);
+        (await ScalarAsync($"select status from platform.ai_budget_shadow where invocation_id = '{invocationId}'"))
+            .ShouldBe("released");
+    }
+
+    [Fact]
+    public async Task Submission_before_activation_is_converted_into_a_liability()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        var activation = await budget.ActivateAsync(
+            job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None);
+
+        activation.Converted.ShouldBe(1);
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(10m);
+        (await ScalarAsync($"select status from platform.ai_budget_reservation where invocation_id = '{invocationId}'"))
+            .ShouldBe("settled_estimated");
+        (await ScalarAsync($"select status from platform.ai_budget_shadow where invocation_id = '{invocationId}'"))
+            .ShouldBe("converted");
+    }
+
+    [Fact]
+    public async Task Concurrent_activation_and_submission_have_exactly_one_valid_outcome()
+    {
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+
+        for (var iteration = 0; iteration < 10; iteration++)
+        {
+            var job = await CreateJobAsync();
+            var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+            var invocationId = Guid.NewGuid();
+            await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+
+            var submission = budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+            var activation = budget.ActivateAsync(
+                job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None);
+
+            try
+            {
+                await Task.WhenAll(submission, activation);
+            }
+            catch (StaleProcessingAttemptException)
+            {
+                // Activation won the lock and released the invocation; the submission was refused.
+            }
+
+            var shadowStatus = await ScalarAsync(
+                $"select status from platform.ai_budget_shadow where invocation_id = '{invocationId}'");
+            var spent = await ScalarDecimalAsync($"select spent_amount from platform.ai_budget where id = '{budgetId}'");
+
+            if (shadowStatus == "converted")
+            {
+                spent.ShouldBe(10m, "the converted liability is recognised once");
+                (await ScalarAsync(
+                    $"select status from platform.ai_budget_reservation where invocation_id = '{invocationId}'"))
+                    .ShouldBe("settled_estimated");
+            }
+            else
+            {
+                shadowStatus.ShouldBe("released");
+                spent.ShouldBe(0m, "a released invocation is not a liability");
+                (await ScalarAsync(
+                    $"select count(*) from platform.ai_budget_reservation where invocation_id = '{invocationId}'"))
+                    .ShouldBe("0");
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static DateOnly CurrentPeriod()
     {
         var now = DateTime.UtcNow;
         return new DateOnly(now.Year, now.Month, 1);
+    }
+
+    private async Task WaitForAdvisoryWaiterAsync()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            await using var connection = new NpgsqlConnection(fixture.ConnectionString);
+            await connection.OpenAsync();
+            await using var command = new NpgsqlCommand(
+                "select count(*) from pg_locks where locktype = 'advisory' and not granted;", connection);
+            if (Convert.ToInt64(await command.ExecuteScalarAsync()) > 0)
+            {
+                return;
+            }
+
+            await Task.Delay(25);
+        }
+
+        throw new TimeoutException("The submission never blocked on the financial advisory lock.");
     }
 
     private static AiCompletionResult Result(int? input, int? output, string model, string deployment)

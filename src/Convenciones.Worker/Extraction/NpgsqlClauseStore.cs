@@ -285,15 +285,19 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
-        // The reservation (or shadow row) supplies the financial period and is the settlement target for
-        // this call. The advisory lock matches every other financial writer.
-        var settlement = await ReadSettlementAsync(connection, transaction, invocationId, cancellationToken)
+        // The period is immutable and only used to pick the advisory lock. The reservation state that drives
+        // the accounting is read *after* the lock is held, so a sweeper cannot settle it in between and
+        // leave the record applying a transition that no longer matches the row.
+        var period = await ResolvePeriodAsync(connection, transaction, invocationId, cancellationToken)
             .ConfigureAwait(false);
-        if (settlement is not null)
+        if (period is not null)
         {
-            await LockFinancialAsync(connection, transaction, job.CompanyId, settlement.Period, cancellationToken)
+            await LockFinancialAsync(connection, transaction, job.CompanyId, period.Value, cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        var settlement = await ReadSettlementAsync(connection, transaction, invocationId, cancellationToken)
+            .ConfigureAwait(false);
 
         var inserted = false;
         await using (var insert = new NpgsqlCommand(
@@ -450,9 +454,49 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         decimal? SettledAmount);
 
     /// <summary>
+    /// Returns the period that owns the invocation, used only to select the financial advisory lock. The
+    /// state itself is read again under that lock.
+    /// </summary>
+    private static async Task<DateOnly?> ResolvePeriodAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid invocationId,
+        CancellationToken cancellationToken)
+    {
+        await using (var reservation = new NpgsqlCommand(
+            """
+            select b.period_start
+            from platform.ai_budget_reservation r
+            join platform.ai_budget b on b.id = r.budget_id
+            where r.invocation_id = @invocation;
+            """, connection, transaction))
+        {
+            reservation.Parameters.AddWithValue("invocation", invocationId);
+            var value = await reservation.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (value is not null)
+            {
+                return value is DateOnly date ? date : DateOnly.FromDateTime((DateTime)value);
+            }
+        }
+
+        await using (var shadow = new NpgsqlCommand(
+            "select period from platform.ai_budget_shadow where invocation_id = @invocation;",
+            connection, transaction))
+        {
+            shadow.Parameters.AddWithValue("invocation", invocationId);
+            var value = await shadow.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            return value is DateOnly period ? period : null;
+        }
+    }
+
+    /// <summary>
     /// Finds the financial reservation (or shadow row) for an invocation. Returns null for invocations
     /// recorded before the budget model existed, which keep working without settlement.
     /// </summary>
+    /// <remarks>
+    /// Must be called with the company-period advisory lock held. The row is locked so the state used for
+    /// accounting cannot change between this read and the guarded updates.
+    /// </remarks>
     private static async Task<SettlementContext?> ReadSettlementAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -464,7 +508,8 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             select r.budget_id, r.estimated_cost, r.status, b.period_start, r.settled_amount
             from platform.ai_budget_reservation r
             join platform.ai_budget b on b.id = r.budget_id
-            where r.invocation_id = @invocation;
+            where r.invocation_id = @invocation
+            for update of r;
             """, connection, transaction))
         {
             reservation.Parameters.AddWithValue("invocation", invocationId);
@@ -481,7 +526,7 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         }
 
         await using (var shadow = new NpgsqlCommand(
-            "select period from platform.ai_budget_shadow where invocation_id = @invocation;",
+            "select period from platform.ai_budget_shadow where invocation_id = @invocation for update;",
             connection, transaction))
         {
             shadow.Parameters.AddWithValue("invocation", invocationId);
@@ -521,6 +566,7 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         var amount = cost ?? settlement.Estimate;
         var status = cost is null ? "settled_estimated" : "settled";
 
+        int affected;
         await using (var update = new NpgsqlCommand(
             """
             update platform.ai_budget_reservation
@@ -535,7 +581,15 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             {
                 Value = amount,
             });
-            await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            affected = await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (affected != 1)
+        {
+            // The row is locked and its state was read under the same lock, so this means the transition no
+            // longer applies. Abort before touching the counters: no ledger/counter divergence.
+            throw new InvalidOperationException(
+                $"Reservation '{invocationId}' was not in a settleable state under the financial lock.");
         }
 
         await using (var budget = new NpgsqlCommand(
@@ -592,8 +646,10 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
 
         if (affected == 0)
         {
-            // Another transaction already reconciled this invocation; the ledger row is still the truth.
-            return;
+            // Holding the advisory lock and the row lock, this can only mean the row is not the state we
+            // read. Abort rather than move a counter that no longer matches it.
+            throw new InvalidOperationException(
+                $"Reservation '{invocationId}' was not 'settled_estimated' under the financial lock.");
         }
 
         await using (var budget = new NpgsqlCommand(
