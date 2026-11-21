@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\Convenciones.Api\Convenciones.Api.csproj" />
 
     <ProjectReference Include="..\..\src\Convenciones.Migrator\Convenciones.Migrator.csproj" />
+    <ProjectReference Include="..\..\src\Convenciones.Backup\Convenciones.Backup.csproj" />
     <ProjectReference Include="..\..\src\Convenciones.Worker\Convenciones.Worker.csproj" />
   </ItemGroup>
 
