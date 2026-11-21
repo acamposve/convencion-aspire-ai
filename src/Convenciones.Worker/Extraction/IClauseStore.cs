@@ -1,3 +1,4 @@
+using Convenciones.Ai;
 using Convenciones.Worker;
 
 namespace Convenciones.Worker.Extraction;
@@ -37,11 +38,17 @@ public interface IClauseStore
         int unclassifiedCount,
         CancellationToken cancellationToken);
 
-    Task RecordUsageAsync(
-        Guid companyId,
+    /// <summary>
+    /// Records one provider invocation: tokens as reported, the internally estimated cost and the price
+    /// list used. Written as soon as the call returns, before parsing or persistence, so a later failure
+    /// in the same stage cannot lose a charge the provider already booked.
+    /// </summary>
+    Task RecordInvocationAsync(
+        ProcessingJob job,
+        string stage,
+        int invocationNo,
+        AiCompletionResult result,
         int pages,
-        long inputTokens,
-        long outputTokens,
-        decimal costEstimateUsd,
+        AiPricing pricing,
         CancellationToken cancellationToken);
 }

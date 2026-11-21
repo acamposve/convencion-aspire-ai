@@ -19,6 +19,12 @@ public sealed class ExtractionOptions
     public double InputPricePerMillion { get; set; } = 0.61;
 
     public double OutputPricePerMillion { get; set; } = 1.82;
+
+    /// <summary>
+    /// Identifier of the price list above. Recorded on every usage row so a historical cost can be
+    /// explained by the prices that produced it; change it whenever a price changes.
+    /// </summary>
+    public string PricingVersion { get; set; } = "configured-v1";
 }
 
 public sealed record ClauseChunk(int Index, int PageFrom, int PageTo, string Text, int CharStart);

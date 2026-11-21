@@ -43,8 +43,9 @@ public sealed class ClauseExtractionStage(
         }
 
         var parsed = new List<ParsedClause>();
-        long inputTokens = 0;
-        long outputTokens = 0;
+        var pricing = AiPricing.FromConfiguration(
+            options.PricingVersion, options.InputPricePerMillion, options.OutputPricePerMillion);
+        var invocation = 0;
         foreach (var chunk in chunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -68,6 +69,19 @@ public sealed class ClauseExtractionStage(
                 throw new PermanentProcessingException("invalid_model_output", exception.Message);
             }
 
+            // Recorded before parsing and before persistence: the provider has already billed this
+            // call, so a later failure in this stage must not erase the charge.
+            invocation++;
+            await store.RecordInvocationAsync(
+                    job,
+                    "extraction",
+                    invocation,
+                    result,
+                    invocation == 1 ? layout.PageCount : 0,
+                    pricing,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
             try
             {
                 parsed.AddRange(ClauseResponseParser.Parse(result.Content, chunk));
@@ -76,9 +90,6 @@ public sealed class ClauseExtractionStage(
             {
                 throw new PermanentProcessingException(exception.Code, exception.Message);
             }
-
-            inputTokens += result.InputTokens ?? 0;
-            outputTokens += result.OutputTokens ?? 0;
         }
 
         var merged = ClauseMerger.Merge(parsed)
@@ -92,10 +103,6 @@ public sealed class ClauseExtractionStage(
         }
 
         await store.SaveClausesAsync(job, merged, cancellationToken).ConfigureAwait(false);
-        var cost = (decimal)((inputTokens / 1_000_000.0 * options.InputPricePerMillion)
-            + (outputTokens / 1_000_000.0 * options.OutputPricePerMillion));
-        await store.RecordUsageAsync(job.CompanyId, layout.PageCount, inputTokens, outputTokens, cost, cancellationToken)
-            .ConfigureAwait(false);
         logger.LogInformation(
             "Extracted {Clauses} clause(s) from document {DocumentId} in run {RunId}.",
             merged.Count,

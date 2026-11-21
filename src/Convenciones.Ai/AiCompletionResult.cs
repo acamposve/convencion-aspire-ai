@@ -13,4 +13,5 @@ public sealed record AiCompletionResult(
     string Deployment,
     int? InputTokens,
     int? OutputTokens,
-    TimeSpan Latency);
+    TimeSpan Latency,
+    string Provider = "azure-foundry");
