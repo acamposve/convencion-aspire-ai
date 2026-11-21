@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using Convenciones.Documents;
@@ -13,16 +14,17 @@ namespace Convenciones.IntegrationTests;
 /// </summary>
 /// <remarks>
 /// The only things overridden are the connection string, the token validation settings and the
-/// document storage root. Everything else â€” exception handling, problem details, health checks, the
+/// document storage root. Everything else Ã¢â‚¬â€ exception handling, problem details, health checks, the
 /// authentication pipeline, the capability middleware, the upload limits and the endpoint security
-/// validator â€” is the production configuration, so a test cannot pass against a pipeline that differs
+/// validator Ã¢â‚¬â€ is the production configuration, so a test cannot pass against a pipeline that differs
 /// from the one that ships.
 /// </remarks>
 public sealed class ApiFactory(
     string connectionString,
     string? storageRoot = null,
     ILoggerProvider? loggerProvider = null,
-    IDocumentStorage? storage = null)
+    IDocumentStorage? storage = null,
+    IReadOnlyDictionary<string, string>? settings = null)
     : WebApplicationFactory<Program>
 {
     /// <summary>
@@ -47,6 +49,14 @@ public sealed class ApiFactory(
         // Background sweeps are exercised deterministically by calling the store; a hosted interval would
         // race the tests.
         builder.UseSetting("Documents:DeletionIntervalSeconds", "0");
+        if (settings is not null)
+        {
+            foreach (var setting in settings)
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
+        }
+
         builder.UseEnvironment("Testing");
 
         if (storage is not null)

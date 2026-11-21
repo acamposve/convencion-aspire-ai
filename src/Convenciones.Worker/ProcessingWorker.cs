@@ -14,12 +14,14 @@ namespace Convenciones.Worker;
 public sealed class ProcessingWorker(
     ProcessingQueue queue,
     IProcessingStage stage,
+    WorkerHeartbeat heartbeat,
     WorkerOptions options,
     ILogger<ProcessingWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         WriteHealthFile();
+        await TouchHeartbeatAsync(stoppingToken).ConfigureAwait(false);
 
         await TryRecoverAsync("at startup", stoppingToken).ConfigureAwait(false);
         var lastRecovery = DateTimeOffset.UtcNow;
@@ -31,6 +33,8 @@ public sealed class ProcessingWorker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            await TouchHeartbeatAsync(stoppingToken).ConfigureAwait(false);
+
             if (!options.Enabled)
             {
                 await DelayAsync(options.PollIntervalSeconds, stoppingToken).ConfigureAwait(false);
@@ -237,6 +241,19 @@ public sealed class ProcessingWorker(
         catch (Exception exception)
         {
             logger.LogError(exception, "Could not recover interrupted runs {When}.", when);
+        }
+    }
+
+    private async Task TouchHeartbeatAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await heartbeat.TouchAsync(options.Enabled, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // A heartbeat failure must not stop processing; the next poll writes it again.
+            logger.LogWarning(exception, "The worker heartbeat could not be written.");
         }
     }
 

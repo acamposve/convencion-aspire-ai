@@ -60,7 +60,7 @@ public sealed class WorkerRecoveryFencingTests(PostgresFixture fixture) : IAsync
         job.ShouldNotBeNull();
 
         var options = Options(recoveryIntervalSeconds: 1);
-        using var worker = new ProcessingWorker(queue, new BlockingStage(), options, NullLogger<ProcessingWorker>.Instance);
+        using var worker = new ProcessingWorker(queue, new BlockingStage(), new WorkerHeartbeat(fixture.ConnectionString), options, NullLogger<ProcessingWorker>.Instance);
         await worker.StartAsync(CancellationToken.None);
 
         try
@@ -97,7 +97,8 @@ public sealed class WorkerRecoveryFencingTests(PostgresFixture fixture) : IAsync
         job.ShouldNotBeNull();
 
         using var worker = new ProcessingWorker(
-            queue, new BlockingStage(), Options(recoveryIntervalSeconds: 1), NullLogger<ProcessingWorker>.Instance);
+            queue, new BlockingStage(), new WorkerHeartbeat(fixture.ConnectionString),
+            Options(recoveryIntervalSeconds: 1), NullLogger<ProcessingWorker>.Instance);
         await worker.StartAsync(CancellationToken.None);
 
         try
