@@ -11,7 +11,7 @@ namespace Convenciones.Api.Endpoints;
 /// Document upload. PDF only, 20 MiB maximum, private storage, server-generated keys.
 /// </summary>
 /// <remarks>
-/// <c>docs/architecture/api-contracts.md §4.8</c> and <c>docs/tasks/task-04-document-upload.md</c> are
+/// <c>docs/architecture/api-contracts.md Â§4.8</c> and <c>docs/tasks/task-04-document-upload.md</c> are
 /// the contract. The order of checks matters: nothing reaches storage until the bytes have been proven
 /// to be a PDF and the caller has been proven to have a company.
 /// </remarks>
@@ -483,6 +483,7 @@ public static partial class DocumentEndpoints
         HttpRequest request,
         ConvencionesDbContext db,
         IDocumentStorage storage,
+        DocumentDeletionStore deletionStore,
         ISessionAccessor accessor,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
@@ -535,6 +536,18 @@ public static partial class DocumentEndpoints
         // claimed or completed.
         await CancelActiveRunsAsync(db, id, session.UserId, cancellationToken).ConfigureAwait(false);
 
+        // The intent commits with the soft delete: a crash after this point leaves a durable retry, never
+        // a hidden document whose object silently survives.
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            insert into platform.document_object_deletion
+                (document_id, company_id, storage_path, requested_by)
+            values ({0}, {1}, {2}, {3})
+            on conflict (document_id) do nothing;
+            """,
+            new object[] { id, document.CompanyId!.Value, document.StoragePath, session.UserId },
+            cancellationToken).ConfigureAwait(false);
+
         try
         {
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -548,17 +561,18 @@ public static partial class DocumentEndpoints
 
         try
         {
-            await storage.DeleteAsync(document.StoragePath, cancellationToken).ConfigureAwait(false);
+            // Object removal is best-effort now and durable afterwards: a failure is recorded on the
+            // intent row and retried by the sweeper, so the caller always receives the same answer.
+            await deletionStore
+                .TryDeleteNowAsync(id, document.StoragePath, storage, CancellationToken.None)
+                .ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception)
         {
-            // The document is already invisible and the attempt is audited. Failing the request now
-            // would report a failure for an operation the caller can no longer observe; the leftover
-            // object is private, unreachable and sweepable.
             loggerFactory
                 .CreateLogger("DocumentDelete")
                 .LogError(exception,
-                    "Document {DocumentId} is hidden, but its stored object could not be removed.", id);
+                    "Document {DocumentId} is hidden, but its deletion intent could not be processed.", id);
         }
 
         return Results.NoContent();

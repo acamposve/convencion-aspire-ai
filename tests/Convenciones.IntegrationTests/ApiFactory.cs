@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
+using Convenciones.Documents;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Convenciones.IntegrationTests;
@@ -11,15 +13,16 @@ namespace Convenciones.IntegrationTests;
 /// </summary>
 /// <remarks>
 /// The only things overridden are the connection string, the token validation settings and the
-/// document storage root. Everything else — exception handling, problem details, health checks, the
+/// document storage root. Everything else â€” exception handling, problem details, health checks, the
 /// authentication pipeline, the capability middleware, the upload limits and the endpoint security
-/// validator — is the production configuration, so a test cannot pass against a pipeline that differs
+/// validator â€” is the production configuration, so a test cannot pass against a pipeline that differs
 /// from the one that ships.
 /// </remarks>
 public sealed class ApiFactory(
     string connectionString,
     string? storageRoot = null,
-    ILoggerProvider? loggerProvider = null)
+    ILoggerProvider? loggerProvider = null,
+    IDocumentStorage? storage = null)
     : WebApplicationFactory<Program>
 {
     /// <summary>
@@ -40,7 +43,17 @@ public sealed class ApiFactory(
         builder.UseSetting("Jwt:Audience", TestAuth.Audience);
         builder.UseSetting("Jwt:SigningKey", TestAuth.SigningKey);
         builder.UseSetting("Documents:StorageRoot", StorageRoot);
+
+        // Background sweeps are exercised deterministically by calling the store; a hosted interval would
+        // race the tests.
+        builder.UseSetting("Documents:DeletionIntervalSeconds", "0");
         builder.UseEnvironment("Testing");
+
+        if (storage is not null)
+        {
+            builder.ConfigureServices(services => services.AddSingleton<IDocumentStorage>(storage));
+        }
+
         if (loggerProvider is not null)
         {
             builder.ConfigureLogging(logging => logging
