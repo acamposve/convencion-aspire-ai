@@ -19,7 +19,11 @@ public interface IClauseStore
 {
     Task<StoredDocument?> LoadDocumentAsync(Guid runId, CancellationToken cancellationToken);
 
-    Task UpdateProgressAsync(Guid runId, string stage, int clauseCount, CancellationToken cancellationToken);
+    /// <summary>
+    /// Reports progress for the job's own attempt. The write is fenced by run, attempt number and
+    /// attempt id; a stale worker gets <see cref="StaleProcessingAttemptException"/> and changes nothing.
+    /// </summary>
+    Task UpdateProgressAsync(ProcessingJob job, string stage, int clauseCount, CancellationToken cancellationToken);
 
     Task SaveClausesAsync(ProcessingJob job, IReadOnlyList<MergedClause> clauses, CancellationToken cancellationToken);
 

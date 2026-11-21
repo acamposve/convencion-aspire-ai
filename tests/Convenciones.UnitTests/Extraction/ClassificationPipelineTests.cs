@@ -14,7 +14,7 @@ public sealed class ClassificationPipelineTests
         new(Guid.NewGuid(), "pricing", "Precio y pago", "Salarios y aumentos");
 
     private static readonly ClauseCategoryInfo Termination =
-        new(Guid.NewGuid(), "termination", "Terminación", "Causas de terminación");
+        new(Guid.NewGuid(), "termination", "TerminaciÃ³n", "Causas de terminaciÃ³n");
 
     [Fact]
     public async Task Multi_label_is_persisted_and_unclassified_is_counted()
@@ -89,7 +89,7 @@ public sealed class ClassificationPipelineTests
         var store = new FakeClassificationStore();
         for (var ordinal = 1; ordinal <= count; ordinal++)
         {
-            store.Clauses.Add(new StoredClause(Guid.NewGuid(), ordinal, null, null, $"Cláusula {ordinal}."));
+            store.Clauses.Add(new StoredClause(Guid.NewGuid(), ordinal, null, null, $"ClÃ¡usula {ordinal}."));
         }
 
         return store;
@@ -126,7 +126,7 @@ public sealed class ClassificationPipelineTests
         public Task<StoredDocument?> LoadDocumentAsync(Guid runId, CancellationToken cancellationToken) =>
             Task.FromResult<StoredDocument?>(new StoredDocument("key.pdf", "file.pdf"));
 
-        public Task UpdateProgressAsync(Guid runId, string stage, int clauseCount, CancellationToken cancellationToken) =>
+        public Task UpdateProgressAsync(ProcessingJob job, string stage, int clauseCount, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
         public Task SaveClausesAsync(ProcessingJob job, IReadOnlyList<MergedClause> clauses, CancellationToken cancellationToken) =>

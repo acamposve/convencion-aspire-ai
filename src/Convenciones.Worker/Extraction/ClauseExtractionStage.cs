@@ -48,7 +48,7 @@ public sealed class ClauseExtractionStage(
         foreach (var chunk in chunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await store.UpdateProgressAsync(job.RunId, "ExtractingClauses", parsed.Count, cancellationToken)
+            await store.UpdateProgressAsync(job, "ExtractingClauses", parsed.Count, cancellationToken)
                 .ConfigureAwait(false);
 
             AiCompletionResult result;

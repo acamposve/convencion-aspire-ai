@@ -8,6 +8,12 @@ public sealed class WorkerOptions
 
     public int PollIntervalSeconds { get; set; } = 2;
 
+    /// <summary>
+    /// How often an enabled worker sweeps for runs whose lease expired. Recovery also runs at startup;
+    /// this is the interval for the rest of the process lifetime.
+    /// </summary>
+    public int RecoveryIntervalSeconds { get; set; } = 60;
+
     /// <summary>How long a claimed run stays leased before recovery may reclaim it.</summary>
     public int LeaseSeconds { get; set; } = 600;
 
