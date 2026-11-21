@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Convenciones.Ai;
 using Convenciones.Worker;
+using Convenciones.Worker.Financial;
 using Microsoft.Extensions.Logging;
 
 namespace Convenciones.Worker.Extraction;
@@ -12,6 +13,7 @@ namespace Convenciones.Worker.Extraction;
 public sealed class ClauseClassificationStage(
     IAiModelClient modelClient,
     IClauseStore store,
+    IFinancialBudget budget,
     ClassificationOptions options,
     ILogger<ClauseClassificationStage> logger) : IProcessingStage
 {
@@ -43,13 +45,29 @@ public sealed class ClauseClassificationStage(
 
             // Identity exists before submission so reservation, submission marker and usage agree.
             var invocationId = Guid.NewGuid();
+            var prompt = ClassificationPrompt.User(categories, batch);
+            var estimate = AiCostEstimator.ReserveEstimate(
+                pricing, ClassificationPrompt.System, prompt, options.MaxOutputTokens);
+
+            var decision = await budget
+                .ReserveAsync(job, "classification", invocationId, estimate, cancellationToken)
+                .ConfigureAwait(false);
+            if (!decision.Admitted)
+            {
+                throw new PermanentProcessingException(
+                    "budget_exceeded",
+                    "The company financial budget cannot cover this invocation.");
+            }
+
+            await budget.MarkSubmittedAsync(job, invocationId, cancellationToken).ConfigureAwait(false);
+
             AiCompletionResult result;
             try
             {
                 result = await modelClient.CompleteAsync(
                     new AiCompletionRequest(
                         ClassificationPrompt.System,
-                        ClassificationPrompt.User(categories, batch),
+                        prompt,
                         ClassificationSchema.Json,
                         options.MaxOutputTokens,
                         options.Deployment),
@@ -57,7 +75,13 @@ public sealed class ClauseClassificationStage(
             }
             catch (AiInvalidResponseException exception)
             {
+                await budget.SettleAsync(job.CompanyId, invocationId, null, cancellationToken).ConfigureAwait(false);
                 throw new PermanentProcessingException("invalid_model_output", exception.Message);
+            }
+            catch
+            {
+                await budget.SettleAsync(job.CompanyId, invocationId, null, cancellationToken).ConfigureAwait(false);
+                throw;
             }
 
             // Recorded before parsing and before persistence, for the same reason as extraction: the

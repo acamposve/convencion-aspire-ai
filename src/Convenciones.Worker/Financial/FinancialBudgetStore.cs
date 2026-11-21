@@ -18,14 +18,14 @@ public sealed record ReservationDecision(ReservationMode Mode, bool Admitted, Gu
 /// </summary>
 /// <remarks>
 /// Every method takes <c>platform.fin_lock_key(company, period)</c> before touching a budget row, so all
-/// financial writers for a company-period serialise on the same key. Lock order is advisory → budget row
-/// → reservation row; nothing here takes them in a different order.
+/// financial writers for a company-period serialise on the same key. Lock order is advisory ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ budget row
+/// ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ reservation row; nothing here takes them in a different order.
 ///
 /// This store is not wired into the processing stages yet: reservations without settlement would hold
 /// budget for calls that already finished. Wiring and usage-period attribution land with the settlement
 /// work, which is the only place the two can be committed atomically.
 /// </remarks>
-public sealed class FinancialBudgetStore(string connectionString)
+public sealed class FinancialBudgetStore(string connectionString) : IFinancialBudget
 {
     private static readonly TimeSpan ReservationLifetime = TimeSpan.FromMinutes(10);
 
@@ -152,7 +152,7 @@ public sealed class FinancialBudgetStore(string connectionString)
     /// estimate is recognised instead: unknown usage is never treated as free.
     /// </summary>
     public async Task SettleAsync(
-        ProcessingJob job,
+        Guid companyId,
         Guid invocationId,
         decimal? actualCost,
         CancellationToken cancellationToken)
@@ -169,7 +169,7 @@ public sealed class FinancialBudgetStore(string connectionString)
             return;
         }
 
-        await LockAsync(connection, transaction, job.CompanyId, period.Value, cancellationToken).ConfigureAwait(false);
+        await LockAsync(connection, transaction, companyId, period.Value, cancellationToken).ConfigureAwait(false);
 
         var reservation = await ReadReservationAsync(connection, transaction, invocationId, cancellationToken)
             .ConfigureAwait(false);
@@ -359,6 +359,43 @@ public sealed class FinancialBudgetStore(string connectionString)
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Settles every submitted reservation whose provider response never arrived at its estimate.
+    /// Unknown outcomes are charged conservatively; they are never released on the strength of a
+    /// timestamp alone.
+    /// </summary>
+    public async Task<int> ExpireAsync(Guid companyId, CancellationToken cancellationToken)
+    {
+        var expired = new List<Guid>();
+
+        await using (var connection = new NpgsqlConnection(connectionString))
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            await using var command = new NpgsqlCommand(
+                """
+                select invocation_id
+                from platform.ai_budget_reservation
+                where company_id = @company
+                  and status = 'submitted'
+                  and expires_at < now();
+                """, connection);
+            command.Parameters.AddWithValue("company", companyId);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                expired.Add(reader.GetGuid(0));
+            }
+        }
+
+        foreach (var invocationId in expired)
+        {
+            await SettleAsync(companyId, invocationId, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        return expired.Count;
     }
 
     // ------------------------------------------------------------------ helpers

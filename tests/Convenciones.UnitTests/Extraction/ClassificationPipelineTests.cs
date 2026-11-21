@@ -14,7 +14,7 @@ public sealed class ClassificationPipelineTests
         new(Guid.NewGuid(), "pricing", "Precio y pago", "Salarios y aumentos");
 
     private static readonly ClauseCategoryInfo Termination =
-        new(Guid.NewGuid(), "termination", "TerminaciÃƒÆ’Ã‚Â³n", "Causas de terminaciÃƒÆ’Ã‚Â³n");
+        new(Guid.NewGuid(), "termination", "TerminaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n", "Causas de terminaciÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³n");
 
     [Fact]
     public async Task Multi_label_is_persisted_and_unclassified_is_counted()
@@ -79,6 +79,7 @@ public sealed class ClassificationPipelineTests
         new(
             model,
             store,
+            new FakeFinancialBudget(),
             new ClassificationOptions { BatchSize = 20 },
             NullLogger<ClauseClassificationStage>.Instance);
 
@@ -89,7 +90,7 @@ public sealed class ClassificationPipelineTests
         var store = new FakeClassificationStore();
         for (var ordinal = 1; ordinal <= count; ordinal++)
         {
-            store.Clauses.Add(new StoredClause(Guid.NewGuid(), ordinal, null, null, $"ClÃƒÆ’Ã‚Â¡usula {ordinal}."));
+            store.Clauses.Add(new StoredClause(Guid.NewGuid(), ordinal, null, null, $"ClÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡usula {ordinal}."));
         }
 
         return store;
