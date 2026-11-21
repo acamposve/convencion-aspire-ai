@@ -21,18 +21,8 @@ public sealed class ProcessingWorker(
     {
         WriteHealthFile();
 
-        try
-        {
-            var recovered = await queue.RecoverAsync(stoppingToken).ConfigureAwait(false);
-            if (recovered > 0)
-            {
-                logger.LogWarning("Recovered {Runs} interrupted processing run(s).", recovered);
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogError(exception, "Could not recover interrupted runs at startup.");
-        }
+        await TryRecoverAsync("at startup", stoppingToken).ConfigureAwait(false);
+        var lastRecovery = DateTimeOffset.UtcNow;
 
         if (!options.Enabled)
         {
@@ -53,6 +43,16 @@ public sealed class ProcessingWorker(
                     "Worker deadline {Deadline:O} reached; no new jobs will be claimed.",
                     deadline);
                 break;
+            }
+
+            // Periodic recovery: an expired lease must be reclaimed during the process lifetime, not
+            // only when the worker restarts. Recovery is a bounded, set-based statement, so running it
+            // from several instances is idempotent; the interval keeps that load negligible.
+            var now = DateTimeOffset.UtcNow;
+            if (now - lastRecovery >= RecoveryInterval)
+            {
+                lastRecovery = now;
+                await TryRecoverAsync("periodically", stoppingToken).ConfigureAwait(false);
             }
 
             ProcessingJob? job = null;
@@ -216,6 +216,30 @@ public sealed class ProcessingWorker(
         }
     }
 
+    /// <summary>
+    /// Runs one recovery sweep. Failures are logged and swallowed: a transient database problem must
+    /// not stop the worker loop, and a shutdown cancellation must not be reported as an error.
+    /// </summary>
+    private async Task TryRecoverAsync(string when, CancellationToken stoppingToken)
+    {
+        try
+        {
+            var recovered = await queue.RecoverAsync(stoppingToken).ConfigureAwait(false);
+            if (recovered > 0)
+            {
+                logger.LogWarning("Recovered {Runs} interrupted processing run(s) {When}.", recovered, when);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutting down: the recovery transaction was rolled back by its disposal.
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Could not recover interrupted runs {When}.", when);
+        }
+    }
+
     private void WriteHealthFile()
     {
         try
@@ -227,6 +251,8 @@ public sealed class ProcessingWorker(
             logger.LogWarning(exception, "Could not write the worker health file at {Path}.", options.HealthFile);
         }
     }
+
+    private TimeSpan RecoveryInterval => TimeSpan.FromSeconds(Math.Max(1, options.RecoveryIntervalSeconds));
 
     private static Task DelayAsync(int seconds, CancellationToken cancellationToken) =>
         Task.Delay(TimeSpan.FromSeconds(Math.Max(1, seconds)), cancellationToken);

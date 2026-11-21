@@ -40,7 +40,7 @@ public sealed class ClausePipelineTests
     public void Parser_accepts_a_clause_without_number_or_heading()
     {
         using var document = JsonDocument.Parse(
-            """{"clauses":[{"number":null,"heading":null,"text":"Cláusula sin título","page_from":1,"page_to":1,"confidence":0.8}]}""");
+            """{"clauses":[{"number":null,"heading":null,"text":"ClÃ¡usula sin tÃ­tulo","page_from":1,"page_to":1,"confidence":0.8}]}""");
         var chunk = new ClauseChunk(1, 1, 1, "text", 0);
 
         var parsed = ClauseResponseParser.Parse(document.RootElement, chunk);
@@ -55,7 +55,7 @@ public sealed class ClausePipelineTests
     public void Parser_rejects_confidence_outside_the_range()
     {
         using var document = JsonDocument.Parse(
-            """{"clauses":[{"text":"Cláusula","page_from":1,"page_to":1,"confidence":1.2}]}""");
+            """{"clauses":[{"text":"ClÃ¡usula","page_from":1,"page_to":1,"confidence":1.2}]}""");
         var chunk = new ClauseChunk(1, 1, 1, "text", 0);
 
         Should.Throw<ClauseExtractionException>(() => ClauseResponseParser.Parse(document.RootElement, chunk));
@@ -66,9 +66,9 @@ public sealed class ClausePipelineTests
     {
         var clauses = new[]
         {
-            new ParsedClause("Primera", "Objeto", "Cláusula primera. Objeto.", 1, 1, 0.9),
-            new ParsedClause("Primera", "Objeto", "Cláusula primera. Objeto.", 1, 1, 0.9),
-            new ParsedClause("Primera", "Objeto", "Cláusula primera. Objeto distinto.", 1, 1, 0.8),
+            new ParsedClause("Primera", "Objeto", "ClÃ¡usula primera. Objeto.", 1, 1, 0.9),
+            new ParsedClause("Primera", "Objeto", "ClÃ¡usula primera. Objeto.", 1, 1, 0.9),
+            new ParsedClause("Primera", "Objeto", "ClÃ¡usula primera. Objeto distinto.", 1, 1, 0.8),
         };
 
         var merged = ClauseMerger.Merge(clauses);
@@ -82,7 +82,7 @@ public sealed class ClausePipelineTests
     public async Task Stage_extracts_and_persists_clauses()
     {
         var store = new FakeStore();
-        var stage = CreateStage(store, layout: Page(1, "Cláusula primera. Objeto."), clauseCount: 2);
+        var stage = CreateStage(store, layout: Page(1, "ClÃ¡usula primera. Objeto."), clauseCount: 2);
 
         await stage.ExecuteAsync(new ProcessingJob(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1), CancellationToken.None);
 
@@ -168,9 +168,9 @@ public sealed class ClausePipelineTests
             var clauses = Enumerable.Range(1, clauseCount)
                 .Select(number => new
                 {
-                    number = number == 1 ? null : $"Cláusula {number}",
+                    number = number == 1 ? null : $"ClÃ¡usula {number}",
                     heading = number == 1 ? null : "Objeto",
-                    text = $"Cláusula {number}. Texto.",
+                    text = $"ClÃ¡usula {number}. Texto.",
                     page_from = 1,
                     page_to = 1,
                     confidence = 0.9,
@@ -203,7 +203,7 @@ public sealed class ClausePipelineTests
         public Task<StoredDocument?> LoadDocumentAsync(Guid runId, CancellationToken cancellationToken) =>
             Task.FromResult<StoredDocument?>(new StoredDocument("key.pdf", "file.pdf"));
 
-        public Task UpdateProgressAsync(Guid runId, string stage, int clauseCount, CancellationToken cancellationToken)
+        public Task UpdateProgressAsync(ProcessingJob job, string stage, int clauseCount, CancellationToken cancellationToken)
         {
             Progress.Add($"{stage}:{clauseCount}");
             return Task.CompletedTask;

@@ -35,25 +35,51 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         return new StoredDocument(reader.GetString(1), reader.GetString(2));
     }
 
+    /// <summary>
+    /// Fenced progress write: one conditional UPDATE that only matches when the run is still Running,
+    /// still on this attempt number, and the attempt row belongs to it and is still Running. A stale
+    /// worker updates nothing and is told so.
+    /// </summary>
     public async Task UpdateProgressAsync(
-        Guid runId,
+        ProcessingJob job,
         string stage,
         int clauseCount,
         CancellationToken cancellationToken)
     {
+        if (job.AttemptId == Guid.Empty)
+        {
+            throw new StaleProcessingAttemptException(job.RunId, job.AttemptId);
+        }
+
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(
             """
-            update platform.processing_run
+            update platform.processing_run r
             set stage = @stage, clause_count = @count, updated_at = now()
-            where id = @run;
+            where r.id = @run
+              and r.status = 'Running'::platform.processing_status
+              and r.attempts = @attempt
+              and exists (
+                  select 1
+                  from platform.processing_attempt a
+                  where a.id = @attempt_id
+                    and a.run_id = r.id
+                    and a.attempt_no = @attempt
+                    and a.status = 'Running'::platform.processing_status)
+            returning r.id;
             """, connection);
 
         command.Parameters.AddWithValue("stage", stage);
         command.Parameters.AddWithValue("count", clauseCount);
-        command.Parameters.AddWithValue("run", runId);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        command.Parameters.AddWithValue("run", job.RunId);
+        command.Parameters.AddWithValue("attempt", job.Attempt);
+        command.Parameters.AddWithValue("attempt_id", job.AttemptId);
+
+        if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
+        {
+            throw new StaleProcessingAttemptException(job.RunId, job.AttemptId);
+        }
     }
 
     public async Task SaveClausesAsync(
