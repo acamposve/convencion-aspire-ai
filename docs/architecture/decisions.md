@@ -132,14 +132,17 @@ communicate through interfaces, not tables.
 
 ### ADR-002 — Two projects per business module
 **Decision:** `<Module>` (Domain + Application) and `<Module>.Infrastructure`.
-**Consequences:** the critical Clean Architecture guarantee — Domain references no framework — is
-compile-time enforced. Domain/Application separation is by namespace and test, not by project.
+**Consequences:** the intended layout separates Domain/Application from Infrastructure per module.
+The current build collapses each module into one project, so that split is a namespace and review
+convention, not a compile-time boundary; what the build enforces is the project graph
+(`tests/Convenciones.ArchitectureTests`).
 
 ### ADR-003 — Single `DbContext` and single `public` schema
 **Context:** promotion writes across Negotiation and Agreements atomically; the MVP is small; the team
 is small.
-**Decision:** one context, one schema, module-prefixed table names, architecture tests forbidding
-cross-module entity access.
+**Decision:** one context, one schema, module-prefixed table names; project references are enforced by
+architecture tests, while cross-module entity and table access through the shared context is a review
+rule.
 **Consequences:** boundaries depend on discipline. **Revisit trigger:** two modules querying each
 other's tables more than once per release.
 

@@ -130,7 +130,11 @@ graph LR
     SharedKernel["SharedKernel<br/>(primitives only)"]
 ```
 
-**Enforced rules** (architecture tests, §11):
+**Dependency rules.** The project-reference part of these rules — which project may reference which,
+the module → kernel direction, and acyclicity — is enforced by `tests/Convenciones.ArchitectureTests`
+(§11), which checks the real `ProjectReference` items of every source project against an explicit
+permitted graph. The "read-only" clauses (2 and 3) are review rules: no test can see whether a
+reference writes; that is checked in review of the query interfaces themselves.
 
 1. A module may reference `SharedKernel`, `Identity` (for the current user), `Documents` and `Audit`.
 2. `Comparison` may reference `Agreements` and `LegalLibrary` **read-only via their public query
@@ -165,11 +169,16 @@ graph TB
     end
 ```
 
-The critical compile-time guarantee: **Domain references no framework type** — no EF Core attribute,
-no `DbContext`, no ASP.NET Core type, no Supabase SDK. Enforced by a project reference boundary plus
-architecture tests.
+The critical compile-time guarantee is **Domain references no framework type** — no EF Core
+attribute, no `DbContext`, no ASP.NET Core type, no Supabase SDK. The current layout has no `.Domain`
+project to enforce it on: each module is one project (A-06), so the boundary that the build actually
+guarantees is the module graph in §3.4, enforced by `tests/Convenciones.ArchitectureTests`. The
+per-layer rule becomes enforceable when a module is split into Domain and Infrastructure projects.
 
 ### 4.1 Physical layout
+
+The tree below is the intended layout. The current solution has one project per module and no
+`SharedKernel` or `Audit` project yet; `Convenciones.slnx` is authoritative for what exists.
 
 ```
 src/
@@ -230,8 +239,10 @@ cost exceeds the benefit while the boundary is still stable.
 The tradeoff is honest: **module boundaries are enforced by tests and review, not by the compiler.**
 Mitigation and a revisit trigger:
 
-- `Convenciones.ArchitectureTests` asserts that no module's Infrastructure references another
-  module's entities or tables.
+- `Convenciones.ArchitectureTests` enforces the project graph (§3.4): a module cannot reference
+  another module's project outside the documented edges. That is a compile-time boundary, but it does
+  not prove that a module avoids another module's tables through the shared `DbContext` — that remains
+  a review rule.
 - Every table is prefixed with its owning module (`agreements_`, `catalog_`, `negotiation_`,
   `legal_`, `comparison_`, `publishing_`, `identity_`, `documents_`, `audit_`).
 - **Revisit if** two modules begin querying each other's tables directly more than once per release.
@@ -365,8 +376,9 @@ CQRS is applied as a **code-level split**, not as infrastructure.
 | Location | `<Module>/Application/Commands/` | `<Module>/Application/Queries/` |
 | Example | `AddClauseCommand` → `AddClauseHandler` | `GetComparisonQuery` → `GetComparisonHandler` |
 
-A command handler never returns a read model; a query handler never touches a repository. The split
-is enforced by an architecture test, in the same way the module dependency rules are (§11).
+A command handler never returns a read model; a query handler never touches a repository. This split
+is a review convention: the architecture test enforces the project graph, not the shape of a handler
+class, so the split is checked by reading the handler, not by a build failure.
 
 **What was explicitly rejected:** a separate read database, materialised read models, event sourcing,
 and any command bus. Each requires an amendment (constitution Art. XIV). None has a requirement
@@ -391,7 +403,7 @@ problems the product does not have.
 |---|---|---|
 | Unit | xUnit + Shouldly | Domain invariants: clause ordering, publication rules, negotiation transitions, heading exclusivity |
 | Integration | xUnit + `WebApplicationFactory` + **Testcontainers PostgreSQL** | Every endpoint, every authorization rule, every validation path. Real database, real migrations |
-| Architecture | NetArchTest | Module dependency rules (§3.4), Domain purity |
+| Architecture | xUnit (`Convenciones.ArchitectureTests`) | Permitted project references (§3.4), module → host direction, acyclic graph, namespace ownership |
 | Frontend unit | Vitest + Testing Library | Form validation, comparison column rendering |
 | End-to-end | Playwright | The W1 spine, one test per acceptance criterion in `mvp-scope.md` |
 

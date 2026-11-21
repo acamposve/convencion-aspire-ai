@@ -15,13 +15,13 @@
     Clean Architecture (constitution Art. IV.2) — status of enforcement, stated accurately:
 
     The TARGET is that a `.Domain` project references no framework, no EF Core and no Supabase SDK.
-    As of the first vertical slice there are NO Domain projects and NO architecture tests, so
-    nothing enforces it yet: the rule is a convention in the documentation, not a build guard.
+    As of this build there are NO Domain projects, so that per-layer rule has nothing to enforce yet.
 
-    It becomes a guarantee when the first domain module lands, by pairing "(a) a project that
-    references only the base class library" with "(b) a NetArchTest architecture test". Until then
-    this comment must not claim enforcement it does not have — a false guarantee in a build file is
-    worse than none, because reviewers stop checking.
+    What the build does enforce is the project graph: tests/Convenciones.ArchitectureTests checks
+    every ProjectReference against the graph in docs/architecture/solution-architecture.md §3.4
+    (module → kernel only, no module → host, no host → host, no cycles) and that every file stays
+    inside its own project's namespace. It runs in CI with the rest of the test suite. Do not extend
+    this comment to claim a guarantee the tests do not check.
   -->
 
 </Project>
