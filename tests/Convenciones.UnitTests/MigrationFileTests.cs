@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using Shouldly;
@@ -12,7 +12,7 @@ namespace Convenciones.UnitTests;
 /// <remarks>
 /// This is an infrastructure invariant, not a business rule. It earns a test because the ordering
 /// of the migration files *is* the deployment order: a mis-named file silently applies a schema
-/// change before its dependency and fails only on a from-scratch build — exactly the class of
+/// change before its dependency and fails only on a from-scratch build â€” exactly the class of
 /// defect that surfaced during Phase 4 validation.
 /// </remarks>
 public sealed class MigrationFileTests
@@ -45,6 +45,7 @@ public sealed class MigrationFileTests
         "20260110000000_clause_taxonomy_guard.sql",
         "20260111000000_processing_quotas.sql",
         "20261121000100_ai_usage_records.sql",
+        "20261121000200_ai_usage_invocation_identity.sql",
     ];
 
     [Fact]
