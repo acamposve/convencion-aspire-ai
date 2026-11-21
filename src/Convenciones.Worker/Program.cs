@@ -1,4 +1,5 @@
 using System.Globalization;
+using Convenciones.Worker.Financial;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -200,7 +201,9 @@ public static class Program
             serviceProvider.GetRequiredService<WorkerOptions>(),
             serviceProvider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ProcessingRetentionSweeper>>()));
         builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ProcessingRetentionSweeper>());
-        builder.Services.AddHostedService<ProcessingWorker>();
+        builder.Services.AddSingleton<FinancialSweeper>();
+builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<FinancialSweeper>());
+builder.Services.AddHostedService<ProcessingWorker>();
 
         await builder.Build().RunAsync().ConfigureAwait(false);
         return 0;

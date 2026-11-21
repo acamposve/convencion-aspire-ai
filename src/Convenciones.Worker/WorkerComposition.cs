@@ -76,7 +76,9 @@ public static class WorkerComposition
         }
 
         services.AddSingleton<IClauseStore>(new NpgsqlClauseStore(connectionString));
-        services.AddSingleton<IFinancialBudget>(new FinancialBudgetStore(connectionString));
+        var financialBudget = new FinancialBudgetStore(connectionString);
+        services.AddSingleton(financialBudget);
+        services.AddSingleton<IFinancialBudget>(financialBudget);
         services.AddSingleton(new ExtractionOptions
         {
             ChunkCharacters = ReadInt(configuration, "Extraction:ChunkCharacters", 10_000),

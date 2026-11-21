@@ -37,10 +37,43 @@ public sealed class RetentionSweepTests(PostgresFixture fixture) : IAsyncLifetim
 
     public async Task DisposeAsync()
     {
+        await ExecuteAsync($"delete from platform.ai_usage_record where company_id = '{_companyId}';");
+        await ExecuteAsync($"delete from platform.ai_budget_reservation where company_id = '{_companyId}';");
+        await ExecuteAsync($"delete from platform.ai_budget_shadow where company_id = '{_companyId}';");
         await ExecuteAsync($"delete from platform.processing_run where company_id = '{_companyId}';");
         await ExecuteAsync($"delete from platform.document where id = '{_documentId}';");
         await ExecuteAsync($"delete from platform.user_account where id = '{_userId}';");
         await ExecuteAsync($"delete from app.company where id = '{_companyId}';");
+    }
+
+    [Fact]
+    public async Task Sweep_skips_documents_that_have_financial_history()
+    {
+        await ExecuteAsync(
+            $"insert into platform.processing_attempt (id, run_id, company_id, attempt_no) " +
+            $"select gen_random_uuid(), id, '{_companyId}', 1 from platform.processing_run where document_id = '{_documentId}';" +
+            $"insert into platform.ai_usage_record (invocation_id, company_id, document_id, run_id, attempt_id, stage, " +
+            $"invocation_no, provider, input_tokens, output_tokens, usage_source, estimated_cost_usd, currency, " +
+            $"pricing_version, pricing_input_per_million, pricing_output_per_million, period) " +
+            $"select gen_random_uuid(), '{_companyId}', '{_documentId}', r.id, a.id, 'extraction', 1, 'azure-foundry', " +
+            $"10, 5, 'provider', 0.01, 'USD', 'test-v1', 0.61, 1.82, (date_trunc('month', now()))::date " +
+            $"from platform.processing_run r join platform.processing_attempt a on a.run_id = r.id " +
+            $"where r.document_id = '{_documentId}';");
+
+        var sweeper = new ProcessingRetentionSweeper(
+            fixture.ConnectionString,
+            new RetentionOptions { BatchSize = 100 },
+            new WorkerOptions(),
+            NullLogger<ProcessingRetentionSweeper>.Instance);
+
+        await sweeper.SweepAsync(CancellationToken.None);
+
+        (await ScalarAsync($"select count(*) from platform.processing_run where document_id = '{_documentId}'"))
+            .ShouldBe("1", "a run with financial history is not purged");
+        (await ScalarAsync($"select count(*) from platform.ai_usage_record where document_id = '{_documentId}'"))
+            .ShouldBe("1", "the ledger survives retention");
+        (await ScalarAsync($"select count(*) from platform.extracted_clause where document_id = '{_documentId}'"))
+            .ShouldBe("1", "the document is skipped as a whole");
     }
 
     [Fact]
