@@ -48,6 +48,39 @@ public sealed class WorkerDeadlineTests
     }
 
     [Fact]
+    public void Deadline_bound_timeout_before_the_wall_clock_reaches_the_deadline_is_a_deadline_failure()
+    {
+        var now = DateTimeOffset.UtcNow;
+        // The cancellation timer is monotonic; it can fire a few milliseconds before the wall clock
+        // reaches DeadlineUtc while the clock is slewed. That is still the deadline's cancellation,
+        // and treating it as a retryable attempt timeout would requeue a run the worker never retries.
+        WorkerDeadlinePolicy.IsDeadlineFailure(deadlineBoundTimeout: true, now.AddMilliseconds(5), now)
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Unbounded_timeout_before_the_deadline_is_a_retryable_attempt_timeout()
+    {
+        var now = DateTimeOffset.UtcNow;
+        WorkerDeadlinePolicy.IsDeadlineFailure(deadlineBoundTimeout: false, now.AddSeconds(30), now)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Unbounded_timeout_at_or_after_the_deadline_is_a_deadline_failure()
+    {
+        var now = DateTimeOffset.UtcNow;
+        WorkerDeadlinePolicy.IsDeadlineFailure(deadlineBoundTimeout: false, now, now).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Without_a_deadline_the_timeout_is_never_a_deadline_failure()
+    {
+        WorkerDeadlinePolicy.IsDeadlineFailure(deadlineBoundTimeout: false, deadlineUtc: null, DateTimeOffset.UtcNow)
+            .ShouldBeFalse();
+    }
+
+    [Fact]
     public void Factory_parses_optional_claim_scope()
     {
         var documentId = Guid.NewGuid();

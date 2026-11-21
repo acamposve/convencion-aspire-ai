@@ -174,19 +174,21 @@ public sealed class WorkerDeadlineLifecycleTests(PostgresFixture fixture) : IAsy
     private async Task<RunState> WaitForTerminalAsync(int repetition)
     {
         var giveUpAt = DateTimeOffset.UtcNow + BarrierTimeout;
+        RunState? last = null;
         while (DateTimeOffset.UtcNow < giveUpAt)
         {
-            var run = await ReadRunAsync();
-            if (run.Status is "Failed" or "Completed" or "Cancelled")
+            last = await ReadRunAsync();
+            if (last.Status is "Failed" or "Completed" or "Cancelled")
             {
-                return run;
+                return last;
             }
 
             await Task.Delay(TimeSpan.FromMilliseconds(50));
         }
 
         throw new TimeoutException(
-            $"repetition {repetition}: run '{_runId}' did not reach a terminal state within {BarrierTimeout}.");
+            $"repetition {repetition}: run '{_runId}' stayed '{last?.Status}' " +
+            $"(error_code '{last?.ErrorCode}', attempts {last?.Attempts}) for {BarrierTimeout}.");
     }
 
     private async Task<RunState> ReadRunAsync()
