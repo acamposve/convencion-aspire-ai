@@ -18,6 +18,12 @@ public static class ErrorCodes
     public const string NoProfile = "no_profile";
     public const string AccountInactive = "account_inactive";
     public const string NotFound = "not_found";
+
+    /// <summary>
+    /// The document exists and is visible to the caller, but it has no processing run yet. Distinct from
+    /// <see cref="NotFound"/> so a client can tell "start the work" from "this document is not yours".
+    /// </summary>
+    public const string RunNotFound = "run_not_found";
     public const string Conflict = "conflict";
     public const string InvalidState = "invalid_state";
     public const string ConcurrentModification = "concurrent_modification";

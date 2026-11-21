@@ -75,6 +75,7 @@ export function ClauseProcessingDialog({
   const [editing, setEditing] = useState<ProcessingClause | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [attempt, setAttempt] = useState(0);
   const [editedKeys, setEditedKeys] = useState<string[]>([]);
   const [editedPrimary, setEditedPrimary] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -155,9 +156,15 @@ export function ClauseProcessingDialog({
           if (current.status === 'Queued' || current.status === 'Running') {
             timer = window.setTimeout(() => void poll(document.id), POLL_MS);
           }
-        } catch {
-          await api.startProcessing(document.id);
-          await poll(document.id);
+        } catch (failure) {
+          const described = describeError(failure);
+          if (described.status === 404 && described.code === 'run_not_found') {
+            await api.startProcessing(document.id);
+            await poll(document.id);
+          } else {
+            // Only a confirmed absence starts work. A network, auth or server failure must not write.
+            setError(described);
+          }
         }
       } catch (failure) {
         if (!cancelled) {
@@ -178,7 +185,7 @@ export function ClauseProcessingDialog({
         window.clearTimeout(timer);
       }
     };
-  }, [api, document, open, refresh]);
+  }, [api, attempt, document, open, refresh]);
 
   useEffect(() => {
     if (!open) {
@@ -276,7 +283,20 @@ export function ClauseProcessingDialog({
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          {error ? <Alert severity="error">{error.detail}</Alert> : null}
+          {error ? (
+            <Alert
+              severity="error"
+              action={
+                busy ? undefined : (
+                  <Button color="inherit" size="small" onClick={() => setAttempt((value) => value + 1)}>
+                    Reintentar
+                  </Button>
+                )
+              }
+            >
+              {error.detail}
+            </Alert>
+          ) : null}
 
           {busy && run === null ? <LinearProgress aria-label="Iniciando el procesamiento" /> : null}
 

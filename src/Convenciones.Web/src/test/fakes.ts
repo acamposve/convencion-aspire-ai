@@ -291,6 +291,11 @@ function missing(id: string): never {
   throw new ApiError(404, 'not_found', `No existe ${id}.`);
 }
 
+/** The document is visible but has no run yet: the client may start the work. */
+function missingRun(id: string): never {
+  throw new ApiError(404, 'run_not_found', `El documento ${id} no tiene procesamiento todavía.`);
+}
+
 export interface Deferred<T> {
   promise: Promise<T>;
   resolve(value: T): void;
@@ -516,6 +521,9 @@ export class FakeApi implements ApiClient {
   processingCalls: string[] = [];
   processingError: ApiError | null = null;
 
+  /** Failures for GET /documents/{id}/processing, keyed by document id. */
+  processingQueryErrors = new Map<string, unknown>();
+
   async startProcessing(documentId: string): Promise<ProcessingRun> {
     this.processingCalls.push(documentId);
     if (this.processingError) {
@@ -547,7 +555,12 @@ export class FakeApi implements ApiClient {
   }
 
   async getProcessing(documentId: string): Promise<ProcessingRun> {
-    return this.processingRuns.get(documentId) ?? missing(documentId);
+    const failure = this.processingQueryErrors.get(documentId);
+    if (failure) {
+      throw failure;
+    }
+
+    return this.processingRuns.get(documentId) ?? missingRun(documentId);
   }
 
   async listClauses(documentId: string, page: number, pageSize: number): Promise<ClausePageResponse> {

@@ -23,6 +23,30 @@ public sealed class ProcessingStartTests(DocumentsFixture fixture)
     private static readonly Guid CompanyA = new("b2000000-0000-0000-0000-000000000001");
 
     [Fact]
+    public async Task Reading_processing_without_a_run_returns_run_not_found()
+    {
+        await ResetAsync();
+        using var host = new ApiFactory(fixture.ConnectionString);
+        using var client = ClientFor(host);
+        var document = await UploadAndExtractAsync(client);
+
+        var noRun = await client.GetAsync(new Uri($"/documents/{document}/processing", UriKind.Relative));
+
+        noRun.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        using (var json = System.Text.Json.JsonDocument.Parse(await noRun.Content.ReadAsStringAsync()))
+        {
+            json.RootElement.GetProperty("code").GetString()
+                .ShouldBe("run_not_found", "an accessible document without a run must be distinguishable from a foreign one");
+        }
+
+        var foreign = await client.GetAsync(new Uri($"/documents/{Guid.NewGuid()}/processing", UriKind.Relative));
+        foreign.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        using var foreignJson = System.Text.Json.JsonDocument.Parse(await foreign.Content.ReadAsStringAsync());
+        foreignJson.RootElement.GetProperty("code").GetString()
+            .ShouldBe("not_found", "a document that is not visible stays a plain not_found");
+    }
+
+    [Fact]
     public async Task Starting_a_run_charges_once_and_a_repeat_returns_the_same_run()
     {
         await ResetAsync();
