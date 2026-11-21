@@ -106,16 +106,78 @@ public sealed class FinancialBudgetStore(string connectionString) : IFinancialBu
 
         if (period is null)
         {
-            // Shadow invocations carry no budget reservation; the marker still exists so recovery can tell
-            // "never submitted" from "possibly billed".
-            await using var shadow = new NpgsqlCommand(
+            // Shadow invocations carry no budget reservation, but the marker must still be written under the
+            // same lock as activation: otherwise an activation that reads submitted_at IS NULL can release
+            // an invocation that is marked submitted a moment later, and the charge disappears.
+            var shadowPeriod = await ShadowPeriodAsync(connection, transaction, invocationId, cancellationToken)
+                .ConfigureAwait(false);
+            if (shadowPeriod is null)
+            {
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            await LockAsync(connection, transaction, job.CompanyId, shadowPeriod.Value, cancellationToken)
+                .ConfigureAwait(false);
+
+            var shadowStatus = string.Empty;
+            var alreadySubmitted = false;
+            await using (var read = new NpgsqlCommand(
                 """
-                update platform.ai_budget_shadow
-                set submitted_at = coalesce(submitted_at, now())
-                where invocation_id = @invocation;
-                """, connection, transaction);
-            shadow.Parameters.AddWithValue("invocation", invocationId);
-            await shadow.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                select status, submitted_at is not null
+                from platform.ai_budget_shadow
+                where invocation_id = @invocation
+                for update;
+                """, connection, transaction))
+            {
+                read.Parameters.AddWithValue("invocation", invocationId);
+                await using var reader = await read.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+                if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                    throw new InvalidOperationException($"Invocation '{invocationId}' has no shadow record.");
+                }
+
+                shadowStatus = reader.GetString(0);
+                alreadySubmitted = reader.GetBoolean(1);
+            }
+
+            if (shadowStatus != "shadowed")
+            {
+                // Released or converted by activation: the call must not be made now.
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw new StaleProcessingAttemptException(job.RunId, job.AttemptId);
+            }
+
+            if (!alreadySubmitted)
+            {
+                int marked;
+                await using (var update = new NpgsqlCommand(
+                    """
+                    update platform.ai_budget_shadow
+                    set submitted_at = now()
+                    where invocation_id = @invocation
+                      and status = 'shadowed'
+                      and submitted_at is null
+                      and exists (
+                          select 1
+                          from platform.processing_attempt a
+                          join platform.processing_run r on r.id = a.run_id
+                          where a.id = @attempt and a.status = 'Running' and r.status = 'Running');
+                    """, connection, transaction))
+                {
+                    update.Parameters.AddWithValue("invocation", invocationId);
+                    update.Parameters.AddWithValue("attempt", job.AttemptId);
+                    marked = await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                if (marked == 0)
+                {
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                    throw new StaleProcessingAttemptException(job.RunId, job.AttemptId);
+                }
+            }
+
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -852,6 +914,20 @@ public sealed class FinancialBudgetStore(string connectionString) : IFinancialBu
         command.Parameters.AddWithValue("run", job.RunId);
         command.Parameters.AddWithValue("attempt", job.AttemptId);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<DateOnly?> ShadowPeriodAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid invocationId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "select period from platform.ai_budget_shadow where invocation_id = @invocation;",
+            connection, transaction);
+        command.Parameters.AddWithValue("invocation", invocationId);
+        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return value is null ? null : (DateOnly)value;
     }
 
     private static async Task<DateOnly?> ReservationPeriodAsync(

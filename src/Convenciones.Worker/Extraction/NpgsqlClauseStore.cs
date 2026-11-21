@@ -392,6 +392,14 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             await ApplySettlementAsync(connection, transaction, invocationId, settlement, cost, cancellationToken)
                 .ConfigureAwait(false);
         }
+        else if (settlement is not null && settlement.Status == "settled_estimated" && cost is not null)
+        {
+            // The sweeper already recognised the estimate. The late provider figure must correct it rather
+            // than be written beside it, which would leave the counters at the estimate forever.
+            await ReconcileSettlementAsync(
+                    connection, transaction, invocationId, settlement, cost.Value, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         await using (var aggregate = new NpgsqlCommand(
             """
@@ -434,7 +442,12 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private sealed record SettlementContext(Guid BudgetId, decimal Estimate, string Status, DateOnly Period);
+    private sealed record SettlementContext(
+        Guid BudgetId,
+        decimal Estimate,
+        string Status,
+        DateOnly Period,
+        decimal? SettledAmount);
 
     /// <summary>
     /// Finds the financial reservation (or shadow row) for an invocation. Returns null for invocations
@@ -448,7 +461,7 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
     {
         await using (var reservation = new NpgsqlCommand(
             """
-            select r.budget_id, r.estimated_cost, r.status, b.period_start
+            select r.budget_id, r.estimated_cost, r.status, b.period_start, r.settled_amount
             from platform.ai_budget_reservation r
             join platform.ai_budget b on b.id = r.budget_id
             where r.invocation_id = @invocation;
@@ -462,7 +475,8 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
                     reader.GetGuid(0),
                     reader.GetDecimal(1),
                     reader.GetString(2),
-                    DateOnly.FromDateTime(reader.GetDateTime(3)));
+                    DateOnly.FromDateTime(reader.GetDateTime(3)),
+                    reader.IsDBNull(4) ? null : reader.GetDecimal(4));
             }
         }
 
@@ -474,7 +488,7 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             var period = await shadow.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             if (period is DateOnly value)
             {
-                return new SettlementContext(Guid.Empty, 0m, "shadow", value);
+                return new SettlementContext(Guid.Empty, 0m, "shadow", value, null);
             }
         }
 
@@ -541,6 +555,58 @@ public sealed class NpgsqlClauseStore(string connectionString) : IClauseStore
             budget.Parameters.Add(new NpgsqlParameter("amount", NpgsqlTypes.NpgsqlDbType.Numeric)
             {
                 Value = amount,
+            });
+            await budget.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Corrects a reservation that the sweeper settled at its estimate: only the difference between the
+    /// actual cost and the recognised estimate moves the budget, and only once.
+    /// </summary>
+    private static async Task ReconcileSettlementAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid invocationId,
+        SettlementContext settlement,
+        decimal actualCost,
+        CancellationToken cancellationToken)
+    {
+        var previous = settlement.SettledAmount ?? settlement.Estimate;
+
+        int affected;
+        await using (var update = new NpgsqlCommand(
+            """
+            update platform.ai_budget_reservation
+            set status = 'reconciled', settled_amount = @amount, reconciled_at = now(), updated_at = now()
+            where invocation_id = @invocation and status = 'settled_estimated';
+            """, connection, transaction))
+        {
+            update.Parameters.AddWithValue("invocation", invocationId);
+            update.Parameters.Add(new NpgsqlParameter("amount", NpgsqlTypes.NpgsqlDbType.Numeric)
+            {
+                Value = actualCost,
+            });
+            affected = await update.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (affected == 0)
+        {
+            // Another transaction already reconciled this invocation; the ledger row is still the truth.
+            return;
+        }
+
+        await using (var budget = new NpgsqlCommand(
+            """
+            update platform.ai_budget
+            set spent_amount = spent_amount + @delta, updated_at = now()
+            where id = @budget;
+            """, connection, transaction))
+        {
+            budget.Parameters.AddWithValue("budget", settlement.BudgetId);
+            budget.Parameters.Add(new NpgsqlParameter("delta", NpgsqlTypes.NpgsqlDbType.Numeric)
+            {
+                Value = actualCost - previous,
             });
             await budget.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }

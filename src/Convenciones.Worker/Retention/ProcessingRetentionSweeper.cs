@@ -89,58 +89,18 @@ public sealed class ProcessingRetentionSweeper(
         var purged = 0;
         foreach (var documentId in documents)
         {
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-            await LockAsync(connection, transaction, ClassificationLocks.DocumentKey(documentId), cancellationToken)
-                .ConfigureAwait(false);
-            var runIds = await RunIdsAsync(connection, transaction, documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
-            foreach (var runId in runIds)
+            try
             {
-                await LockAsync(connection, transaction, ClassificationLocks.RunKey(runId), cancellationToken)
-                    .ConfigureAwait(false);
+                purged += await PurgeDocumentAsync(connection, documentId, cancellationToken).ConfigureAwait(false);
             }
-
-            if (await HasCorrectionsAsync(connection, transaction, documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false))
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                // One protected or failing document must never stop the batch: log it and move on.
                 logger.LogWarning(
-                    "Skipping retention for document {DocumentId}: human classification corrections exist.",
+                    exception,
+                    "Skipping retention for document {DocumentId}: the purge failed for this document.",
                     documentId);
-                continue;
             }
-
-            if (await HasFinancialHistoryAsync(connection, transaction, documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false))
-            {
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-                logger.LogWarning(
-                    "Skipping retention for document {DocumentId}: financial history is protected.",
-                    documentId);
-                continue;
-            }
-
-            purged += await DeleteAsync(connection, transaction,
-                "delete from platform.clause_classification where clause_id in (select id from platform.extracted_clause where document_id = @document and (@run is null or run_id = @run));",
-                documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
-            purged += await DeleteAsync(connection, transaction,
-                "delete from platform.processing_attempt where run_id in (select id from platform.processing_run where document_id = @document and (@run is null or id = @run));",
-                documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
-            purged += await DeleteAsync(connection, transaction,
-                "delete from platform.extracted_clause where document_id = @document and (@run is null or run_id = @run);",
-                documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
-            purged += await DeleteAsync(connection, transaction,
-                "delete from platform.processing_run where document_id = @document and (@run is null or id = @run);",
-                documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
-
-            // Extracted text is an AI-derived artefact tied to the document, not to one run. It is
-            // removed only when the whole document's AI output is being retired. A run-scoped
-            // retention sweep must leave the text for the remaining/current runs.
-            if (workerOptions.AllowedRunId is null)
-            {
-                purged += await DeleteAsync(connection, transaction,
-                    "delete from platform.document_text where document_id = @document;",
-                    documentId, null, cancellationToken).ConfigureAwait(false);
-            }
-
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 
         if (purged > 0)
@@ -148,6 +108,67 @@ public sealed class ProcessingRetentionSweeper(
             logger.LogInformation("Purged AI output for {Documents} soft-deleted document(s), {Rows} row(s).", documents.Count, purged);
         }
 
+        return purged;
+    }
+
+    private async Task<int> PurgeDocumentAsync(
+        NpgsqlConnection connection,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await LockAsync(connection, transaction, ClassificationLocks.DocumentKey(documentId), cancellationToken)
+            .ConfigureAwait(false);
+        var runIds = await RunIdsAsync(connection, transaction, documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
+        foreach (var runId in runIds)
+        {
+            await LockAsync(connection, transaction, ClassificationLocks.RunKey(runId), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (await HasCorrectionsAsync(connection, transaction, documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false))
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            logger.LogWarning(
+                "Skipping retention for document {DocumentId}: human classification corrections exist.",
+                documentId);
+            return 0;
+        }
+
+        if (await HasFinancialHistoryAsync(connection, transaction, documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false))
+        {
+            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            logger.LogWarning(
+                "Skipping retention for document {DocumentId}: financial history is protected.",
+                documentId);
+            return 0;
+        }
+
+        var purged = 0;
+        purged += await DeleteAsync(connection, transaction,
+            "delete from platform.clause_classification where clause_id in (select id from platform.extracted_clause where document_id = @document and (@run is null or run_id = @run));",
+            documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
+        purged += await DeleteAsync(connection, transaction,
+            "delete from platform.processing_attempt where run_id in (select id from platform.processing_run where document_id = @document and (@run is null or id = @run));",
+            documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
+        purged += await DeleteAsync(connection, transaction,
+            "delete from platform.extracted_clause where document_id = @document and (@run is null or run_id = @run);",
+            documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
+        purged += await DeleteAsync(connection, transaction,
+            "delete from platform.processing_run where document_id = @document and (@run is null or id = @run);",
+            documentId, workerOptions.AllowedRunId, cancellationToken).ConfigureAwait(false);
+
+        // Extracted text is an AI-derived artefact tied to the document, not to one run. It is
+        // removed only when the whole document's AI output is being retired. A run-scoped
+        // retention sweep must leave the text for the remaining/current runs.
+        if (workerOptions.AllowedRunId is null)
+        {
+            purged += await DeleteAsync(connection, transaction,
+                "delete from platform.document_text where document_id = @document;",
+                documentId, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return purged;
     }
 
@@ -223,7 +244,8 @@ public sealed class ProcessingRetentionSweeper(
                 where r.document_id = @document
                   and (@run is null or r.id = @run)
                   and (exists (select 1 from platform.ai_usage_record u where u.run_id = r.id)
-                    or exists (select 1 from platform.ai_budget_reservation b where b.run_id = r.id)));
+                    or exists (select 1 from platform.ai_budget_reservation b where b.run_id = r.id)
+                    or exists (select 1 from platform.ai_budget_shadow s where s.run_id = r.id)));
             """, connection, transaction);
         command.Parameters.AddWithValue("document", documentId);
         command.Parameters.Add(new NpgsqlParameter("run", NpgsqlTypes.NpgsqlDbType.Uuid)

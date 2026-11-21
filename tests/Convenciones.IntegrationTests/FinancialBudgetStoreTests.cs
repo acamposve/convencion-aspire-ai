@@ -444,6 +444,49 @@ public sealed class FinancialBudgetStoreTests(PostgresFixture fixture) : IAsyncL
             ExecuteAsync($"delete from platform.processing_run where id = '{job.RunId}';"));
     }
 
+    [Fact]
+    public async Task A_late_response_reconciles_an_estimated_settlement_by_delta()
+    {
+        var job = await CreateJobAsync();
+        var budgetId = await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "enforced");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var store = new NpgsqlClauseStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None);
+        await budget.SettleAsync(job.CompanyId, invocationId, null, CancellationToken.None);
+
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(10m);
+
+        // The provider answered after the sweeper had already recognised the estimate.
+        await store.RecordInvocationAsync(
+            job, "extraction", invocationId, 1, Result(1_000_000, 0, "m", "d"), pages: 0,
+            new AiPricing("test-v1", "USD", 12m, 0m), CancellationToken.None);
+
+        (await BudgetAsync(budgetId)).Spent.ShouldBe(12m, "the estimate is corrected, not left behind");
+        (await ReservationStatusAsync(invocationId)).ShouldBe("reconciled");
+    }
+
+    [Fact]
+    public async Task A_shadow_invocation_released_by_activation_cannot_be_submitted()
+    {
+        var job = await CreateJobAsync();
+        await CreateBudgetAsync(job.CompanyId, limit: 100m, enforcement: "shadow");
+        var budget = new FinancialBudgetStore(fixture.ConnectionString);
+        var invocationId = Guid.NewGuid();
+
+        await budget.ReserveAsync(job, "extraction", invocationId, 10m, CancellationToken.None);
+        await budget.ActivateAsync(job.CompanyId, CurrentPeriod(), "ops", "cutover", null, CancellationToken.None);
+
+        await Should.ThrowAsync<StaleProcessingAttemptException>(() =>
+            budget.MarkSubmittedAsync(job, invocationId, CancellationToken.None));
+
+        (await ScalarAsync(
+            $"select coalesce(submitted_at::text, 'none') from platform.ai_budget_shadow where invocation_id = '{invocationId}'"))
+            .ShouldBe("none", "a released invocation must not be marked as submitted");
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static DateOnly CurrentPeriod()
