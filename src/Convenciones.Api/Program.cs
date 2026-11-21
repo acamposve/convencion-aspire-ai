@@ -20,7 +20,7 @@ builder.AddServiceDefaults();
 
 // ---- Error contract -------------------------------------------------------------------------
 // Every unhandled failure becomes an RFC 9457 problem response with a correlation id.
-// See docs/architecture/api-contracts.md §2.
+// See docs/architecture/api-contracts.md Ã‚Â§2.
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
@@ -273,6 +273,28 @@ builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequired
 
 builder.Services.AddConvencionesIdentity(builder.Configuration, connectionString);
 
+var operations = new OperationsOptions(
+    int.TryParse(builder.Configuration["Operations:QueueMaxAgeSeconds"], out var queueMaxAgeSeconds)
+        ? queueMaxAgeSeconds
+        : null,
+    int.TryParse(builder.Configuration["Operations:WorkerHeartbeatMaxAgeSeconds"], out var heartbeatMaxAgeSeconds)
+        ? heartbeatMaxAgeSeconds
+        : null);
+
+builder.Services.AddSingleton(operations);
+
+builder.Services.AddSingleton(new QueueBacklogProbe(connectionString, operations));
+
+var metricsInterval = int.TryParse(builder.Configuration["Operations:MetricsIntervalSeconds"], out var intervalSeconds)
+    ? intervalSeconds
+    : 30;
+builder.Services.AddSingleton(serviceProvider => new OperationsMetrics(
+    connectionString,
+    TimeSpan.FromSeconds(Math.Max(5, metricsInterval)),
+    serviceProvider.GetRequiredService<ILogger<OperationsMetrics>>()));
+builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<OperationsMetrics>());
+builder.Services.AddSingleton(new WorkerHeartbeatProbe(connectionString, operations));
+
 builder.Services
     .AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
@@ -322,7 +344,62 @@ app.UseAuthorization();
 app.UseMiddleware<SessionResolutionMiddleware>();
 
 app.MapDefaultEndpoints();
-app.MapMeEndpoints();
+
+// Machine-readable operational report: the database readiness check plus the queue and worker signals.
+// A backlog degrades the report but deliberately does not make the API unready, so serving capacity is
+// not removed because processing is behind.
+app.MapGet("/health/ops", async (
+    Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckService health,
+    QueueBacklogProbe queue,
+    WorkerHeartbeatProbe worker,
+    CancellationToken cancellationToken) =>
+{
+    var readiness = await health.CheckHealthAsync(
+        registration => registration.Name == "database",
+        cancellationToken);
+
+    var databaseStatus = readiness.Status switch
+    {
+        Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy => OperationsStatus.Healthy,
+        Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded => OperationsStatus.Degraded,
+        _ => OperationsStatus.Unhealthy,
+    };
+
+    var signals = new List<OperationsSignal>
+    {
+        new("database", databaseStatus, databaseStatus == OperationsStatus.Healthy ? "The database answered." : "The database check failed.",
+            new Dictionary<string, object>()),
+        await queue.CheckAsync(cancellationToken),
+        await worker.CheckAsync(cancellationToken),
+    };
+
+    var overall = signals.Any(signal => signal.Status == OperationsStatus.Unhealthy)
+        ? OperationsStatus.Unhealthy
+        : signals.Any(signal => signal.Status == OperationsStatus.Degraded)
+            ? OperationsStatus.Degraded
+            : signals.Any(signal => signal.Status == OperationsStatus.Unknown)
+                ? OperationsStatus.Unknown
+                : OperationsStatus.Healthy;
+
+    var payload = new
+    {
+        status = overall.ToString(),
+        checkedAt = DateTimeOffset.UtcNow,
+        checks = signals.Select(signal => new
+        {
+            name = signal.Name,
+            status = signal.Status.ToString(),
+            description = signal.Description,
+            data = signal.Data,
+        }),
+    };
+
+    return Results.Json(
+        payload,
+        statusCode: overall == OperationsStatus.Unhealthy
+            ? StatusCodes.Status503ServiceUnavailable
+            : StatusCodes.Status200OK);
+}).AllowAnonymous();app.MapMeEndpoints();
 app.MapCompanyEndpoints();
 app.MapDocumentEndpoints();
 app.MapDocumentExtractionEndpoints();
@@ -344,7 +421,7 @@ app.MapAdministrationEndpoints();
 //
 // The endpoints come from the application's own data sources. Resolving EndpointDataSource from DI
 // returns nothing at this point, and a validator that inspects nothing reports success for a
-// pipeline it never looked at — so the validator itself refuses an empty set.
+// pipeline it never looked at Ã¢â‚¬â€ so the validator itself refuses an empty set.
 var routes = ((IEndpointRouteBuilder)app).DataSources
     .SelectMany(source => source.Endpoints)
     .OfType<RouteEndpoint>()

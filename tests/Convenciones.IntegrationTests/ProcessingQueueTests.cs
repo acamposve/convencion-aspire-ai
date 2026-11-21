@@ -321,6 +321,7 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifeti
         var worker = new ProcessingWorker(
             queue,
             new DeletedDocumentStage(),
+            new WorkerHeartbeat(fixture.ConnectionString),
             options,
             new SignalLogger(signal));
 
@@ -611,7 +612,7 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifeti
         await Should.ThrowAsync<StaleProcessingAttemptException>(() =>
             store.SaveClausesAsync(
                 stale!,
-                [new MergedClause(1, null, null, "A tardío", 1, 1, 0.9, false)],
+                [new MergedClause(1, null, null, "A tardÃƒÂ­o", 1, 1, 0.9, false)],
                 CancellationToken.None));
         await Should.ThrowAsync<StaleProcessingAttemptException>(() =>
             store.SaveClassificationsAsync(
@@ -721,7 +722,7 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifeti
             {
                 await store.SaveClausesAsync(
                     job!,
-                    [new MergedClause(1, null, null, "Contención", 1, 1, 0.9, false)],
+                    [new MergedClause(1, null, null, "ContenciÃƒÂ³n", 1, 1, 0.9, false)],
                     CancellationToken.None);
             }
             catch (Exception exception)
@@ -763,7 +764,7 @@ public sealed class ProcessingQueueTests(PostgresFixture fixture) : IAsyncLifeti
         {
             storeError.ShouldBeNull();
             (await ScalarAsync($"select text from platform.extracted_clause where run_id = '{runId}'"))
-                .ShouldBe("Contención");
+                .ShouldBe("ContenciÃƒÂ³n");
         }
         else
         {

@@ -60,6 +60,7 @@ public sealed class WorkerDeadlineLifecycleTests(PostgresFixture fixture) : IAsy
         var worker = new ProcessingWorker(
             queue,
             stage,
+            new WorkerHeartbeat(fixture.ConnectionString),
             options,
             NullLogger<ProcessingWorker>.Instance);
 

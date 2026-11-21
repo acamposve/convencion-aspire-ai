@@ -189,6 +189,7 @@ public static class Program
         }
         builder.Services.AddSingleton(options);
         builder.Services.AddSingleton(new ProcessingQueue(connectionString, options));
+    builder.Services.AddSingleton(new WorkerHeartbeat(connectionString));
         WorkerComposition.AddProcessingStage(builder.Services, builder.Configuration, connectionString);
         builder.Services.AddSingleton(new RetentionOptions
         {
