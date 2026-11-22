@@ -2,7 +2,7 @@
 
 **Status:** in progress · **Slice A done (2026-11-22):** operator runbook and a timed local restore drill ·
 **Slice C done (2026-11-22):** monitoring page, loopback-only `/health/ops` and the scheduled ops probe ·
-**Slice B implemented (2026-11-22):** release smoke gate, not yet executed against staging ·
+**Slice B done (2026-11-22):** release smoke gate executed green on staging ·
 **Depends on:** T18 (deployment) · **Blocks:** trusting the system with real data
 
 ## Objective
@@ -47,7 +47,7 @@ on-call expectation, even if the on-call is one person.
 |---|---|---|
 | 1 | A restore is rehearsed and timed | **met locally:** the full `create → verify → restore → check` lifecycle ran in 35.74 s on a production-shaped synthetic set — [restore drill](../operations/restore-drill.md). The measurement against a Supabase target is still open ([owner sign-off #3](../operations/owner-signoffs.md)) |
 | 2 | Every alert has a written first response someone else could follow | **met for the wired alerts:** [monitoring.md](../operations/monitoring.md) maps every probe condition to a [runbook](../operations/runbook.md) scenario. The probe covers database, queue and worker; provider outage and failed deployment are documented but not automated |
-| 3 | Smoke test against the deployed environment | **implemented, not yet run:** [`smoke.sh`](../../scripts/staging/smoke.sh) and the `flows` job in [staging-smoke](../../.github/workflows/staging-smoke.yml) cover every flow in the criterion against staging; the first dispatch needs a deployment window, and only that run turns this into **met** |
+| 3 | Smoke test against the deployed environment | **met (2026-11-22):** [gate run 45043883108](https://github.com/acamposve/convencion-aspire-ai/actions/runs/45043883108) against commit `a258a59` passed all nine flows (sign in, upload, extract/text, process → `Queued` with the worker off, author, publish, compare, public portal anonymously), the teardown left the smoke tenant empty and the worker stayed disabled — [evidence](../operations/smoke-test.md#61-first-recorded-run) |
 | 4 | `/health/ready` 503 alerts; `/health/live` distinguished | **met:** the scheduled [ops probe](../../.github/workflows/ops-probe.yml) fails P1 when readiness or liveness is not 200, asserts the edge answers `404` for `/health/ops` and that port 8081 is loopback-only ([monitoring.md](../operations/monitoring.md)). It has not run against staging yet (no deployment in slice C) |
 | 5 | No log line contains a token, password or `service_role` key | **pending:** not checked in slice A |
 | 6 | Rotation scheduled; T16 legacy credentials decommissioned | **partial:** a schedule is proposed for every credential in [runbook §7](../operations/runbook.md#7-credential-rotation-schedule-proposed), explicitly pending owner sign-off; T16 is recorded as not applicable |
