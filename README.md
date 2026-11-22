@@ -4,9 +4,24 @@ A **contract intelligence platform** for collective bargaining agreements (*conv
 colectivas*): authoring agreement clauses, comparing them across agreements and against labour
 legislation, tracking the negotiation that produced them, and publishing the results.
 
-> **Status: pre-alpha — the document, agreement-authoring and comparison workflows are implemented and
-> tested.** The API (T1–T9) and the first web slice (T7) build and run locally. Real sign-in needs the
-> Supabase project that T18 provisions, and nothing is deployed yet.
+> **Status: pre-alpha — every MVP workflow is implemented and tested, and CI is green on `main`.**
+> One staging deployment runs over HTTPS with the AI worker **disabled by default**. There is no
+> production environment and no production approval: no real contract data may be processed until the
+> pending owner sign-offs are resolved. See [Current status](#current-status) and
+> [pending owner sign-offs](docs/operations/owner-signoffs.md).
+
+## Current status
+
+*As of 2026-11-22.*
+
+| Area | State |
+|---|---|
+| MVP workflows (T1–T14) | implemented and tested: documents and processing, agreements/clauses, comparison, legal library, negotiation, publishing/portal, administration/audit, web client |
+| CI (T15) | green on `main` (`d0ada82`): Release build with warnings as errors, unit/integration/architecture tests on real PostgreSQL containers, migrations and seed on a fresh database, web typecheck/tests/build with bundle scan, secret scan |
+| Staging (T18) | live at <https://138-197-15-40.sslip.io> (Caddy terminates TLS; port 80 redirects); AI worker `Worker__Enabled=false` by default; last deploy 2026-11-14 at `97a2cac`, so later work on `main` is **not** deployed |
+| Production-v1 remediation (P1/P2) | implemented and merged; the AI quality gate (P1-006) is still open — see [the task index](docs/tasks/README.md#production-readiness-remediation-production-v1-audit) |
+| Production | **not approved.** No production environment, no real contract data, no signed release gate |
+| Open decisions | [pending owner sign-offs](docs/operations/owner-signoffs.md) |
 
 ---
 
@@ -82,15 +97,27 @@ Out of scope: data migration from MySQL, microservices, mobile apps, offline mod
 
 ## Prerequisites
 
-- .NET SDK **10**
+- .NET SDK **10** — `global.json` pins `10.0.401` with `rollForward: latestFeature`, so any 10.0.4xx
+  SDK satisfies it. CI installs `10.0.x` and the images build with
+  `mcr.microsoft.com/dotnet/sdk:10.0`. Do not raise the pinned major to accommodate a machine with a
+  different SDK: install SDK 10 instead, or CI and every container build will fail.
 - Node.js **22+** and **pnpm**
-- Docker (local PostgreSQL via Aspire)
+- Docker (the verified local PostgreSQL path runs a disposable `postgres:17-alpine` container)
 
 ## Running it locally
 
+Aspire is the target orchestration, but its **project resources do not start** (T17, open): the
+containers run while the API and migrator stall. The path demonstrated end to end is the direct run in
+[docs/operations/local-development.md](docs/operations/local-development.md#3-verified-path--run-the-api-directly-against-a-local-postgresql)
+— a disposable PostgreSQL container, the migrator, then the API.
+
 ```bash
-# API + PostgreSQL + migrations, orchestrated by Aspire
-dotnet run --project src/Convenciones.AppHost
+# API + PostgreSQL (verified fallback — see local-development.md §3)
+dotnet run --project src/Convenciones.Migrator
+dotnet run --project src/Convenciones.Api
+
+# Aspire experiment only: defines the resources but does not start the app resources (T17)
+# dotnet run --project src/Convenciones.AppHost
 
 # Web client, in a second terminal
 cd src/Convenciones.Web
@@ -100,8 +127,9 @@ pnpm dev                      # http://localhost:5173
 ```
 
 The API validates JWTs on every request; `Jwt:Issuer`, `Jwt:Audience` and a signing key or JWKS
-metadata must be configured (T2). Until T18 provisions the Supabase project, the sign-in screen
-reports `auth_not_configured` rather than pretending to authenticate. See the
+metadata must be configured (T2). Without them — on a fresh local checkout, for example — the sign-in
+screen reports `auth_not_configured` rather than pretending to authenticate. On staging Supabase Auth
+is provisioned and sign-in is verified. See the
 [web README](src/Convenciones.Web/README.md) for the client's configuration, security notes and
 limitations.
 

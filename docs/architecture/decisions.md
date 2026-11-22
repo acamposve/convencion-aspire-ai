@@ -580,6 +580,40 @@ ask an anonymous visitor for a token that does not exist.
 negotiation, news, users/roles, audit, portal). Annex editing and news-category creation remain API-only
 until a screen is asked for. The comparison wording is asserted in a test because it is the control for
 the product's most over-claimable screen.
+
+---
+
+### ADR-029 — AI costs are metered per invocation, and budgets are shadow by default, opt-in enforced *(P1-005)*
+**Context:** F-05 found that usage was aggregated per company and month, written after the stage had
+already persisted its results, and that a missing token count was stored as zero — an unknown charge
+presented as free. There was no ceiling and no way to attribute a charge to the document, run, attempt,
+model or price list that produced it. A ceiling cannot be invented by engineering: the limit, the
+overspend tolerance and who may set them are commercial decisions.
+
+**Decision:**
+1. **One ledger row per provider invocation**, written immediately after the call returns and before
+   parsing, attributed from the run row (never from the caller) and carrying the price-list version.
+2. **Money is computed in one place** (`AiPricing`); a missing token count yields no cost, never zero.
+3. **Reserve before the call and settle after it**, under one advisory lock per company-period; the
+   usage row and the counter movement commit in the same transaction. Unknown outcomes settle at the
+   estimate and a late provider figure reconciles only the delta.
+4. **A period without a budget row is in shadow mode, not unlimited.** The estimate and the
+   would-admit decision are recorded; nothing is blocked. Enforcement starts only through an explicit,
+   audited activation that converts shadow rows into itemised liabilities and refuses while unresolved
+   unknown usage exists for the period.
+5. **The policy stays with the Product Owner.** No limit, overspend tolerance or default activation is
+   set by the code; the mechanism records the decision it awaits.
+
+**Why not the alternatives:** a hard-coded ceiling picks a customer's budget by accident; blocking on an
+estimate without a reservation would either overcharge or leak capacity; aggregating per month destroys
+the evidence needed to reconcile a bill; storing unknown usage as zero is the original defect.
+
+**Consequences:** today the worker records shadow estimates and enforces nothing. A company-period is
+enforced only after an operator creates `platform.ai_budget` and activates it; there is no API for that
+yet, so operating a budget is a SQL runbook step. The open decisions are listed in
+[P1-005](../tasks/P1-005-cost-metering.md) and in
+[pending owner sign-offs](../operations/owner-signoffs.md).
+
 ## 5. Rejected alternatives
 
 | Alternative | Why rejected |
@@ -611,3 +645,4 @@ the product's most over-claimable screen.
 | 0.5 | T12: **ADR-026** adds the public surface (allow-list projections, anonymous reads on the `anon` role), makes news publication a database-guarded transition that records its own actor and time, and applies A-33 sanitisation to clause, annex and news bodies. |
 | 0.6 | T13: **ADR-027** makes the bootstrap one locking database function with no credential in any endpoint, adds user/role/audit administration with the anti-lockout 409s, and moves `AuditEntry` to the shared kernel so the audit query can filter on columns. |
 | 0.7 | T14: **ADR-028** records the interface rules — capability-gated controls with the API as the guard, a comparison screen that claims adjacency and never alignment, a read-only published agreement behind a confirmed unpublish, and a portal that reads through a tokenless client. |
+| 0.8 | P1-005: **ADR-029** records per-invocation metering and the shadow-by-default, opt-in-enforced budget model; the limit and overspend policy stay with the Product Owner. |
