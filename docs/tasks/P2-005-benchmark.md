@@ -1,6 +1,6 @@
 # P2-005 — Load, capacity and performance benchmark
 
-**Status:** in progress.
+**Status:** implemented and measured; the capacity statement is proposed and unsigned.
 
 *Tracking: P2-005 of the production-v1 audit (F-15). The audit found no measured evidence for the
 10,000-documents-per-month scale or the 99.9% availability claim.*
@@ -86,8 +86,36 @@ Targets (initial benchmark targets, **not** an SLA):
 
 ## Evidence
 
-To be completed: build, unit, architecture, self-test, the two run artifacts, and the report's target
-comparison.
+Two independent runs on 2026-11-22, each with a fresh container and database (42.5 minutes each):
+
+| Gate | Result |
+|---|---|
+| `dotnet build Convenciones.slnx -c Release -warnaserror` | 0 warnings, 0 errors |
+| Unit | **253 passed** (248 + 5 statistics tests) |
+| Architecture | **10 passed** |
+| `--self-test` | **PASSED** — injected 300 ms delay observed (p95 317 ms), injected 1% error rate observed (0.67%, 1/150) |
+| Integration | 365 passed |
+| CI | pending the pull request |
+
+| Scenario | Run 1 | Run 2 | Target | Verdict |
+|---|---|---|---|---|
+| Mixed read p95 (20 req/s) | 52.7 ms | 49.7 ms | ≤ 200 ms | pass |
+| Burst read p95 (100 req/s) | 121.6 ms | 107.8 ms | ≤ 200 ms | pass |
+| Burst read p99 | 176.8 ms | 181.3 ms | ≤ 500 ms | pass |
+| Write p95 (burst) | 57.5 ms | 56.0 ms | ≤ 400 ms | pass |
+| Upload p95 (1 MiB) | 43.5 ms | 43.2 ms | ≤ 1,500 ms | pass |
+| 5xx rate | 0% | 0% | < 0.1% | pass |
+| Burst queue wait p95 | 12.6 s | 12.7 s | ≤ 60 s | pass |
+| Run duration p95 | 2.2 s | 2.2 s | ≤ 30 s | pass |
+| 500-doc drain, one worker | 1,010.8 s | 1,005.7 s | ≤ 1,800 s | pass |
+| Availability | not measured | not measured | — | out of scope |
+
+Reproducibility: p95s and worker metrics within 10% (burst read p95 −11.4% while its p99 moved +2.5%;
+write/upload p99s moved 36–47% on 600–900 samples — tail noise, documented in the report).
+
+Report: [p2-005-capacity.md](../operations/p2-005-capacity.md). Artifacts:
+[run 1](../operations/p2-005-results/2026-11-22-run1.json),
+[run 2](../operations/p2-005-results/2026-11-22-run2.json).
 
 ## Left undone
 

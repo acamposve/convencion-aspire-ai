@@ -1,0 +1,233 @@
+{
+  "label": "run1",
+  "startedAt": "2026-11-22T10:11:20.045625+00:00",
+  "finishedAt": "2026-11-22T10:53:53.4436321+00:00",
+  "environment": {
+    "machineName": "DESKTOP-FNFB6F3",
+    "osDescription": "Microsoft Windows 10.0.26300",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "logicalProcessors": 8,
+    "gcMemoryLimitBytes": 16863318016,
+    "dotNetVersion": "10.0.15",
+    "dockerServerVersion": "29.9.3",
+    "postgresImage": "postgres:17-alpine",
+    "apiBaseAddress": "http://127.0.0.1:54016",
+    "apiConnectionPoolSize": 60,
+    "postgresMaxConnections": 100
+  },
+  "targets": {
+    "label": "initial benchmark targets \u2014 not an SLA",
+    "readP95Ms": 200,
+    "readP99Ms": 500,
+    "writeP95Ms": 400,
+    "writeP99Ms": 1000,
+    "uploadP95Ms": 1500,
+    "uploadP99Ms": 3000,
+    "maxServerErrorRatePercent": 0.1,
+    "queueWaitP95Seconds": 60,
+    "runDurationP95Seconds": 30,
+    "drainSeconds": 1800,
+    "availabilityNote": "Not measured locally: 99.9% availability needs sustained observation in an authorized environment."
+  },
+  "apiScenarios": [
+    {
+      "name": "api-mixed",
+      "kind": "api",
+      "durationSeconds": 600,
+      "requested": 12000,
+      "succeeded": 12000,
+      "failed": 0,
+      "throughputPerSecond": 19.999371983054214,
+      "errorRatePercent": 0,
+      "latencyMs": {
+        "p50": 16.1728,
+        "p95": 50.814414999999975,
+        "p99": 68.713414,
+        "max": 166.8226,
+        "mean": 19.3920667916667,
+        "count": 12000
+      },
+      "readLatencyMs": {
+        "p50": 15.14045,
+        "p95": 52.68904499999999,
+        "p99": 69.75807400000008,
+        "max": 154.0395,
+        "mean": 19.30313880392158,
+        "count": 10200
+      },
+      "writeLatencyMs": {
+        "p50": 18.8244,
+        "p95": 25.885409999999997,
+        "p99": 46.620531,
+        "max": 166.8226,
+        "mean": 19.895992055555535,
+        "count": 1800
+      },
+      "uploadLatencyMs": null,
+      "statusCodes": {
+        "200": 10200,
+        "201": 1800
+      },
+      "generatorCpuCores": 0.01591095870006006,
+      "meanConcurrency": 0.38510215150967275,
+      "peakConcurrency": 3,
+      "notes": [
+        "20 req/s sustained, 85/15 read/write"
+      ]
+    },
+    {
+      "name": "api-burst",
+      "kind": "api",
+      "durationSeconds": 60,
+      "requested": 6000,
+      "succeeded": 6000,
+      "failed": 0,
+      "throughputPerSecond": 99.80985391081208,
+      "errorRatePercent": 0,
+      "latencyMs": {
+        "p50": 15.97125,
+        "p95": 115.48819000000007,
+        "p99": 173.16955700000005,
+        "max": 250.9484,
+        "mean": 31.047468366666642,
+        "count": 6000
+      },
+      "readLatencyMs": {
+        "p50": 14.8824,
+        "p95": 121.62594000000001,
+        "p99": 176.8033280000001,
+        "max": 250.9484,
+        "mean": 32.222782039215666,
+        "count": 5100
+      },
+      "writeLatencyMs": {
+        "p50": 18.8628,
+        "p95": 57.47762499999999,
+        "p99": 95.63732799999998,
+        "max": 140.7673,
+        "mean": 24.38735755555556,
+        "count": 900
+      },
+      "uploadLatencyMs": null,
+      "statusCodes": {
+        "200": 5100,
+        "201": 900
+      },
+      "generatorCpuCores": 0.03430963728184165,
+      "meanConcurrency": 2.8934280639431615,
+      "peakConcurrency": 15,
+      "notes": [
+        "same 85/15 mix at 5x the sustained rate"
+      ]
+    },
+    {
+      "name": "api-upload",
+      "kind": "api",
+      "durationSeconds": 300,
+      "requested": 600,
+      "succeeded": 600,
+      "failed": 0,
+      "throughputPerSecond": 1.9998301544249846,
+      "errorRatePercent": 0,
+      "latencyMs": {
+        "p50": 31.3872,
+        "p95": 43.488195,
+        "p99": 58.72928099999999,
+        "max": 154.5413,
+        "mean": 32.52178966666666,
+        "count": 600
+      },
+      "readLatencyMs": null,
+      "writeLatencyMs": null,
+      "uploadLatencyMs": {
+        "p50": 31.3872,
+        "p95": 43.488195,
+        "p99": 58.72928099999999,
+        "max": 154.5413,
+        "mean": 32.52178966666666,
+        "count": 600
+      },
+      "statusCodes": {
+        "201": 600
+      },
+      "generatorCpuCores": 0.015259120709544804,
+      "meanConcurrency": 0.06606081789584062,
+      "peakConcurrency": 1,
+      "notes": [
+        "1 MiB PDF per request"
+      ]
+    }
+  ],
+  "workerScenarios": [
+    {
+      "name": "worker-burst",
+      "documents": 70,
+      "completed": 70,
+      "failed": 0,
+      "drainSeconds": 555.2208917,
+      "documentsPerMinute": 7.564556850770245,
+      "queueWaitSeconds": {
+        "p50": 6.519206,
+        "p95": 12.607772350000001,
+        "p99": 12.84428751,
+        "max": 12.852996,
+        "mean": 6.481383328571428,
+        "count": 70
+      },
+      "runDurationSeconds": {
+        "p50": 1.9916755,
+        "p95": 2.2153763499999997,
+        "p99": 2.26536309,
+        "max": 2.273394,
+        "mean": 1.9874417285714292,
+        "count": 70
+      },
+      "maxQueueDepth": 7,
+      "generatorCpuCores": 0.0031237567352511058,
+      "notes": [
+        "70 documents arriving over 10 min with a 2 s stub stage"
+      ]
+    },
+    {
+      "name": "worker-drain",
+      "documents": 500,
+      "completed": 500,
+      "failed": 0,
+      "drainSeconds": 1010.8486455,
+      "documentsPerMinute": 29.678033535041223,
+      "queueWaitSeconds": {
+        "p50": 506.38295500000004,
+        "p95": 958.46170915,
+        "p99": 998.0638926500001,
+        "max": 1008.428903,
+        "mean": 505.37842851399995,
+        "count": 500
+      },
+      "runDurationSeconds": {
+        "p50": 2.0080875000000002,
+        "p95": 2.23907645,
+        "p99": 2.2586848199999996,
+        "max": 2.29949,
+        "mean": 2.009573335999999,
+        "count": 500
+      },
+      "maxQueueDepth": 500,
+      "generatorCpuCores": 0.0026277425525817752,
+      "notes": [
+        "500 documents queued at once, one worker, 2 s stub stage"
+      ]
+    }
+  ],
+  "limitations": [
+    "Availability (99.9%) is not measured: a local run cannot produce it.",
+    "Real Azure Document Intelligence/OpenAI latency and cost are not measured; the worker uses a 2 s stub stage.",
+    "TLS, nginx and the deployment network path are excluded; the load is HTTP over loopback to Kestrel.",
+    "One API instance and one worker; horizontal scaling is out of scope.",
+    "The load generator shares the machine with the system under test; generator CPU is reported so contention is visible.",
+    "Synthetic PDFs only; extraction and classification quality is out of scope (P1-006)."
+  ],
+  "fixtures": [
+    "documents=40; agreements=60; documentFixtures=40; agreementFixtures=60; published=20"
+  ]
+}
