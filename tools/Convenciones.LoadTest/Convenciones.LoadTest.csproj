@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Convenciones.LoadTest</RootNamespace>
+    <AssemblyName>Convenciones.LoadTest</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Convenciones.Migrator\Convenciones.Migrator.csproj" />
+    <ProjectReference Include="..\..\src\Convenciones.Worker\Convenciones.Worker.csproj" />
+  </ItemGroup>
+
+</Project>
