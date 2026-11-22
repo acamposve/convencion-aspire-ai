@@ -95,7 +95,7 @@ Two independent runs on 2026-11-22, each with a fresh container and database (42
 | Architecture | **10 passed** |
 | `--self-test` | **PASSED** — injected 300 ms delay observed (p95 317 ms), injected 1% error rate observed (0.67%, 1/150) |
 | Integration | 365 passed |
-| CI | pending the pull request |
+| CI run [`45018909324`](https://github.com/acamposve/convencion-aspire-ai/actions/runs/45018909324) (commit `448a135`) | all five jobs pass, including the new load-harness self-check |
 
 | Scenario | Run 1 | Run 2 | Target | Verdict |
 |---|---|---|---|---|
