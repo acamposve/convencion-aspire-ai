@@ -27,15 +27,21 @@ synthetic tenant, and then removes what it created.
 | 3 | Extract | `POST /documents/{id}/extract` | `200` |
 | 4 | Read text | `GET /documents/{id}/text` | `200`, non-trivial body |
 | 5 | Process | `POST /documents/{id}/process`, then `GET /documents/{id}/processing` | `200`/`202`, then `Queued` |
-| 6 | Author a clause | `POST /agreements`, `POST /agreements/{id}/clauses`, `GET …/clauses` | `201`, `201`, `200` with the new clause |
-| 7 | Publish | `POST /agreements/{id}/publish` | `200` |
-| 8 | Compare | `GET /comparison/?headingId=…&agreementIds=…` | `200` containing the authored clause body |
+| 6 | Author a clause | `POST /agreements` ×3 (two to compare, one draft only), `POST /agreements/{id}/clauses` ×2, `GET …/clauses` | `201`, `201`, `200` with the new clause |
+| 7 | Publish | `POST /agreements/{id}/publish` for both compared agreements | `200` ×2 |
+| 8 | Compare | `GET /comparison/?headingId=…&agreementIds=<a>,<b>` | `200` with **both** authored clause bodies (the comparison renders published agreements only) |
 | 9 | Public portal (anonymous) | `GET /public/agreements` · `/public/agreements/{published}` · `/public/agreements/{draft}` | `200` · `200` · **`404`** |
 
 `process` stops at the queue boundary on purpose: the gate asserts the run reaches `Queued` **and** that
 `platform.worker_heartbeat.enabled` is false **and** that no `Classify` row appeared in
 `platform.ai_usage_record`. End-to-end processing (`Completed`, AI clauses) stays inside the authorized
 worker window of the #47 exercise, because it spends model tokens on every release otherwise.
+
+**Prerequisite: a comparable heading must exist.** Clauses must reference a heading that is not excluded,
+and the comparison renders nothing under an excluded one. The reference seed ships a minimal curated
+taxonomy ([`supabase/seed.sql`](../../supabase/seed.sql)); without it the gate stops with
+`no comparison heading is available`, which is the correct behaviour for an environment where the
+taxonomy has not been curated yet.
 
 ## 2. Safety posture
 
