@@ -232,15 +232,17 @@ The command never edits the source corpus and never resolves a disagreement itse
 
 | Item | Value |
 |---|---|
-| Corpus | `docs/quality/corpus/synthetic-v2-draft.dataset.json` |
+| Corpus | `synthetic-v2.dataset.json` (AI-adjudicated) and `synthetic-v3-candidate.dataset.json` (draft, for human sign-off) |
 | Schema | 2 |
 | Documents / clauses | **7 / 36** |
-| Corpus status | **draft** |
-| Reviewed clauses | **0** |
-| Categories covered | **14 of 14** (see coverage report) |
+| Corpus status | v2 says `reviewed`, but the reviewer and adjudicator are AI identities; v3 candidate is `draft` |
+| Human-reviewed clauses | **0** |
+| Categories covered | **13 of 14** — `other` is unused (the coverage tool reports 13/14) |
 | Contract types | labour (2), commercial, confidentiality, service, supplier, mixed |
-| Predictions | none for this corpus — it has never been run through the pipeline |
+| Predictions | baseline captured for v2 (`baseline-predictions-render-v2.json`) |
 | Representative? | **No.** Seven documents is a workflow demonstration, not a sample |
+| Verification | text / number / heading / pages **36/36**; provenance findings V-1…V-7 in the [verification report](review/synthetic-v3-candidate.verification.md) |
 
 Expanding to the target composition, and reviewing what exists, requires **people**: that work is
-**BLOCKED** on reviewer availability, not on tooling.
+**BLOCKED** on reviewer availability, not on tooling. The plan and gates are in
+[P1-006](../tasks/P1-006-ai-quality-validation.md).

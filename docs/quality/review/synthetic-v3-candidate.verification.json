@@ -1,0 +1,1693 @@
+{
+  "packageId": "synthetic-v2-verification-2026-11-22",
+  "corpusId": "synthetic-v2",
+  "datasetVersion": "2",
+  "candidate": {
+    "corpusId": "synthetic-v3-candidate",
+    "datasetVersion": "3"
+  },
+  "verifiedAtUtc": "2026-11-22",
+  "verifier": "assistant-verification-v1 (AI; not human review)",
+  "method": {
+    "structural": "Each clause's text, number, heading and page range were compared with the HTML source that produced the PDF, and page ranges were recomputed from the PDFs with `pdf-pages`.",
+    "labels": "Each current label was read against the source text and the taxonomy definition in migration 20260109000100.",
+    "provenance": "The committed review exports, adjudication worksheet and dataset provenance fields were inspected and cross-checked.",
+    "providers": "No external provider was called; no document left the machine."
+  },
+  "structural": {
+    "documents": 7,
+    "clauses": 36,
+    "textMatches": 36,
+    "numberMatches": 36,
+    "headingMatches": 36,
+    "pageMatches": 36,
+    "pdfLocated": 36,
+    "mismatches": []
+  },
+  "provenance": {
+    "reviewExports": {
+      "aStatus": "blank",
+      "bStatus": "blank",
+      "aAnsweredClauses": 0,
+      "bAnsweredClauses": 0,
+      "finding": "The committed review-A/B exports contain no answers. The A/B answers used by the adjudication exist only inside adjudication.json, so no submission artifact supports them."
+    },
+    "reviewerIdentities": "ChatGPT — borrador asistido por IA (no es revisión humana) / ChatGPT — borrador asistido por IA (no es revisión humana)",
+    "adjudicator": "ai-adjudicator-v1",
+    "corpusStatus": "reviewed",
+    "corpusReviewers": [
+      "ai-adjudicator-v1"
+    ],
+    "annotationRationales": "36 rows, 4 distinct templated rationales."
+  },
+  "taxonomy": {
+    "categoriesDeclared": 14,
+    "categoriesUsed": [
+      "confidentiality",
+      "data_protection",
+      "disputes",
+      "duration",
+      "force_majeure",
+      "governing_law",
+      "ip",
+      "liability",
+      "parties",
+      "pricing",
+      "scope",
+      "termination",
+      "warranties"
+    ],
+    "categoriesUnused": [
+      "other"
+    ],
+    "finding": "`other` is never used in v2, so coverage is 13/14, not 14/14. The protocol tells annotators to leave the list empty when nothing fits, which makes `other` redundant."
+  },
+  "summary": {
+    "confirmed": 26,
+    "needsRuling": 8,
+    "proposedChange": 2,
+    "total": 36
+  },
+  "signOff": {
+    "status": "pending",
+    "instructions": "A human reviewer reads the source and each clause, sets humanDecision to accept, accept-proposal, reject or defer, records humanReviewer and humanDecidedAt. Only then may a reviewed corpus be published.",
+    "allowedDecisions": [
+      "accept",
+      "accept-proposal",
+      "reject",
+      "defer"
+    ]
+  },
+  "clauses": [
+    {
+      "clauseId": "d01-c1",
+      "documentId": "synthetic-d01-labour-construction",
+      "number": "CLAUSULA PRIMERA",
+      "heading": "PARTES",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "c00235a06dd6712a257234fef26a3e6506723beb8570963ad57660604e3c0564",
+      "current": {
+        "categories": [
+          "parties"
+        ],
+        "primary": "parties",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "parties"
+          ],
+          "primary": "parties"
+        },
+        "b": {
+          "categories": [
+            "parties"
+          ],
+          "primary": "parties"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "parties"
+        ],
+        "primary": "parties"
+      },
+      "rationale": "The clause names the contracting parties.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d01-c2",
+      "documentId": "synthetic-d01-labour-construction",
+      "number": "CLAUSULA SEGUNDA",
+      "heading": "OBJETO",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "31df7c46f2234c643e56c908916bfeb19126f923e9f5d3f3095074c60d6baad2",
+      "current": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope"
+      },
+      "rationale": "It states the agreement's object and the parties' reciprocal obligations.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d01-c3",
+      "documentId": "synthetic-d01-labour-construction",
+      "number": "CLAUSULA TERCERA",
+      "heading": "JORNADA",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "ff7723a57d8c2a1dd7479c5caee9b4304569207b2d4cdc661830cf7dfe69d813",
+      "current": {
+        "categories": [],
+        "primary": null,
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "other"
+          ],
+          "primary": "other"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "unclassified-no-taxonomy-category",
+        "agreement": "disagree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [],
+        "primary": null
+      },
+      "rationale": "Working time: taxonomy v1 has no working-time category. Empty is the protocol's answer when nothing fits; a human must decide whether to keep empty or create `working_conditions`.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d01-c4",
+      "documentId": "synthetic-d01-labour-construction",
+      "number": "CLAUSULA CUARTA",
+      "heading": "SALARIO",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "1d62e1485bf9ef0e7154e02ab38a1a389f5b8a170c4bd7560bed0c72ad711ae1",
+      "current": {
+        "categories": [
+          "pricing"
+        ],
+        "primary": "pricing",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing"
+        },
+        "b": {
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "pricing"
+        ],
+        "primary": "pricing"
+      },
+      "rationale": "It sets the salary and the annual increases.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d01-c5",
+      "documentId": "synthetic-d01-labour-construction",
+      "number": "CLAUSULA QUINTA",
+      "heading": "VIGENCIA",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "b515eb6b099a55e485c0f50719dde8df97770fd9308ae502c041c71acf18d166",
+      "current": {
+        "categories": [
+          "duration",
+          "termination"
+        ],
+        "primary": "duration",
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "duration",
+            "termination"
+          ],
+          "primary": "duration"
+        },
+        "b": {
+          "categories": [
+            "duration"
+          ],
+          "primary": "duration"
+        },
+        "resolution": "resolved-multilabel",
+        "agreement": "disagree"
+      },
+      "verdict": "proposed-change",
+      "proposed": {
+        "categories": [
+          "duration"
+        ],
+        "primary": "duration"
+      },
+      "rationale": "The clause sets the two-year term and automatic renewal. 'Denuncia' is the notice that prevents renewal, not a cause or effect of termination, so `termination` over-labels. Proposal: duration only.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d01-c6",
+      "documentId": "synthetic-d01-labour-construction",
+      "number": "CLAUSULA SEXTA",
+      "heading": "TERMINACION",
+      "pageFrom": 2,
+      "pageTo": 2,
+      "sourceTextSha256": "7a5ce25bfd99c7ff4b802776a2366197d1730af6f3953e36068608cf0b29b2b2",
+      "current": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "b": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination"
+      },
+      "rationale": "It sets the 90-day notice to terminate the agreement.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d02-c1",
+      "documentId": "synthetic-d02-commercial-supply",
+      "number": "CLAUSULA PRIMERA",
+      "heading": "OBJETO Y ALCANCE",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "7624f867088998916a85d3fe104c53e32801a37e9209d5068a94296bd311c5cf",
+      "current": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope"
+      },
+      "rationale": "It defines the supply object, quantities and deadlines.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d02-c2",
+      "documentId": "synthetic-d02-commercial-supply",
+      "number": "CLAUSULA SEGUNDA",
+      "heading": "PRECIO Y FORMA DE PAGO",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "059d7e976ba57fab56a7457bb572d3af0593dbf06208e44b752458a7bd44c7f7",
+      "current": {
+        "categories": [
+          "pricing"
+        ],
+        "primary": "pricing",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing"
+        },
+        "b": {
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "pricing"
+        ],
+        "primary": "pricing"
+      },
+      "rationale": "It sets the total price and the payment schedule.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d02-c3",
+      "documentId": "synthetic-d02-commercial-supply",
+      "number": "CLAUSULA TERCERA",
+      "heading": "GARANTIAS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "73f4181c78ccd9b3a5ffcb228a1d5a67bae7d7a9110dad513fc9943292136e73",
+      "current": {
+        "categories": [
+          "warranties"
+        ],
+        "primary": "warranties",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "warranties"
+          ],
+          "primary": "warranties"
+        },
+        "b": {
+          "categories": [
+            "warranties"
+          ],
+          "primary": "warranties"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "warranties"
+        ],
+        "primary": "warranties"
+      },
+      "rationale": "It guarantees freedom from manufacturing defects for 12 months.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d02-c4",
+      "documentId": "synthetic-d02-commercial-supply",
+      "number": "CLAUSULA CUARTA",
+      "heading": "RESPONSABILIDAD",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "3c910578dbf488352df11eb2d6081a14082f06fda8d7121ffc4d91e74146c904",
+      "current": {
+        "categories": [
+          "liability"
+        ],
+        "primary": "liability",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "liability"
+          ],
+          "primary": "liability"
+        },
+        "b": {
+          "categories": [
+            "liability"
+          ],
+          "primary": "liability"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "liability"
+        ],
+        "primary": "liability"
+      },
+      "rationale": "It limits the supplier's liability and excludes indirect damages.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d02-c5",
+      "documentId": "synthetic-d02-commercial-supply",
+      "number": "CLAUSULA QUINTA",
+      "heading": "FUERZA MAYOR",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "4e2ad21b9cced7d4a171c6ba146492db1ea97e6343cb5e7cd55f2b9d5518afa6",
+      "current": {
+        "categories": [
+          "force_majeure"
+        ],
+        "primary": "force_majeure",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "force_majeure"
+          ],
+          "primary": "force_majeure"
+        },
+        "b": {
+          "categories": [
+            "force_majeure"
+          ],
+          "primary": "force_majeure"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "force_majeure"
+        ],
+        "primary": "force_majeure"
+      },
+      "rationale": "It excuses non-performance caused by force majeure.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d02-c6",
+      "documentId": "synthetic-d02-commercial-supply",
+      "number": "CLAUSULA SEXTA",
+      "heading": "LEY APLICABLE",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "facf748f247941bfaa3fa658a6b6bc9cbdf960c4224fcd1e50dd0ec3dee51bf6",
+      "current": {
+        "categories": [
+          "governing_law"
+        ],
+        "primary": "governing_law",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law"
+        },
+        "b": {
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "governing_law"
+        ],
+        "primary": "governing_law"
+      },
+      "rationale": "It chooses Venezuelan law.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d03-c1",
+      "documentId": "synthetic-d03-nda",
+      "number": "CLAUSULA PRIMERA",
+      "heading": "CONFIDENCIALIDAD",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "0d4fa2f8e226a67a4077fd9b57f4f6b75a25bef5de9dcdcd4a386d22ca525d06",
+      "current": {
+        "categories": [
+          "confidentiality"
+        ],
+        "primary": "confidentiality",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "confidentiality"
+          ],
+          "primary": "confidentiality"
+        },
+        "b": {
+          "categories": [
+            "confidentiality"
+          ],
+          "primary": "confidentiality"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "confidentiality"
+        ],
+        "primary": "confidentiality"
+      },
+      "rationale": "It imposes confidentiality on the receiving party.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d03-c2",
+      "documentId": "synthetic-d03-nda",
+      "number": "CLAUSULA SEGUNDA",
+      "heading": "PROTECCION DE DATOS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "6399ff9886f5f7258d36ef2c897a03b49c07c716e6c617279e26533c4f435868",
+      "current": {
+        "categories": [
+          "data_protection"
+        ],
+        "primary": "data_protection",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "data_protection"
+          ],
+          "primary": "data_protection"
+        },
+        "b": {
+          "categories": [
+            "data_protection"
+          ],
+          "primary": "data_protection"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "data_protection"
+        ],
+        "primary": "data_protection"
+      },
+      "rationale": "It regulates the processing of personal data.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d03-c3",
+      "documentId": "synthetic-d03-nda",
+      "number": "CLAUSULA TERCERA",
+      "heading": "DURACION",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "ded5414795d188910fa4528fbd55877e70c63c2f288e2ad5a407941540c604e2",
+      "current": {
+        "categories": [
+          "confidentiality",
+          "duration"
+        ],
+        "primary": "confidentiality",
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "confidentiality",
+            "duration"
+          ],
+          "primary": "confidentiality"
+        },
+        "b": {
+          "categories": [
+            "duration"
+          ],
+          "primary": "duration"
+        },
+        "resolution": "resolved-multilabel",
+        "agreement": "disagree"
+      },
+      "verdict": "proposed-change",
+      "proposed": {
+        "categories": [
+          "confidentiality"
+        ],
+        "primary": "confidentiality"
+      },
+      "rationale": "The clause fixes how long confidentiality survives; the agreement's term is not set here, so `duration` over-labels. Proposal: confidentiality only.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d03-c4",
+      "documentId": "synthetic-d03-nda",
+      "number": "CLAUSULA CUARTA",
+      "heading": "TERMINACION",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "d125581b4c38830b4c5b58f23ca41ad03f451a3ce64a8449988324e0823c737a",
+      "current": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "b": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination"
+      },
+      "rationale": "It allows unilateral termination with 30 days' notice.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d03-c5",
+      "documentId": "synthetic-d03-nda",
+      "number": "CLAUSULA QUINTA",
+      "heading": "RESOLUCION DE CONFLICTOS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "1bee3c8348465d865ef546cb012c2e927fcb45d871f6db553209166b614588ed",
+      "current": {
+        "categories": [
+          "disputes"
+        ],
+        "primary": "disputes",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "disputes"
+          ],
+          "primary": "disputes"
+        },
+        "b": {
+          "categories": [
+            "disputes"
+          ],
+          "primary": "disputes"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "disputes"
+        ],
+        "primary": "disputes"
+      },
+      "rationale": "It sends disputes to administered arbitration.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d04-c1",
+      "documentId": "synthetic-d04-service-sla",
+      "number": "CLAUSULA PRIMERA",
+      "heading": "ALCANCE DE LOS SERVICIOS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "f93f3e9f4e92394faf3b3163426bba1fc25c50e19a392d7dec944150bba22ce6",
+      "current": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope"
+      },
+      "rationale": "It defines the maintenance services and the service level.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d04-c2",
+      "documentId": "synthetic-d04-service-sla",
+      "number": "CLAUSULA SEGUNDA",
+      "heading": "PRECIO Y REAJUSTE",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "91eb229632253b8fd18e972b4842b99ef76e8eb8ae5da844f55b2bea96c1f403",
+      "current": {
+        "categories": [
+          "pricing"
+        ],
+        "primary": "pricing",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing"
+        },
+        "b": {
+          "categories": [
+            "pricing"
+          ],
+          "primary": "pricing"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "pricing"
+        ],
+        "primary": "pricing"
+      },
+      "rationale": "It sets the monthly price and the annual indexation.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d04-c3",
+      "documentId": "synthetic-d04-service-sla",
+      "number": "CLAUSULA TERCERA",
+      "heading": "CONFIDENCIALIDAD Y DATOS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "e459857bc489269b7b84ff590319e62596fd4dc3b1174f56a78f977b223deb1d",
+      "current": {
+        "categories": [
+          "confidentiality",
+          "data_protection"
+        ],
+        "primary": "confidentiality",
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "confidentiality",
+            "data_protection"
+          ],
+          "primary": "confidentiality"
+        },
+        "b": {
+          "categories": [
+            "data_protection"
+          ],
+          "primary": "data_protection"
+        },
+        "resolution": "resolved-multilabel",
+        "agreement": "disagree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "confidentiality",
+          "data_protection"
+        ],
+        "primary": "confidentiality"
+      },
+      "rationale": "It imposes confidentiality and regulates personal-data use.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d04-c4",
+      "documentId": "synthetic-d04-service-sla",
+      "number": "CLAUSULA CUARTA",
+      "heading": "RESPONSABILIDAD",
+      "pageFrom": 2,
+      "pageTo": 2,
+      "sourceTextSha256": "2b60fc460d6fb15d4c4f274ed17094047d2f53380dd4ed01be46aeb53c00f22f",
+      "current": {
+        "categories": [
+          "liability"
+        ],
+        "primary": "liability",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "liability"
+          ],
+          "primary": "liability"
+        },
+        "b": {
+          "categories": [
+            "liability"
+          ],
+          "primary": "liability"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "liability"
+        ],
+        "primary": "liability"
+      },
+      "rationale": "It limits liability for negligence to three months of billing.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d04-c5",
+      "documentId": "synthetic-d04-service-sla",
+      "number": "CLAUSULA QUINTA",
+      "heading": "TERMINACION",
+      "pageFrom": 2,
+      "pageTo": 2,
+      "sourceTextSha256": "14efbf021b1b9077f58384864462fee800c75497b3746540dea82c197069c86d",
+      "current": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "b": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination"
+      },
+      "rationale": "It allows termination for serious breach after an unremedied cure period.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d05-c1",
+      "documentId": "synthetic-d05-ip-licence",
+      "number": "CLAUSULA PRIMERA",
+      "heading": "PROPIEDAD INTELECTUAL",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "a56e58a6696dec87ed5624fc9f631c27cd64872132e9b4c221c9eabaee3f06c9",
+      "current": {
+        "categories": [
+          "ip"
+        ],
+        "primary": "ip",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "ip"
+          ],
+          "primary": "ip"
+        },
+        "b": {
+          "categories": [
+            "ip"
+          ],
+          "primary": "ip"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "ip"
+        ],
+        "primary": "ip"
+      },
+      "rationale": "It preserves the licensor's ownership and limits use to what is authorised.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d05-c2",
+      "documentId": "synthetic-d05-ip-licence",
+      "number": "CLAUSULA SEGUNDA",
+      "heading": "RESPONSABILIDAD POR USO",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "3e14fb1ed247495455f399eff81fb212aec89bc7dc188f64bebd9c71b9c2f7c9",
+      "current": {
+        "categories": [
+          "ip",
+          "liability"
+        ],
+        "primary": "liability",
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "liability",
+            "ip"
+          ],
+          "primary": "liability"
+        },
+        "b": {
+          "categories": [
+            "ip"
+          ],
+          "primary": "ip"
+        },
+        "resolution": "resolved-multilabel",
+        "agreement": "disagree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [
+          "ip",
+          "liability"
+        ],
+        "primary": "liability"
+      },
+      "rationale": "Both ip and liability apply; the disagreement is only about which is primary. A human must rule: liability (assumption of responsibility) or ip (unauthorised use is the trigger).",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d05-c3",
+      "documentId": "synthetic-d05-ip-licence",
+      "number": "CLAUSULA TERCERA",
+      "heading": "GARANTIAS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "49076137b44e3af1412dec04b9bf6b6beefbb801bd41a4dcc53c3debe19440f2",
+      "current": {
+        "categories": [
+          "warranties"
+        ],
+        "primary": "warranties",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "warranties"
+          ],
+          "primary": "warranties"
+        },
+        "b": {
+          "categories": [
+            "warranties"
+          ],
+          "primary": "warranties"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "warranties"
+        ],
+        "primary": "warranties"
+      },
+      "rationale": "It warrants that the software conforms to the documentation.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d05-c4",
+      "documentId": "synthetic-d05-ip-licence",
+      "number": "CLAUSULA CUARTA",
+      "heading": "LEY APLICABLE",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "9344cf08fa8fdeac9190cc2d1cd909246b8f7d2ddb1ba8f5a0cf4280ae5b74c0",
+      "current": {
+        "categories": [
+          "governing_law"
+        ],
+        "primary": "governing_law",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law"
+        },
+        "b": {
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "governing_law"
+        ],
+        "primary": "governing_law"
+      },
+      "rationale": "It chooses Venezuelan law.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d05-c5",
+      "documentId": "synthetic-d05-ip-licence",
+      "number": "CLAUSULA QUINTA",
+      "heading": "CONTROVERSIAS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "ce09c656456fbbd268a9d66c5a6ca2f0a11d464f599b478589710768cd11b875",
+      "current": {
+        "categories": [
+          "disputes"
+        ],
+        "primary": "disputes",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "disputes"
+          ],
+          "primary": "disputes"
+        },
+        "b": {
+          "categories": [
+            "disputes"
+          ],
+          "primary": "disputes"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "disputes"
+        ],
+        "primary": "disputes"
+      },
+      "rationale": "It provides for negotiation and then the courts of Caracas.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d06-c1",
+      "documentId": "synthetic-d06-irregular-formatting",
+      "number": "CLAUSULA PRIMERA",
+      "heading": "OBLIGACIONES GENERALES",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "e9b2dcd1abca5587dea18bca5bc8bd466ed38040999c1524db457cf0823853ef",
+      "current": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope",
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope"
+      },
+      "rationale": "It lists the company's general obligations.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d06-c2",
+      "documentId": "synthetic-d06-irregular-formatting",
+      "number": "CLAUSULA SEGUNDA",
+      "heading": null,
+      "pageFrom": 2,
+      "pageTo": 2,
+      "sourceTextSha256": "8f8529ae477c42dbb34e6f5f068fb0600112ff7949de1415ce4cbdf9c8f9f1a0",
+      "current": {
+        "categories": [
+          "governing_law"
+        ],
+        "primary": "governing_law",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law"
+        },
+        "b": {
+          "categories": [
+            "governing_law"
+          ],
+          "primary": "governing_law"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "governing_law"
+        ],
+        "primary": "governing_law"
+      },
+      "rationale": "It chooses Venezuelan law in one sentence.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d06-c3",
+      "documentId": "synthetic-d06-irregular-formatting",
+      "number": "CLAUSULA TERCERA",
+      "heading": "REMISION",
+      "pageFrom": 2,
+      "pageTo": 2,
+      "sourceTextSha256": "10ab2cbe3fcc742224d16f91c5ff4e39b404d65e037fa43d4a755ca004cea08e",
+      "current": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope",
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope"
+      },
+      "rationale": "It incorporates another clause's obligations by reference; `scope` is defensible as an obligation, but this is the reference-only case and a human may prefer empty.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d06-c4",
+      "documentId": "synthetic-d06-irregular-formatting",
+      "number": "CLAUSULA TERCERA",
+      "heading": "TERMINACION ANTICIPADA",
+      "pageFrom": 2,
+      "pageTo": 2,
+      "sourceTextSha256": "85eb4b9caa569aef42ad8b161f27693e417287522c9fb3a3b5e7fe5d52777e86",
+      "current": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination",
+        "ambiguous": false,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "b": {
+          "categories": [
+            "termination"
+          ],
+          "primary": "termination"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "confirmed",
+      "proposed": {
+        "categories": [
+          "termination"
+        ],
+        "primary": "termination"
+      },
+      "rationale": "It allows early termination by mutual written agreement.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d06-c5",
+      "documentId": "synthetic-d06-irregular-formatting",
+      "number": "CLAUSULA CUARTA",
+      "heading": "REUNIONES DE SEGUIMIENTO",
+      "pageFrom": 2,
+      "pageTo": 2,
+      "sourceTextSha256": "8c482adf2e1be86288ab1379ade61d6f889ce2c2559ce1a0131bba62121822fc",
+      "current": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope",
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "confirmed-consensus",
+        "agreement": "agree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [
+          "scope"
+        ],
+        "primary": "scope"
+      },
+      "rationale": "It creates a quarterly meeting obligation; `scope` is defensible as an obligation, but it is procedural and a human may prefer `other`.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d07-c1",
+      "documentId": "synthetic-d07-unclassifiable",
+      "number": "CLAUSULA PRIMERA",
+      "heading": "HORARIO",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "0df076c43c76bc15884231e9952e23956192243ae395790596ea512760e35e28",
+      "current": {
+        "categories": [],
+        "primary": null,
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "other"
+          ],
+          "primary": "other"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "unclassified-no-taxonomy-category",
+        "agreement": "disagree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [],
+        "primary": null
+      },
+      "rationale": "Working time (shift distribution): no taxonomy category; same decision as d01-c3.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d07-c2",
+      "documentId": "synthetic-d07-unclassifiable",
+      "number": "CLAUSULA SEGUNDA",
+      "heading": "DESCANSOS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "b3770a7d4625ac7b49de2282d8c9a4f69bf7a87c9aefc0dbf62fa3e4c702de70",
+      "current": {
+        "categories": [],
+        "primary": null,
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "other"
+          ],
+          "primary": "other"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "unclassified-no-taxonomy-category",
+        "agreement": "disagree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [],
+        "primary": null
+      },
+      "rationale": "Working time (weekly rest): no taxonomy category; same decision as d01-c3.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d07-c3",
+      "documentId": "synthetic-d07-unclassifiable",
+      "number": "CLAUSULA TERCERA",
+      "heading": "TURNOS ROTATIVOS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "9d124d9063b3e8b539d33b9ca38569d5bdb397c034ac92c55c9427a2a70bdf9c",
+      "current": {
+        "categories": [],
+        "primary": null,
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "other"
+          ],
+          "primary": "other"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "unclassified-no-taxonomy-category",
+        "agreement": "disagree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [],
+        "primary": null
+      },
+      "rationale": "Working time (rotating shifts): no taxonomy category; same decision as d01-c3.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    },
+    {
+      "clauseId": "d07-c4",
+      "documentId": "synthetic-d07-unclassifiable",
+      "number": "CLAUSULA CUARTA",
+      "heading": "HORAS EXTRAORDINARIAS",
+      "pageFrom": 1,
+      "pageTo": 1,
+      "sourceTextSha256": "16d7304c57b6475f72016719aaf7363fd46166aedfcf8254301d80a0169b0524",
+      "current": {
+        "categories": [],
+        "primary": null,
+        "ambiguous": true,
+        "status": "reviewed",
+        "reviewer": "ai-adjudicator-v1"
+      },
+      "reviewers": {
+        "a": {
+          "categories": [
+            "other"
+          ],
+          "primary": "other"
+        },
+        "b": {
+          "categories": [
+            "scope"
+          ],
+          "primary": "scope"
+        },
+        "resolution": "unclassified-no-taxonomy-category",
+        "agreement": "disagree"
+      },
+      "verdict": "needs-ruling",
+      "proposed": {
+        "categories": [],
+        "primary": null
+      },
+      "rationale": "Working time (overtime): no taxonomy category; same decision as d01-c3.",
+      "humanDecision": null,
+      "humanReviewer": null,
+      "humanDecidedAt": null
+    }
+  ]
+}

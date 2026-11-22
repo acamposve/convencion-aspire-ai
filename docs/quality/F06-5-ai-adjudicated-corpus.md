@@ -2,6 +2,12 @@
 
 **Date:** 2026-11-15 · **Dataset:** `synthetic-v2` v2 · **Status:** reviewed, **AI-generated**
 
+> **Verification note (2026-11-22):** the labels in this corpus were **not** human-validated, and the
+> committed review exports behind the adjudication are blank. See the
+> [verification report](review/synthetic-v3-candidate.verification.md) (findings V-1…V-7). The
+> hand-off artifact is the draft
+> [`synthetic-v3-candidate.dataset.json`](corpus/synthetic-v3-candidate.dataset.json), not this file.
+
 ## What this is
 
 The first `reviewed` version of the corpus, produced without human reviewers. It exists so metrics can

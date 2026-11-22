@@ -82,7 +82,7 @@ remediation lives in this directory. Status at 2026-11-22:
 | [P1-002/003 recovery and fencing](P1-002-003-recovery-fencing.md) | F-02, F-03 | implemented |
 | [P1-004 object deletion](P1-004-object-deletion.md) | F-04 | implemented |
 | [P1-005 cost metering](P1-005-cost-metering.md) | F-05 | metering, reservations and shadow/enforced budgets implemented; **budget policy open** |
-| P1-006 AI validation ([audit record](../audits/production-v1/tasks/P1-006-validacion-ia.md)) | F-06 | **partial** — evaluation framework and synthetic baseline; representative corpus and provider terms pending ([quality reports](../quality/F06-implementation-report.md)) |
+| [P1-006 AI quality validation](P1-006-ai-quality-validation.md) ([audit record](../audits/production-v1/tasks/P1-006-validacion-ia.md)) | F-06 | **Phase 1 done** — plan, gates, manifest design and corpus verification; representative corpus, human annotation and provider terms pending ([quality reports](../quality/F06-implementation-report.md)) |
 | [P1-007 backup and restore](P1-007-backup-restore.md) | F-07 | implemented for the database; frequency, retention and RTO open |
 | [P1-008 tenant isolation](P1-008-tenant-isolation-verification.md) | F-08 | implemented; policy finding F-08-1 open |
 | [P1-009 observability](P1-009-observability.md) | F-09 | implemented; SLO values open |

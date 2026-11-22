@@ -68,3 +68,7 @@ docs/test/
 docs/audits/*
 !docs/audits/foundry-json-output-diagnosis.md
 docs/operations/session-handoff-*.md
+
+# Golden-set documents for the P1-006 AI evaluation live outside Git; only the manifest and the
+# annotations are committed.
+var/golden-set/
