@@ -31,7 +31,7 @@ internal static class LoadTestProgram
         {
             return args[0] switch
             {
-                "self-test" => await SelfTest.RunAsync().ConfigureAwait(false),
+                "self-test" or "--self-test" => await SelfTest.RunAsync().ConfigureAwait(false),
                 "run" => await RunCommandAsync(Options.Parse(args[1..])).ConfigureAwait(false),
                 _ => throw new ArgumentException($"Unknown command '{args[0]}'. Use 'run' or 'self-test'."),
             };
