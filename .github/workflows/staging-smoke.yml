@@ -5,9 +5,17 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type smoke to confirm'
+        description: 'Type smoke (read-only checks) or flows (release smoke gate) to confirm'
         required: true
         type: string
+      mode:
+        description: 'read-only verifies the deployment; flows exercises the MVP flows on a disposable tenant'
+        required: false
+        default: read-only
+        type: choice
+        options:
+          - read-only
+          - flows
 
 permissions:
   contents: read
@@ -122,3 +130,64 @@ jobs:
           echo "supabase=$supabase"
           case "$supabase" in 2*|3*|401|403) ;; *) echo "supabase connectivity failed"; exit 1 ;; esac
           REMOTE
+
+  # The release smoke gate (T19 AC3). Mutating by design: it creates, publishes and then removes
+  # synthetic data in a dedicated staging tenant, and it never enables the worker. Two confirmations are
+  # required (mode=flows and confirm=flows), and it only runs from main, like the exercise stages.
+  flows:
+    name: Release smoke gate
+    if: github.ref == 'refs/heads/main' && github.event.inputs.mode == 'flows' && github.event.inputs.confirm == 'flows'
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+      SUPABASE_DB_PORT: ${{ vars.SUPABASE_DB_PORT }}
+      SUPABASE_DB_NAME: ${{ vars.SUPABASE_DB_NAME }}
+      SUPABASE_DB_USER: ${{ vars.SUPABASE_DB_USER }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
+      STAGING_API_URL: https://138-197-15-40.sslip.io/api
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure SSH (the key is never printed)
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install the tools the gate uses
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq jq postgresql-client python3 openssl
+
+      # Remove anything a previous run left behind: the gate asserts counts, so leftovers would
+      # turn into false failures (and a leftover agreement would collide on its start date).
+      - name: Remove leftovers from a previous run
+        run: bash scripts/staging/smoke.sh teardown || true
+
+      - name: Provision the smoke tenant
+        run: bash scripts/staging/smoke.sh provision
+
+      - name: Exercise the MVP flows
+        run: bash scripts/staging/smoke.sh run
+
+      - name: Remove the tenant content (always)
+        if: always()
+        run: bash scripts/staging/smoke.sh teardown
+
+      - name: Verify the worker is still disabled
+        if: always()
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$SSH_TARGET" \
+            "cd /opt/convenciones && grep -qx 'Worker__Enabled=false' .env && echo 'Worker__Enabled=false'"

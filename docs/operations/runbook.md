@@ -13,10 +13,9 @@ procedure in this repository; nothing here is a description of a monitoring stac
 | [Temporary worker activation](worker-temporary-activation.md) | the bounded activation window and its watchdog |
 | [Pending owner sign-offs](owner-signoffs.md) | the decisions this runbook is still waiting for |
 
-**What this runbook is not yet:** T19 also owes a release smoke-test page (`docs/operations/smoke-test.md`)
-and a monitoring page (`docs/operations/monitoring.md`); neither is written in this slice, so "an alert
-fires" below means "a signal changes and a human is watching it", not "a page reached a phone". The
-repository ships no alerting, dashboard or paging integration
+**What this runbook is not yet:** "an alert fires" below means "a signal changes and a human is watching
+it", not "a page reached a phone". The repository ships no paging integration, and neither the scheduled
+[ops probe](monitoring.md) nor the [release smoke gate](smoke-test.md) has run against staging yet
 ([P1-009 §9](p1-009-observability.md#9-limitations)).
 
 ## 1. Severity and expectations
@@ -183,7 +182,7 @@ outage: the budget is the control that stops a retry storm from becoming an invo
 | 3 | If the workflow did not roll back, do it by hand (§4) |
 | 4 | Diagnose without touching the running stack: `docker compose logs --tail=200 api worker`, and compare the failing migration with `public.schema_migration` |
 | 5 | Do not re-dispatch the same deploy until the cause is identified; a second failure extends the window |
-| Verify | `/health/live` 200, `/health/ready` 200, SPA 200 with `text/html`, sign-in works, upload works |
+| Verify | `/health/live` 200, `/health/ready` 200, SPA 200 with `text/html`, sign-in works, upload works; after a release, the [smoke gate](smoke-test.md) is the full check |
 | Escalate | Product Owner (release decision); GitHub Actions logs kept as evidence |
 
 ## 4. Rollback
@@ -300,4 +299,4 @@ Rules that apply to every row:
 | A metrics scrape, dashboard or hosted monitor | the probe covers the HTTP signals; metrics are exported over OTLP but nothing scrapes them | Product Owner (cost decision) |
 | Backup frequency, retention, off-site, PITR verification | §5 has no schedule and no RTO commitment | [sign-off #3](owner-signoffs.md) |
 | Rotation intervals and provider plan (support tiers) | §7 is a proposal | [sign-off #3 / policy](owner-signoffs.md) |
-| Release smoke test | §3.5 verification is a manual list | smoke-test slice (T19) |
+| Release smoke test | §3.5 verification is a manual list | **implemented (slice B):** [smoke-test.md](smoke-test.md); the first staging dispatch is still pending |
