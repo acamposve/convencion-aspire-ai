@@ -277,13 +277,26 @@ run_flows() {
   expect "read own clauses" "$code" 200
   grep -q "$CLAUSE" "$BODY" || fail "the clause just authored is not in the list"
 
+  # A third agreement stays a draft: the public portal must not serve it.
+  code="$(api POST /agreements "$token" -H 'Content-Type: application/json' \
+    --data "$(jq -n --arg d "$(date -u -d '2 days ago' +%F)" '{validFrom:$d,validTo:null,scope:"SMOKE release gate (draft only)"}')")"
+  expect "create agreement 3 (draft)" "$code" 201
+  AGREEMENT_DRAFT_ONLY="$(json '.id // empty')"
+  [ -n "$AGREEMENT_DRAFT_ONLY" ] || fail "third agreement creation returned no id"
+
+  # The comparison only renders published agreements, so both compared ones are published first.
   code="$(api POST "/agreements/$AGREEMENT_DRAFT/publish" "$token")"
-  expect "publish agreement" "$code" 200
+  expect "publish agreement 1" "$code" 200
+
+  code="$(api POST "/agreements/$AGREEMENT_DRAFT_2/publish" "$token")"
+  expect "publish agreement 2" "$code" 200
 
   code="$(api GET "/comparison/?headingId=$HEADING&agreementIds=$AGREEMENT_DRAFT,$AGREEMENT_DRAFT_2" "$token")"
-  expect "compare two agreements" "$code" 200
+  expect "compare two published agreements" "$code" 200
   grep -q "Synthetic clause body for the release smoke gate" "$BODY" \
-    || fail "the comparison does not include the authored clause body"
+    || fail "the comparison does not include the first authored clause body"
+  grep -q "Second synthetic clause body for the comparison" "$BODY" \
+    || fail "the comparison does not include the second authored clause body"
 
   code="$(api GET /public/agreements '')"
   expect "public portal list (anonymous)" "$code" 200
@@ -291,7 +304,7 @@ run_flows() {
   code="$(api GET "/public/agreements/$AGREEMENT_DRAFT" '')"
   expect "public portal serves the published agreement" "$code" 200
 
-  code="$(api GET "/public/agreements/$AGREEMENT_DRAFT_2" '')"
+  code="$(api GET "/public/agreements/$AGREEMENT_DRAFT_ONLY" '')"
   expect "public portal hides the draft" "$code" 404
 
   status="$(psql_scalar "select enabled from platform.worker_heartbeat where id = 1;")"

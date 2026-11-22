@@ -182,6 +182,42 @@ where lower(g.name) = lower('GENERALES')
   );
 
 -- -------------------------------------------------------------------------------------
+-- Curated headings: the minimum taxonomy the product needs to work end to end
+--
+-- Until these rows exist, a clause cannot be authored against a comparable heading and the comparison
+-- workspace has nothing to show: "No Compara" is deliberately excluded, so it cannot carry comparable
+-- content. Found by the T19 release smoke gate on staging (2026-11-22).
+--
+-- This is a starting point, not the final catalog: the business curates the reference taxonomy
+-- (constitution Art. V.3). It lives in the seed rather than in a migration because it is reference data,
+-- and because a restore applies migrations only: reference rows travel inside the backup set instead.
+-- Names are kept clear of the ones the test fixtures create for themselves.
+-- -------------------------------------------------------------------------------------
+insert into app.comparison_heading (group_id, name, description, is_excluded, sort_order)
+select g.id, v.name, v.description, false, v.sort_order
+from (values
+    (10, 'Jornada y horario',              'Working time, calendar and its distribution',              10),
+    (10, 'Vacaciones anuales',             'Annual leave and how it is scheduled',                     20),
+    (10, 'Permisos y licencias',           'Paid and unpaid leave',                                   30),
+    (10, 'Régimen disciplinario',          'Disciplinary regime and sanctions',                        40),
+    (10, 'Subrogación',                    'Subrogation of the workforce when the contractor changes', 50),
+    (20, 'Estructura salarial',            'Salary tables and pay structure',                          10),
+    (20, 'Pagas extraordinarias',          'Extra payments and their accrual',                         20),
+    (20, 'Complementos y pluses',          'Allowances, bonuses and supplements',                      30),
+    (20, 'Gastos y dietas',                'Travel expenses and per diems',                            40),
+    (30, 'Mejoras sociales',               'Social improvements and benefits',                          10),
+    (30, 'Seguros y previsión social',     'Insurance and social protection',                           20),
+    (40, 'Derechos sindicales',            'Union rights and guarantees',                              10),
+    (40, 'Comité de empresa y delegados',  'Works council and union delegates',                        20),
+    (50, 'Prevención de riesgos laborales', 'Occupational risk prevention',                            10),
+    (50, 'Vigilancia de la salud',         'Health surveillance',                                      20)
+) as v(group_sort, name, description, sort_order)
+join app.comparison_heading_group g on g.sort_order = v.group_sort
+where not exists (
+    select 1 from app.comparison_heading h where h.group_id = g.id and lower(h.name) = lower(v.name)
+);
+
+-- -------------------------------------------------------------------------------------
 -- Country
 --
 -- One row only. The legacy data had 237 countries, 23 states and 410 municipalities; importing
