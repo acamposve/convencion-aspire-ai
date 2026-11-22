@@ -1,8 +1,9 @@
 # Release smoke gate — what must work before a deploy is accepted
 
-**Status:** implemented (T19, slice B), **not yet executed against staging**. The gate below exists, is
-linted and can be dispatched; the first real run is the evidence that closes T19's third acceptance
-criterion, and it needs a deployment window.
+**Status:** implemented and **executed on staging on 2026-11-22** (run
+[45043883108](https://github.com/acamposve/convencion-aspire-ai/actions/runs/45043883108), commit
+`a258a59`): all nine flows passed, the teardown left the tenant empty and the worker stayed disabled.
+T19's third acceptance criterion is met; the evidence is in §6.
 
 | Companion document | What it adds |
 |---|---|
@@ -139,6 +140,20 @@ Paste the workflow run URL and this table, filled from the run's step summary:
 
 A release is accepted when every flow passes, the worker stayed disabled, no classification call was
 made, and the teardown left nothing behind. A partial pass is a rejected release.
+
+### 6.1 First recorded run
+
+| Field | Value |
+|---|---|
+| Date | 2026-11-22 |
+| Commit deployed | `a258a59` (deploy run [45043680544](https://github.com/acamposve/convencion-aspire-ai/actions/runs/45043680544)) |
+| Gate run | [45043883108](https://github.com/acamposve/convencion-aspire-ai/actions/runs/45043883108), job steps 5–9 `success`, 51 s |
+| Flows 1–9 | passed: sign in, upload (201), extract (200), read text, process → `Queued`, headings, author ×2, publish ×2, compare with both bodies, portal `200`/`200`/`404` |
+| Worker | `enabled=f` asserted before, during and after |
+| Classification calls | asserted `0` |
+| Teardown | asserted the tenant holds `0` rows; storage objects deleted |
+| Post-deploy edge | `/health/ready` 200, `/health/live` 200, `/health/ops` **404** at the edge |
+| Scheduled ops probe | green before and after (runs 45043328469, 45042329640); no open `ops-alert` issue |
 
 ## 7. Known failure modes
 
