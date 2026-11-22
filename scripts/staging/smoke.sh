@@ -57,20 +57,26 @@ fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
 row() { printf '| %s | %s | %s |\n' "$1" "$2" "$3" >>"$SUMMARY"; }
 
 expect() {
-  local label="$1" observed="$2" expected="$3"
+  local label="$1" observed="$2" expected="$3" detail
   row "$label" "$observed" "$expected"
-  [ "$observed" = "$expected" ] || fail "$label returned $observed (expected $expected)"
+  if [ "$observed" != "$expected" ]; then
+    # The API answers a rejected request with a small JSON problem document; printing it turns a bare
+    # code into a diagnosis. It contains no credential.
+    detail="$(tr '\n' ' ' <"$BODY" | cut -c1-400)"
+    fail "$label returned $observed (expected $expected); response: $detail"
+  fi
 }
 
 expect_any() {
   local label="$1" observed="$2"
   shift 2
   row "$label" "$observed" "$*"
-  local candidate
+  local candidate detail
   for candidate in "$@"; do
     [ "$observed" = "$candidate" ] && return 0
   done
-  fail "$label returned $observed (expected one of: $*)"
+  detail="$(tr '\n' ' ' <"$BODY" | cut -c1-400)"
+  fail "$label returned $observed (expected one of: $*); response: $detail"
 }
 
 api() {
@@ -240,7 +246,9 @@ run_flows() {
 
   code="$(api GET /comparison/headings "$token")"
   expect "list comparison headings" "$code" 200
-  HEADING="$(json 'if type == "array" then .[0].id else .items[0].id end // empty')"
+  # The endpoint returns heading groups with nested headings, not a flat list of headings: pick a
+  # heading from a group that does not require an economic comparison, and fall back to any heading.
+  HEADING="$(json '([.[] | select(.requiresEconomicComparison == false) | .headings[]?] + [.[] | .headings[]?]) | .[0].id // empty')"
   [ -n "$HEADING" ] || fail "no comparison heading is available"
 
   code="$(api POST /agreements "$token" -H 'Content-Type: application/json' \
