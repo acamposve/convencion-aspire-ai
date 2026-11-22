@@ -47,6 +47,11 @@ jobs:
       - name: Load harness self-check
         run: dotnet run --project tools/Convenciones.LoadTest --configuration Release --no-build -- self-test
 
+      # The ops probe runs on a schedule, not here, but its decision table must not rot: the self-test
+      # exercises every severity branch with no network, and runs on the same PowerShell the probe uses.
+      - name: Ops probe self-check
+        run: pwsh -NoProfile -File tools/ops-probe.ps1 -SelfTest
+
   migrations:
     name: Apply migrations to PostgreSQL 17
     runs-on: ubuntu-latest

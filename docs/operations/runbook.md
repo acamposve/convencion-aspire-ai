@@ -63,23 +63,20 @@ Owner by whatever channel the team already uses", and that gap is visible rather
 
 ### 2.1 Reaching `/health/ops`
 
-`deploy/nginx.conf` routes `/health/live` and `/health/ready` to the API and nothing else; every other
-path falls through to the SPA. **`/health/ops` is not reachable through the public edge as deployed**, so
-`curl https://<host>/health/ops` returns the SPA, not the report. The API port is `expose`d, not
-published, so it is not on the droplet's `127.0.0.1:8080` either.
-
-Probe it from inside the compose network:
+The report is **not** on the public surface. `deploy/nginx.conf` proxies `/health/live` and `/health/ready`
+and answers `404` for `/health/ops`; every other path falls through to the SPA. The report itself is
+published on the droplet's loopback only (`127.0.0.1:8081`, from `deploy/docker-compose.yml`), where the
+scheduled probe in [`.github/workflows/ops-probe.yml`](../../.github/workflows/ops-probe.yml) reads it.
 
 ```bash
-cd /opt/convenciones
-docker compose exec -T web wget -qO- http://api:8080/health/ops
+ssh <user>@<ip> 'curl -fsS http://127.0.0.1:8081/health/ops'
+curl -sS -o /dev/null -w '%{http_code}\n' https://138-197-15-40.sslip.io/health/ops   # expect 404
 ```
 
-The web image is `nginx:*-alpine` (busybox `wget`); if the tool is absent in the deployed image, use
-`docker compose exec -T api bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080'` to test the port only, or add an
-internal probe route before relying on this during an incident. **Gap to close in the monitoring slice:**
-one of the two — expose `/health/ops` internally to a probe, or move the queue/heartbeat signal to a
-metric scrape — must exist before any alert on `queue`/`worker` can fire.
+If the loopback call is refused, the running stack predates the port mapping (redeploy) or the mapping was
+edited: `ssh <user>@<ip> "ss -ltn | grep 8081"` must show `127.0.0.1:8081` and nothing else. The probe checks
+all three properties — loopback bind, edge `404`, JSON verdict — and fails P1 when any of them drifts. The
+design and the decision table are in [monitoring.md §2–§3](monitoring.md#2-reachability-loopback-only-404-at-the-edge).
 
 ### 2.2 Diagnostic queries
 
@@ -299,7 +296,8 @@ Rules that apply to every row:
 | Item | Why it blocks | Owner |
 |---|---|---|
 | SLO thresholds and alert destination | every alert in §3 needs a number and a recipient | [sign-off #4](owner-signoffs.md) |
-| Queue/worker reachable by a probe | §2.1: `/health/ops` is not at the edge | monitoring slice (T19) |
+| Queue/worker reachable by a probe | **done (slice C):** loopback port, edge `404` and the scheduled probe; see [monitoring.md](monitoring.md) | — |
+| A metrics scrape, dashboard or hosted monitor | the probe covers the HTTP signals; metrics are exported over OTLP but nothing scrapes them | Product Owner (cost decision) |
 | Backup frequency, retention, off-site, PITR verification | §5 has no schedule and no RTO commitment | [sign-off #3](owner-signoffs.md) |
 | Rotation intervals and provider plan (support tiers) | §7 is a proposal | [sign-off #3 / policy](owner-signoffs.md) |
 | Release smoke test | §3.5 verification is a manual list | smoke-test slice (T19) |

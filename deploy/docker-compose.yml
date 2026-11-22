@@ -10,6 +10,12 @@ services:
     restart: unless-stopped
     expose:
       - "8080"
+    # Operator probe only. /health/ops reports internal state (queue age, worker heartbeat, database
+    # verdict), so it is published on the droplet's loopback and nowhere else. The public edge answers
+    # 404 for that path (deploy/nginx.conf) and the scheduled probe reads it from 127.0.0.1:8081.
+    # Never change this to "8081:8080" or "0.0.0.0:8081:8080": that would publish diagnostics.
+    ports:
+      - "127.0.0.1:8081:8080"
     read_only: true
     tmpfs:
       - /tmp
