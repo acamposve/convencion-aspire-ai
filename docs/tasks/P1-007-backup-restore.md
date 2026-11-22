@@ -1,7 +1,8 @@
 # P1-007 — Backup and restore
 
 **Status:** implemented and tested for the database; object storage covered by a directory-level backup and
-consistency checks. Scheduling, retention and RPO/RTO remain open.
+consistency checks. A local, timed restore drill now exists (2026-11-22). Scheduling, retention, managed
+PITR and the production-target RTO remain open.
 
 ## What was delivered
 
@@ -10,6 +11,7 @@ consistency checks. Scheduling, retention and RPO/RTO remain open.
 | Backup/restore/check tool | `src/Convenciones.Backup` |
 | Runbook and limitations | `docs/operations/p1-007-backup-restore.md` |
 | Integration tests | `tests/Convenciones.IntegrationTests/BackupRestoreTests.cs` |
+| Timed restore drill and its caveats | [docs/operations/restore-drill.md](../operations/restore-drill.md) |
 
 ## Design decisions
 
@@ -26,7 +28,7 @@ consistency checks. Scheduling, retention and RPO/RTO remain open.
 
 ## Test evidence
 
-`BackupRestoreTests` (5 tests, PostgreSQL 17 containers): tamper detection; restore into a new empty
+`BackupRestoreTests` (13 tests, PostgreSQL 17 containers): tamper detection; restore into a new empty
 database with all row counts matching; tenant/financial/audit preservation verified by value; refusal on
 non-empty and mis-confirmed targets; storage backup/restore plus missing and orphan detection.
 
@@ -44,12 +46,38 @@ Full suite at the time of writing: unit 244, integration 328, Release build 0 wa
   attribution and identity-sequence alignment.
 - Storage restore refuses a non-empty root unless `--replace` is passed.
 
+## Measured drill (2026-11-22)
+
+The full lifecycle `create → verify → restore (into a clean database) → check` was executed on a
+production-shaped synthetic set: 10,000 documents, 5,000 agreements, 50,000 agreement clauses, 50,000
+extracted clauses, 11,200 usage records, 11,000 reservations, 25,000 audit rows — 221,549 rows across 46
+tables — plus 10,000 storage objects (122 MB). The backup set was 229.9 MB.
+
+| Phase | Exit | Duration |
+|---|---|---|
+| `create` | 0 | 14.08 s |
+| `verify` | 0 | 2.68 s |
+| `restore` (32 migrations + 221,529 inserted rows + 10,000 files) | 0 | 16.77 s |
+| `check` (46 tables, 46 with RLS, no violations) | 0 | 1.98 s |
+| **Total lifecycle** | — | **35.74 s** |
+| `restore` into a non-empty target | 1 (refused, unchanged) | — |
+
+Row counts matched table by table, `check` passed with no financial, referential, missing-object, orphan or
+incomplete findings, and three spot-checked documents had a file SHA-256 equal to their stored checksum.
+
+**This is a local Docker Desktop baseline, not a production RTO.** It shares one disk between set and
+target, has no network hop, never touches Supabase and exercised 19 tables at zero rows. Full record,
+reading guidance and limits: [restore-drill.md](../operations/restore-drill.md). The first response that
+uses this path is in the [operations runbook](../operations/runbook.md).
+
 ## Open decisions
 
 - Backup frequency and retention (not invented here).
 - Managed PITR availability and cost — must be verified with the provider.
 - Whether storage backup is scheduled or operator-run.
-- Measured RTO, to be established by a drill on production-sized data.
+- Measured RTO, to be established by a drill on production-sized data. **Partly answered:** the local
+  drill above measures the lifecycle on production-shaped data (35.74 s); the drill against a Supabase
+  target — the one that would justify an RTO in a release note — has not been run.
 
 These are owner decisions; they are tracked in
 [pending owner sign-offs](../operations/owner-signoffs.md).

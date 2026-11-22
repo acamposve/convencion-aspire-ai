@@ -130,10 +130,17 @@ point-in-time recovery.
   `createdAt` in the manifest, which is the measurement point.
 - **RTO** is restore duration. Measure it by timing a `restore` of a production-sized set into an isolated
   environment; do not quote a number that has not been measured.
+- **Measured baseline (2026-11-22, local).** A drill on a production-shaped synthetic set — 10,000
+  documents, 5,000 agreements, 50,000 clauses, 221,549 rows and 10,000 storage objects, 229.9 MiB — ran
+  `create` in 14.08 s, `verify` in 2.68 s, `restore` into a clean database in 16.77 s and `check` in
+  1.98 s: 35.74 s of lifecycle time. It is a **local Docker Desktop baseline**, not a production RTO:
+  it shares one disk between set and target, applies no network hop and never touches Supabase. The full
+  record, caveats and limits are in [restore-drill.md](restore-drill.md).
 - Managed PITR, if the hosting plan supports it, must be **verified in the provider console** and tested
   with an actual restore before it is mentioned in any commitment.
 
-No numerical RPO/RTO is asserted by this document.
+No numerical RPO/RTO is asserted by this document. The figure above is a measured local baseline for one
+synthetic dataset, and the production-target measurement is still open (§10).
 
 ## 8. Limitations
 
@@ -161,4 +168,10 @@ No numerical RPO/RTO is asserted by this document.
 - Backup frequency, retention and off-site location (product/operations).
 - Whether managed PITR is available on the chosen plan and what it costs.
 - Whether document storage backup is operator-run or automated.
-- Measured RTO for the production data size, to be established by a drill.
+- Measured RTO for the production data size, to be established by a drill. **Partly answered:** a local
+  drill on 2026-11-22 measured the full lifecycle on a production-shaped set (35.74 s; see
+  [restore-drill.md](restore-drill.md)), and the queue/worker first response that uses the restore path is
+  in [runbook.md](runbook.md). Still open: the RTO measured against Supabase itself, which slice A did not
+  and could not exercise.
+- The rotation schedule for the database, storage, SSH and Azure credentials is proposed in
+  [runbook.md §7](runbook.md#7-credential-rotation-schedule-proposed) and awaits the owner.
