@@ -1,4 +1,4 @@
-# P1-007 â€” Backup and restore
+# P1-007 — Backup and restore
 
 **Status:** implemented and tested for the database; object storage covered by a directory-level backup and
 consistency checks. Scheduling, retention and RPO/RTO remain open.
@@ -47,6 +47,9 @@ Full suite at the time of writing: unit 244, integration 328, Release build 0 wa
 ## Open decisions
 
 - Backup frequency and retention (not invented here).
-- Managed PITR availability and cost â€” must be verified with the provider.
+- Managed PITR availability and cost — must be verified with the provider.
 - Whether storage backup is scheduled or operator-run.
 - Measured RTO, to be established by a drill on production-sized data.
+
+These are owner decisions; they are tracked in
+[pending owner sign-offs](../operations/owner-signoffs.md).

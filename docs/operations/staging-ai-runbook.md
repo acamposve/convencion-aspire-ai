@@ -1,7 +1,10 @@
 # Staging AI exercise — runbook (#47 / #52)
 
-**Status:** prepared, not executed. Staging deploy, worker enablement and all secrets changes need the
-owner's explicit approval.
+**Status:** partially executed. Scoped worker windows processed the synthetic F-06.5 corpus (7
+documents, 23 pages, $0.041, worker disabled after each run) against the deployed commit `97a2cac`. The
+two-tenant isolation check and the kill-switch drill were **not** executed. Staging deploy, worker
+enablement and all secrets changes need the owner's explicit approval; see
+[pending owner sign-offs](owner-signoffs.md).
 
 **Scope:** synthetic or authorized test documents only. No real collective agreement may be uploaded
 until the provider terms are reviewed and approved.

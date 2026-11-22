@@ -34,4 +34,5 @@ writer upsert.
 ## Open decisions
 
 - The SLO values themselves (queue age threshold, heartbeat threshold, latency percentile) are not set
-  here; the runbook documents how to derive them and how to measure RTO.
+  here; the runbook documents how to derive them and how to measure RTO. They are tracked in
+  [pending owner sign-offs](../operations/owner-signoffs.md).

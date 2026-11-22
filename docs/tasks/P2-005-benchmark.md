@@ -120,3 +120,4 @@ Report: [p2-005-capacity.md](../operations/p2-005-capacity.md). Artifacts:
 ## Left undone
 
 - The signed capacity decision (owner), availability measurement and real-provider latency, by design.
+  The signature is tracked in [pending owner sign-offs](../operations/owner-signoffs.md).
