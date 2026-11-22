@@ -42,6 +42,11 @@ jobs:
       - name: Test
         run: dotnet test Convenciones.slnx --no-build --configuration Release --logger "console;verbosity=normal"
 
+      # The load harness is manual, but its measurement logic must not rot: the self-test proves the
+      # generator observes an injected 300 ms delay and 1% error rate, with no database and no Docker.
+      - name: Load harness self-check
+        run: dotnet run --project tools/Convenciones.LoadTest --configuration Release --no-build -- --self-test
+
   migrations:
     name: Apply migrations to PostgreSQL 17
     runs-on: ubuntu-latest
