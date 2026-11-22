@@ -160,17 +160,17 @@ provision() {
   if state_exists; then
     load_state
     suffix="$(date +%s)"
-    password="$(openssl rand -base64 24)"
+    password=$(openssl rand -base64 24)
     payload="$(jq -n --arg password "$password" '{password:$password}')"
     printf '%s' "$payload" | admin_curl -X PUT \
       "$SUPABASE_URL/auth/v1/admin/users/$USER" --data-binary @- >/dev/null \
       || fail "could not rotate the smoke user password"
-    PASSWORD="$password"
+    PASSWORD=$password
     echo "reusing the smoke tenant and rotating its password (run $suffix)"
   else
     suffix="$(date +%s)"
     EMAIL="smoke-${suffix}@staging.invalid"
-    PASSWORD="$(openssl rand -base64 24)"
+    PASSWORD=$(openssl rand -base64 24)
     payload="$(jq -n --arg email "$EMAIL" --arg password "$PASSWORD" \
       '{email:$email,password:$password,email_confirm:true}')"
     response="$(printf '%s' "$payload" | admin_curl -X POST \
