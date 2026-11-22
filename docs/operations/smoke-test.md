@@ -142,6 +142,7 @@ made, and the teardown left nothing behind. A partial pass is a rejected release
 | `expected Queued … got Completed` | The worker is enabled in staging | Stop the exercise window; the gate must run with the worker off |
 | `classification calls` > 0 | Same as above | Same |
 | `refusing: STAGING_API_URL is not the staging API` | The target guard fired | Point the gate at staging; never widen the guard |
+| `400` on `POST /agreements/{id}/clauses` | The heading id came from `/comparison/headings`, which returns **groups** with nested headings; a group id is not a heading id | The gate picks a heading from a group without an economic-comparison requirement; every failure now prints the API problem document |
 | `no smoke state` on `run` | `provision` was not executed | Run `provision` first |
 | `teardown` fails on a row count | A foreign key still references the tenant's content | Read the failing count; the SQL block is ordered by dependency and adding a new table to a flow means adding it to the block |
 
