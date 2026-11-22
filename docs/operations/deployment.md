@@ -130,6 +130,7 @@ answered `42501 permission denied to set role "app_api"`.
 |---|---|
 | API process is up | `docker compose ps`, `/health/live` |
 | Database reachable and schema applied | `/health/ready` returns 200; it checks `app` schema presence |
+| Operational report reachable for the probe, and only there | On the droplet, `curl -fsS http://127.0.0.1:8081/health/ops` returns 200 JSON; `curl -s -o /dev/null -w '%{http_code}' https://138-197-15-40.sslip.io/health/ops` returns 404; `ss -ltn` shows `127.0.0.1:8081` and nothing else |
 | Migrations applied | The deploy job fails if the migrator exits non-zero |
 | Web served | `curl -I https://138-197-15-40.sslip.io/` returns 200 with `text/html` |
 | TLS | Certificate issued by Let's Encrypt for `138-197-15-40.sslip.io`; port 80 answers 308 to HTTPS |
@@ -212,6 +213,10 @@ remain open — see [pending owner sign-offs](owner-signoffs.md).
 4. **Tenant isolation is enforced by RLS** through `SET ROLE app_api`, not by a separate database user
    per tenant. The connection user is `postgres` (member of `app_api` and `anon`), and every request
    switches role; a code path that opened a connection without the interceptor would bypass RLS.
+5. **A loopback port exists for the operator probe.** The `api` service publishes `127.0.0.1:8081:8080` so
+   the scheduled probe can read `/health/ops`; the public edge answers `404` for that path
+   ([monitoring.md](monitoring.md)). Anything running on the droplet can read it, and a compose edit that
+   drops the `127.0.0.1:` prefix would publish diagnostics — the probe fails P1 if the bind changes.
 
 ## 8. Monthly cost
 
