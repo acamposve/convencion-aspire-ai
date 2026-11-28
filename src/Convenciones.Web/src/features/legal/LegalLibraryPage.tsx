@@ -254,6 +254,7 @@ function ArticleDialog({
               {headings.map((heading) => (
                 <MenuItem key={heading.id} value={heading.id}>
                   {heading.groupName} · {heading.name}
+                  {heading.isExcluded ? ' (no se compara)' : ''}
                 </MenuItem>
               ))}
             </TextField>

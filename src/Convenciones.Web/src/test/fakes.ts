@@ -776,7 +776,7 @@ export class FakeApi implements ApiClient {
     return [];
   }
 
-  async listHeadings(): Promise<HeadingView[]> {
+  async listHeadings(_includeExcluded?: boolean): Promise<HeadingView[]> {
     this.guard('listHeadings');
     return this.headings;
   }

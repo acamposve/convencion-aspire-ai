@@ -241,6 +241,27 @@ export interface HeadingView {
   sortOrder: number;
 }
 
+/**
+ * The wire shape of `GET /comparison/headings`: heading **groups** with their headings nested, ordered by
+ * the API. Only `listHeadings` consumes it; every screen receives the flattened `HeadingView[]`.
+ */
+export interface HeadingGroupWithHeadings {
+  id: string;
+  name: string;
+  description: string | null;
+  requiresEconomicComparison: boolean;
+  headings?: WireHeading[];
+}
+
+export interface WireHeading {
+  id: string;
+  groupId: string;
+  name: string;
+  description: string | null;
+  isExcluded: boolean;
+  sortOrder: number;
+}
+
 export interface ComparisonClauseView {
   clauseId: string;
   number: number;
@@ -605,7 +626,7 @@ export interface ApiClient {
   deleteClause(agreementId: string, clauseId: string, rowVersion: number): Promise<void>;
 
   listHeadingGroups(): Promise<HeadingGroupView[]>;
-  listHeadings(): Promise<HeadingView[]>;
+  listHeadings(includeExcluded?: boolean): Promise<HeadingView[]>;
   listCandidates(query: {
     headingId?: string | null;
     q?: string | null;
@@ -977,8 +998,43 @@ export class HttpApiClient implements ApiClient {
     return this.request<HeadingGroupView[]>('/comparison/heading-groups');
   }
 
-  async listHeadings(): Promise<HeadingView[]> {
-    return this.request<HeadingView[]>('/comparison/headings');
+  /**
+   * One flat list of headings for the screens that need a single selector (comparison, clause editor,
+   * statute article).
+   *
+   * `GET /comparison/headings` answers with groups that carry their headings nested, because the
+   * comparison workspace needs the group name and its definition. Flattening here keeps that wire shape in
+   * one place: sending a group id where a heading id is expected is exactly the defect #135 fixed, and it
+   * would come back if every screen did its own mapping.
+   *
+   * Order is explicit and stable: group position as returned by the API (the API sorts groups by their
+   * `sortOrder`), then the heading's `sortOrder`, then its name. A group without headings is skipped
+   * instead of throwing.
+   */
+  async listHeadings(includeExcluded = true): Promise<HeadingView[]> {
+    const query = includeExcluded ? '?includeExcluded=true' : '';
+    const groups = await this.request<HeadingGroupWithHeadings[]>(`/comparison/headings${query}`);
+
+    const flattened = groups.flatMap((group, groupPosition) =>
+      (group.headings ?? []).map((heading) => ({ group, groupPosition, heading })),
+    );
+
+    return flattened
+      .sort(
+        (left, right) =>
+          left.groupPosition - right.groupPosition ||
+          left.heading.sortOrder - right.heading.sortOrder ||
+          left.heading.name.localeCompare(right.heading.name),
+      )
+      .map(({ group, heading }) => ({
+        id: heading.id,
+        groupId: group.id,
+        groupName: group.name,
+        name: heading.name,
+        isExcluded: heading.isExcluded,
+        requiresEconomicComparison: group.requiresEconomicComparison,
+        sortOrder: heading.sortOrder,
+      }));
   }
 
   async listCandidates(query: {

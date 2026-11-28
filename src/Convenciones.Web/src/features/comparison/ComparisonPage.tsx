@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { PageHeader, EmptyState } from '../../components/PageHeader';
 import { useServices } from '../../services';
 import type { ComparisonCandidate, ComparisonView, HeadingView } from '../../lib/api';
-import { describeError, type UiError } from '../../lib/errors';
+import { ApiError, describeError, type UiError } from '../../lib/errors';
 
 const PAGE_SIZE = 5;
 
@@ -32,20 +32,35 @@ export function ComparisonPage() {
   const [result, setResult] = useState<ComparisonView | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<UiError | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  /**
+   * Only comparable headings are offered here: an excluded heading ("No Compara") is a valid
+   * classification for a clause, but the comparison never renders it.
+   */
+  const loadHeadings = useCallback(async (): Promise<HeadingView[]> => {
+    const list = (await api.listHeadings()).filter((candidate) => !candidate.isExcluded);
+    setHeadings(list);
+    return list;
+  }, [api]);
 
   useEffect(() => {
     void (async () => {
       try {
-        const list = await api.listHeadings();
-        setHeadings(list);
-
+        const list = await loadHeadings();
         setHeadingId(list[0]?.id ?? '');
+        if (list.length === 0) {
+          setNotice('No hay ninguna materia comparable en la taxonomía; revise la biblioteca legal.');
+        }
       } catch (failure) {
         setError(describeError(failure));
+      } finally {
+        setLoaded(true);
       }
     })();
-  }, [api]);
+  }, [loadHeadings]);
 
   useEffect(() => {
     if (headingId === '') {
@@ -57,11 +72,36 @@ export function ComparisonPage() {
       try {
         const response = await api.listCandidates({ headingId, page: 1, pageSize: 50 });
         setCandidates(response.items);
+        setError(null);
       } catch (failure) {
-        setError(describeError(failure));
+        // A heading that disappeared between loads (a taxonomy change, a stale selection) is not a
+        // failure of the request the operator made: recover to the first usable heading and say so,
+        // instead of leaving the engine's message on a blocked screen.
+        const stale = failure instanceof ApiError && (failure.status === 400 || failure.status === 404);
+
+        if (!stale) {
+          setError(describeError(failure));
+          return;
+        }
+
+        try {
+          const list = await loadHeadings();
+          const next = list[0]?.id ?? '';
+
+          if (next !== '' && next !== headingId) {
+            setNotice('La materia seleccionada ya no está disponible; se ha elegido la primera.');
+            setHeadingId(next);
+            return;
+          }
+
+          setCandidates([]);
+          setError(describeError(failure));
+        } catch (reloadFailure) {
+          setError(describeError(reloadFailure));
+        }
       }
     })();
-  }, [api, headingId]);
+  }, [api, headingId, loadHeadings]);
 
   const compare = useCallback(
     async (nextPage: number) => {
@@ -106,6 +146,16 @@ export function ComparisonPage() {
         </Alert>
       ) : null}
 
+      {notice ? (
+        <Alert severity="info" sx={{ mb: 2 }} onClose={() => setNotice(null)}>
+          {notice}
+        </Alert>
+      ) : null}
+
+      {loaded && headings.length === 0 && !error ? (
+        <EmptyState message="No hay materias comparables en la taxonomía todavía; un administrador tiene que revisarla." />
+      ) : null}
+
       <Paper sx={{ p: 2, mb: 3 }}>
         <Stack spacing={2}>
           <TextField
@@ -114,6 +164,7 @@ export function ComparisonPage() {
             value={headingId}
             onChange={(event) => {
               setHeadingId(event.target.value);
+              setNotice(null);
               setResult(null);
               setSelected([]);
             }}

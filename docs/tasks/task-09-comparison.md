@@ -28,6 +28,12 @@ as free text; paging and hard bounds; `AsNoTracking` and GET-only routes.
 | `GET` | `/comparison/candidates` | `comparison.read` | Published agreements of a company with ≥ 1 clause under the heading; `headingId`, `companyId?`, `page`, `pageSize` |
 | `GET` | `/comparison` | `comparison.read` | The adjacency projection for one heading and up to 50 selected agreements; `headingId`, `agreementIds`, `page`, `pageSize` |
 
+`headingId` is required and validated by one shared check on both `/comparison` and
+`/comparison/candidates`: absent, malformed (not a GUID), unknown or inactive answers **400
+`validation_failed`**, the same rule the clause endpoints use. Tenancy keeps **404 `not_found`**.
+The value is a heading id: `/comparison/headings` returns groups with nested headings, and the web
+client flattens them before sending one (#135).
+
 All routes are **GET-only**. `POST`/`PUT` on `/comparison` return **405**, and the module exposes no
 write method (AC 4).
 
