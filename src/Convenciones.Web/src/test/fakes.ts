@@ -96,6 +96,7 @@ export function makeHeading(overrides: Partial<HeadingView> = {}): HeadingView {
     id: nextId('heading'),
     groupId: 'group-1',
     groupName: 'GENERALES',
+    groupDescription: null,
     name: 'Salarios',
     isExcluded: false,
     requiresEconomicComparison: true,

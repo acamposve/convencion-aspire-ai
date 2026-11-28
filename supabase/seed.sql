@@ -150,15 +150,20 @@ where not exists (
 -- flag preserved as a real boolean. Sorting is explicit rather than alphabetical: the legacy read
 -- order GENERALES -> ECONOMICO -> SOCIOECONOMICAS -> SINDICALES -> SEGURIDAD OCUPACIONAL is
 -- meaningful and was lost by `order by nombre_categoria`.
+--
+-- The descriptions are the client's own wording from the original system ("Definiciones"), in Spanish
+-- (#138a): they are what he recognises as the grouping criterion, and ADR-030's interface language is
+-- Spanish. The insert is guarded by `not exists`, so existing environments are updated by migration
+-- 20261128000100 instead of here.
 -- -------------------------------------------------------------------------------------
 insert into app.comparison_heading_group (name, description, requires_economic_comparison, sort_order)
 select v.name, v.description, v.requires_economic_comparison, v.sort_order
 from (values
-    ('GENERALES',             'General clauses applicable across the agreement',           false, 10),
-    ('ECONOMICO',             'Wage and benefit clauses with a comparable monetary value',  true,  20),
-    ('SOCIOECONÓMICAS',       'Social and welfare benefits',                                true,  30),
-    ('SINDICALES',            'Union rights and contributions',                             true,  40),
-    ('SEGURIDAD OCUPACIONAL', 'Occupational health and safety',                             true,  50)
+    ('GENERALES',             'Se agrupan cláusulas que establecen condiciones y definiciones entre las partes.',                                          false, 10),
+    ('ECONOMICO',             'Se agrupan cláusulas que establecen pagos en dinero, especie o tiempo remunerado, que afectan o impactan Prestaciones Sociales y otros beneficios del trabajador.', true,  20),
+    ('SOCIOECONÓMICAS',       'Se agrupan cláusulas que establecen pagos en dinero o especie que no afectan o no inciden en Prestaciones Sociales u otros beneficios.', true,  30),
+    ('SINDICALES',            'Se agrupan cláusulas que implican pagos en dinero o especie, entregadas a la Institución (Federaciones, Confederaciones y/o Sindicatos).', true,  40),
+    ('SEGURIDAD OCUPACIONAL', 'Se agrupan cláusulas orientadas a la salud y protección del trabajador en el ambiente laboral.',                                 true,  50)
 ) as v(name, description, requires_economic_comparison, sort_order)
 where not exists (
     select 1 from app.comparison_heading_group g where lower(g.name) = lower(v.name)
