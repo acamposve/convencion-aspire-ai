@@ -93,7 +93,7 @@ describe('ComparisonPage', () => {
     await user.click(await screen.findByRole('checkbox'));
     await user.click(screen.getByRole('button', { name: 'Comparar' }));
 
-    expect(await screen.findByText(/no están publicados/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no están publicadas/i)).toBeInTheDocument();
   });
 
   it('never offers an excluded heading as a comparable matter', async () => {

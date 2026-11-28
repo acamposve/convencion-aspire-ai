@@ -20,7 +20,7 @@ reales (ver «Antes de empezar»).
 - El contenido de staging es **desechable**: se puede borrar sin aviso.
 
 Tu cuenta será una cuenta **administradora de tu empresa**: puedes cargar y borrar contratos, crear
-acuerdos y comparar. No tienes acceso al código ni a la configuración del servidor.
+convenciones y comparar. No tienes acceso al código ni a la configuración del servidor.
 
 ---
 
@@ -66,14 +66,14 @@ a una ley existente, pero todavía no tiene un botón «Nueva ley».
 
 ## Paso 4 — Comparar
 
-La comparación trabaja sobre **acuerdos publicados**, no directamente sobre los PDF subidos.
+La comparación trabaja sobre **convenciones publicadas**, no directamente sobre los PDF subidos.
 
-1. Ve a **Acuerdos** (`/agreements`) y pulsa **«Nuevo acuerdo»**.
+1. Ve a **Convenciones** (`/agreements`) y pulsa **«Nueva convención»**.
 2. En el editor, añade las cláusulas: número, título, resumen, cuerpo y **Materia** (obligatoria).
-3. Pulsa **«Publicar»** y confirma. Un acuerdo en borrador **no** aparece en la comparación.
+3. Pulsa **«Publicar»** y confirma. Una convención en borrador **no** aparece en la comparación.
 4. Ve a **Comparación** (`/comparison`):
    - elige la **Materia** en el desplegable;
-   - marca los acuerdos publicados que quieras comparar;
+   - marca las convenciones publicadas que quieras comparar;
    - pulsa **«Comparar»**.
 5. Verás las cláusulas de esa materia, una junto a otra, sin afirmar que sean equivalentes, y los
    artículos legales relacionados cuando la ley los tenga cargados y clasificados.
@@ -85,8 +85,8 @@ La comparación trabaja sobre **acuerdos publicados**, no directamente sobre los
 | Limitación | Por qué | Alternativa hoy |
 |---|---|---|
 | Crear una ley desde la interfaz | Falta el alta de leyes en la UI (la API ya lo soporta) | La registra soporte y tú cargas sus artículos |
-| Subir un contrato y compararlo directamente | No existe todavía la promoción de cláusulas extraídas a un acuerdo comparable | Crear el acuerdo y sus cláusulas en el editor (paso 4) |
-| Que la IA procese solo tras subir | El worker está apagado en staging | Se activa en una ventana controlada, o se prueba con un acuerdo ya autorado |
+| Subir un contrato y compararlo directamente | No existe todavía la promoción de cláusulas extraídas a una convención comparable | Crear la convención y sus cláusulas en el editor (paso 4) |
+| Que la IA procese solo tras subir | El worker está apagado en staging | Se activa en una ventana controlada, o se prueba con una convención ya autorada |
 
 Estas dos primeras están en el rediseño pendiente
 ([#138](https://github.com/acamposve/convencion-aspire-ai/issues/138), #139).
@@ -100,7 +100,8 @@ servidor. Mándanoslo y lo revisamos.
 ## Glosario mínimo
 
 - **Documento:** el PDF que subes.
-- **Acuerdo:** la convención colectiva que se compara; tiene cláusulas y se publica.
+- **Convención:** la convención colectiva que se compara; tiene cláusulas y se publica. En el menú del sistema original se llamaba «Contrato», y el «Acuerdo» era el resultado de una reunión de la Bitácora.
 - **Materia:** la categoría de la cláusula (por ejemplo, Jornada, Vacaciones, Estructura salarial). Es
   obligatoria para que la cláusula entre en la comparación.
-- **Publicado:** el acuerdo es visible en la comparación y en el portal público.
+- **Bitácora:** el registro de las reuniones de negociación: peticiones, ofertas y acuerdos de reunión.
+- **Publicado:** la convención es visible en la comparación y en el portal público.

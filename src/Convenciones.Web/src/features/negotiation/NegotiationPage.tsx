@@ -20,6 +20,7 @@ import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import { PageHeader, EmptyState } from '../../components/PageHeader';
+import { SECTIONS } from '../../lib/navigation';
 import { useCapabilities } from '../auth/useCapabilities';
 import { useServices } from '../../services';
 import type {
@@ -82,8 +83,8 @@ export function NegotiationPage() {
   return (
     <Box>
       <PageHeader
-        title="Negociación"
-        subtitle="Casos por empresa. Las etapas son explícitas: iniciar, pendiente, acordar, cerrar y reabrir."
+        title={SECTIONS.negotiation.label}
+        subtitle={SECTIONS.negotiation.help}
         actions={
           has('negotiation.write') ? (
             <Button variant="contained" onClick={() => setCreating(true)}>
@@ -254,7 +255,7 @@ export function NegotiationCasePage() {
         subtitle={
           <Stack direction="row" spacing={1} alignItems="center">
             <Chip size="small" label={STATE_LABEL[negotiationCase.state]} />
-            {promoted ? <Chip size="small" color="success" label="Promovido a acuerdo" /> : null}
+            {promoted ? <Chip size="small" color="success" label="Promovido a convención" /> : null}
             {negotiationCase.closedAt ? (
               <Typography variant="caption" color="text.secondary">
                 Cerrado {formatDateTime(negotiationCase.closedAt)}
@@ -278,7 +279,7 @@ export function NegotiationCasePage() {
               : null}
             {has('negotiation.promote') && closed && !promoted ? (
               <Button size="small" variant="contained" onClick={() => setPromoteOpen(true)}>
-                Promover a acuerdo
+                Promover a convención
               </Button>
             ) : null}
           </Stack>
@@ -653,7 +654,7 @@ function PromoteDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="promote-dialog">
-      <DialogTitle id="promote-dialog">Promover a acuerdo</DialogTitle>
+      <DialogTitle id="promote-dialog">Promover a convención</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           {error ? <Alert severity="error">{error}</Alert> : null}
@@ -674,7 +675,7 @@ function PromoteDialog({
           />
           <TextField label="Ámbito" value={scope} onChange={(event) => setScope(event.target.value)} required />
           <Typography variant="caption" color="text.secondary">
-            La promoción crea la cabecera del acuerdo. Las cláusulas se redactan después, en el acuerdo.
+            La promoción crea la cabecera de la convención. Las cláusulas se redactan después, en la convención.
           </Typography>
         </Stack>
       </DialogContent>
