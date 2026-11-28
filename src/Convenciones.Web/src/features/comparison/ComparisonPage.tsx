@@ -2,6 +2,7 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
+import Collapse from '@mui/material/Collapse';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Pagination from '@mui/material/Pagination';
@@ -9,11 +10,17 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { PageHeader, EmptyState } from '../../components/PageHeader';
 import { SECTIONS } from '../../lib/navigation';
+import { formatValidity } from '../../lib/format';
 import { useServices } from '../../services';
-import type { ComparisonCandidate, ComparisonView, HeadingView } from '../../lib/api';
+import type {
+  ComparisonCandidate,
+  ComparisonClauseView,
+  ComparisonView,
+  HeadingView,
+} from '../../lib/api';
 import { ApiError, describeError, type UiError } from '../../lib/errors';
 
 const PAGE_SIZE = 5;
@@ -133,6 +140,7 @@ export function ComparisonPage() {
   );
 
   const heading = headings.find((candidate) => candidate.id === headingId);
+  const headingDefinition = heading?.groupDescription ?? null;
 
   return (
     <Box>
@@ -178,6 +186,17 @@ export function ComparisonPage() {
               </MenuItem>
             ))}
           </TextField>
+
+          {headingDefinition ? (
+            <Box sx={{ borderLeft: 4, borderColor: 'primary.main', pl: 1.5 }}>
+              <Typography variant="subtitle2" component="p">
+                {heading?.groupName}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" component="p" data-testid="heading-definition">
+                {headingDefinition}
+              </Typography>
+            </Box>
+          ) : null}
 
           <Box>
             <Typography variant="subtitle2" component="p" sx={{ mb: 1 }}>
@@ -234,45 +253,60 @@ export function ComparisonPage() {
               : ''}
           </Typography>
 
+          {headingDefinition ? (
+            <Typography variant="body2" color="text.secondary" component="p" sx={{ mb: 2 }}>
+              <strong>{result.heading.groupName}:</strong> {headingDefinition}
+            </Typography>
+          ) : null}
+
           {result.unpublishedRequested.length > 0 ? (
             <Alert severity="warning" sx={{ mb: 2 }}>
               Algunas convenciones solicitadas no están publicadas y no se muestran: {result.unpublishedRequested.join(', ')}.
             </Alert>
           ) : null}
 
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' } }}>
-            <Paper sx={{ p: 2 }} aria-label="Artículos de la ley">
-              <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
-                Ley ({result.statuteArticleTotal})
+          <Paper sx={{ p: 2, mb: 2 }} aria-label="Biblioteca legal de esta materia">
+            <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
+              Biblioteca legal de esta materia
+            </Typography>
+            <Typography variant="caption" color="text.secondary" component="p" sx={{ mb: 1 }}>
+              Artículos de la biblioteca legal clasificados en «{result.heading.groupName}». Corresponden a la
+              materia, no a cada cláusula: no hay emparejamiento uno a uno entre artículo y cláusula.
+            </Typography>
+            {result.statuteArticles.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Ningún artículo de la biblioteca legal está clasificado en esta materia.
               </Typography>
-              {result.statuteArticles.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Ningún artículo de la biblioteca legal está clasificado en esta materia.
-                </Typography>
-              ) : (
-                <Stack spacing={1.5} sx={{ mt: 1 }}>
-                  {result.statuteArticles.map((article) => (
-                    <Box key={article.articleId}>
-                      <Typography variant="subtitle2" component="p">
-                        {article.statuteName} · art. {article.number}
-                      </Typography>
-                      <Typography variant="body2">{article.title}</Typography>
-                      <Typography variant="caption" color="text.secondary" component="div">
-                        {article.body}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Stack>
-              )}
-            </Paper>
+            ) : (
+              <Stack spacing={1.5} sx={{ mt: 1 }}>
+                {result.statuteArticles.map((article) => (
+                  <Box key={article.articleId}>
+                    <Typography variant="subtitle2" component="p">
+                      {article.statuteName} · art. {article.number}
+                    </Typography>
+                    <Typography variant="body2">{article.title}</Typography>
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      {article.body}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+            {result.statuteArticleTotal > result.statuteArticles.length ? (
+              <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
+                Se muestran {result.statuteArticles.length} de {result.statuteArticleTotal} artículos.
+              </Typography>
+            ) : null}
+          </Paper>
 
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' } }}>
             {result.agreements.map((agreement) => (
               <Paper key={agreement.agreementId} sx={{ p: 2 }} aria-label={`Cláusulas de ${agreement.title}`}>
                 <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>
                   {agreement.title}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {agreement.companyName} · vigencia {agreement.validFrom} – {agreement.validTo ?? 'sin fin'}
+                <Typography variant="caption" color="text.secondary" component="p">
+                  {agreement.companyName} · vigencia {formatValidity(agreement.validFrom, agreement.validTo)}
                 </Typography>
                 {agreement.clauses.length === 0 ? (
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -281,20 +315,7 @@ export function ComparisonPage() {
                 ) : (
                   <Stack spacing={1.5} sx={{ mt: 1 }}>
                     {agreement.clauses.map((clause) => (
-                      <Box key={clause.clauseId}>
-                        <Typography variant="subtitle2" component="p">
-                          {clause.number}. {clause.title}
-                          {clause.isExcludedFromCompilation ? ' (excluida)' : ''}
-                        </Typography>
-                        <Typography variant="body2" component="div">
-                          {clause.body}
-                        </Typography>
-                        {clause.economicComparisonNote ? (
-                          <Typography variant="caption" color="text.secondary" component="div">
-                            Nota económica: {clause.economicComparisonNote}
-                          </Typography>
-                        ) : null}
-                      </Box>
+                      <ComparedClause key={clause.clauseId} clause={clause} />
                     ))}
                   </Stack>
                 )}
@@ -313,6 +334,64 @@ export function ComparisonPage() {
         </Box>
       ) : heading ? (
         <EmptyState message="Seleccione convenciones publicadas y pulse Comparar." />
+      ) : null}
+    </Box>
+  );
+}
+
+/**
+ * One compared clause: the summary first, the full text on demand (#138a).
+ *
+ * The base text is the summary when it says something and the body otherwise, so a clause without a
+ * summary is never rendered empty. The toggle appears only when the body carries text the summary does
+ * not already show. `Collapse` unmounts the body while it is closed, so the same words are not in the
+ * document twice.
+ *
+ * A clause is never called "artículo": that word belongs to the legal library, and the screen keeps the
+ * adjacency wording (no clause is declared equivalent to another, ADR-028).
+ */
+function ComparedClause({ clause }: { clause: ComparisonClauseView }) {
+  const [expanded, setExpanded] = useState(false);
+  const contentId = useId();
+  const summary = clause.summary?.trim() ? clause.summary : clause.body;
+  const hasMore = clause.body.trim() !== '' && clause.body.trim() !== summary.trim();
+
+  return (
+    <Box>
+      <Typography variant="subtitle2" component="p">
+        {clause.number}. {clause.title}
+        {clause.isExcludedFromCompilation ? ' (excluida)' : ''}
+      </Typography>
+
+      <Box id={contentId}>
+        {expanded ? null : (
+          <Typography variant="body2" component="div" data-testid="clause-summary">
+            {summary}
+          </Typography>
+        )}
+        <Collapse in={expanded} unmountOnExit>
+          <Typography variant="body2" component="div" data-testid="clause-body">
+            {clause.body}
+          </Typography>
+        </Collapse>
+      </Box>
+
+      {clause.economicComparisonNote ? (
+        <Typography variant="caption" color="text.secondary" component="div">
+          Nota económica: {clause.economicComparisonNote}
+        </Typography>
+      ) : null}
+
+      {hasMore ? (
+        <Button
+          size="small"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={() => setExpanded((current) => !current)}
+          sx={{ mt: 0.5 }}
+        >
+          {expanded ? 'Ocultar cláusula completa' : 'Ver cláusula completa'}
+        </Button>
       ) : null}
     </Box>
   );

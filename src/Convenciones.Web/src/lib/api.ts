@@ -235,6 +235,12 @@ export interface HeadingView {
   id: string;
   groupId: string;
   groupName: string;
+  /**
+   * The group's definition, shown next to the materia (#138a). `listHeadings` always fills it;
+   * `ComparisonView.heading` comes from the comparison projection, which does not carry it, so the
+   * screen reads the definition from the heading it loaded.
+   */
+  groupDescription?: string | null;
   name: string;
   isExcluded: boolean;
   requiresEconomicComparison: boolean;
@@ -1030,6 +1036,7 @@ export class HttpApiClient implements ApiClient {
         id: heading.id,
         groupId: group.id,
         groupName: group.name,
+        groupDescription: group.description,
         name: heading.name,
         isExcluded: heading.isExcluded,
         requiresEconomicComparison: group.requiresEconomicComparison,
