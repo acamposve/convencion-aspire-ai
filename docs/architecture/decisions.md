@@ -666,6 +666,47 @@ and accepted. Password reset becomes reachable, which the client trial needs in 
 stops being about documents. Deleting a user still leaves the identity in Auth: that remains a separate
 decision.
 
+### ADR-031 — The comparison directory is every *published* agreement, and row-level security decides it *(#138b)*
+**Context:** the comparison workspace was scoped to the caller's company: `ComparisonQueries.Candidates`
+joined agreements on `agreement.CompanyId == companyId`, and the row-level policy required
+`can_access_company(company_id)`. That makes the screen useless for the job the client describes. He
+compares *his* convention against *another company's* — that is what the original system did, where the
+directory listed CEMEX, MAPLOCA, NESTLE and EFE and the filters (sector, type, state) existed to choose
+between them. Inside a single company every candidate shares the same sector, type and state, so a filter
+by them can only pass everything or nothing. Published agreements were already world-readable through the
+anonymous portal; the comparison was the one screen that could not see them.
+
+**Decision:**
+1. **Publication is the scope, not tenancy.** The candidate query and the clause projection load
+   agreements whose state is `Published`, from any company. The tenant predicate is not removed from the
+   business rules; it is replaced, for this read, by the publication predicate.
+2. **Row-level security is the guarantee, not the handler.** A new policy
+   (`agreement_api_read_published`) grants `app_api` select on rows in state `Published`, and
+   `agreement_clause_api_read_published` follows its parent through an `EXISTS`. The existing tenant
+   policies stay exactly as they were and are combined with OR, so the effective rule is "mine, or
+   published". The database refuses the read even if a future handler forgets the predicate.
+3. **Drafts stay invisible, indistinguishably.** A draft of another company is unreadable at the
+   database, so a request naming it fails the count check and answers `404 not_found`, exactly like a
+   missing id. Nothing in the response confirms that the draft exists.
+4. **Nothing else widens.** Insert, update and delete remain tenant-scoped and capability-gated; the
+   `authenticated` role is untouched (a direct Supabase client sees no change); and no other module
+   (documents, audit, negotiation, news) is relaxed.
+5. **Filters are applied on the server, before paging**, so `total` means "matching rows". The optional
+   `companyId` remains, but only for a company the caller may administer: it is a convenience for "my
+   company", not a way to probe which company ids exist.
+
+**Why not the alternatives:** filtering in the client over the first page would make `total` and the
+pagination lie as soon as the directory outgrows one page; widening every module's read policies would
+turn a comparison requirement into a general loss of tenant isolation; duplicating published agreements
+into a projection table would add a synchronisation problem to solve a permission problem.
+
+**Consequences:** the comparison module is no longer tenant-scoped on read, and that is now its defining
+trait — the ADR is what a future reader must check before adding a query there. The legal side of the
+workspace (statute articles) was already company-independent, so the screen becomes coherent: agreements
+and law are both reference material, and drafts are the only private thing. ADR-028 still holds: the
+screen shows adjacency and never alignment. A published agreement becomes comparable by every tenant the
+moment it is published, which is a product decision recorded here rather than an implementation detail.
+
 ## 5. Rejected alternatives
 
 | Alternative | Why rejected |
@@ -699,3 +740,4 @@ decision.
 | 0.7 | T14: **ADR-028** records the interface rules — capability-gated controls with the API as the guard, a comparison screen that claims adjacency and never alignment, a read-only published agreement behind a confirmed unpublish, and a portal that reads through a tokenless client. |
 | 0.8 | P1-005: **ADR-029** records per-invocation metering and the shadow-by-default, opt-in-enforced budget model; the limit and overspend policy stay with the Product Owner. |
 | 0.9 | T13 follow-up: **ADR-030** moves identity creation into the API by invitation — no credential in any endpoint, one `/auth/set-password` screen for invite and reset with the temporary session closed on success, `companyId` required and bounded to the caller's company (`403`), and the invitation email configured in the provider. |
+| 1.0 | #138b: **ADR-031** makes the comparison a directory of published agreements — publication replaces tenancy as the scope of that read, row-level security grants `app_api` the published rows and nothing else, foreign drafts stay indistinguishable from missing ones, and the filters (sector, type, state) are applied on the server before paging. |

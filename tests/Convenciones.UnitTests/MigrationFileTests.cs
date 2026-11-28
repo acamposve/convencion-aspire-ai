@@ -52,6 +52,7 @@ public sealed class MigrationFileTests
         "20261121000600_revoke_document_deletion_functions_public.sql",
         "20261121000700_worker_heartbeat.sql",
         "20261128000100_comparison_heading_definitions_es.sql",
+        "20261128000200_published_agreement_read.sql",
     ];
 
     [Fact]
