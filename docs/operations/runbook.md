@@ -320,3 +320,32 @@ When in doubt, the answer is no: ask the Product Owner before uploading, and nev
 | Backup frequency, retention, off-site, PITR verification | §5 has no schedule and no RTO commitment | [sign-off #3](owner-signoffs.md) |
 | Rotation intervals and provider plan (support tiers) | §7 is a proposal | [sign-off #3 / policy](owner-signoffs.md) |
 | Release smoke test | §3.5 verification is a manual list | **implemented (slice B):** [smoke-test.md](smoke-test.md); the first staging dispatch is still pending |
+
+## 10. Identity provider settings for self-service on-boarding (ADR-030)
+
+Apply this section **when ADR-030 is implemented** ([decisions](../architecture/decisions.md)), before the
+feature is released to end users. Until then users are created in the Supabase dashboard and provisioned
+through `/admin/users`, as §4.1 of
+[deployment](deployment.md#41-onboarding-a-user-with-the-supabase-invitation-flow) describes.
+
+| Setting | Where | Value |
+|---|---|---|
+| `Site URL` | Authentication → URL Configuration | `https://138-197-15-40.sslip.io` |
+| `Redirect URLs` | Authentication → URL Configuration | must contain `https://138-197-15-40.sslip.io/auth/set-password` |
+| Minimum password length | Authentication → Providers → Email | **12**, with no composition rules (NIST SP 800-63B) |
+| Invitation template | Authentication → Email Templates → Invite | Spanish subject and body; keep `{{ .ConfirmationURL }}` intact |
+
+**Order matters.** The redirect allow-list comes first: an invitation whose redirect is not allow-listed is
+rejected when the person opens it, and the failure looks like a broken link rather than a configuration
+mistake.
+
+**Verify before announcing it**, with a mailbox you control:
+
+1. Invite that address from `/admin/users`; the email arrives in Spanish.
+2. Open the link: it lands on `/auth/set-password`, not on `/login`.
+3. Set a 12-character password; the screen confirms and signs that temporary session out.
+4. Sign in at `/login` with the new password and check that the account opens its company's documents.
+5. Ask a second person to open the same link: it must be rejected as already used.
+
+**Known limit.** The built-in Supabase SMTP sends only a few messages per hour. That is fine for onboarding
+one or two people and is not suitable for a bulk import; a bulk path needs a provider decision first.

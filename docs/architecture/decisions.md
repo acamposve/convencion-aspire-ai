@@ -614,6 +614,58 @@ yet, so operating a budget is a SQL runbook step. The open decisions are listed 
 [P1-005](../tasks/P1-005-cost-metering.md) and in
 [pending owner sign-offs](../operations/owner-signoffs.md).
 
+### ADR-030 — A user is created in the application by invitation, and one password screen serves invite and reset *(T13 follow-up)*
+**Context:** ADR-027 kept the API out of identity creation because it held no Supabase Admin key and T13
+forbids handling passwords. Both premises have shifted in practice: the API already carries the project's
+`service_role` for Storage (`Program.cs:137-162`), and the workflow that decision left behind — create the
+user in the dashboard, copy a UUID, paste it into `/admin/users` — is the friction the Product Owner hit
+before the client trial. The same screen exposed a second defect: the dialog never sends `companyId`, so
+every user created from the application has no company and sees an empty product.
+
+**Decision:**
+1. **The API creates the identity; it never touches the password.** `POST /api/users/invitations` calls the
+   Supabase Admin API (`/auth/v1/admin/invite`) and provisions the platform rows with the returned subject.
+   No endpoint accepts, generates or returns a password. ADR-027's rule stands: what changes is who calls
+   Auth, not who owns the credential.
+2. **The user sets their own password in the application.** A public `/auth/set-password` screen consumes the
+   invitation token and calls `updateUser({ password })`. The same screen serves `type=recovery`, so password
+   reset — which does not exist today — arrives with the same work. The requirement is **length: twelve
+   characters minimum, with no composition rules** (NIST SP 800-63B), enforced in the screen and in the
+   Supabase Auth project settings.
+3. **The temporary session does not outlive the act.** On that route the token is exchanged explicitly
+   (`exchangeCodeForSession` for the PKCE code; the implicit fragment for older links), so the global
+   `detectSessionInUrl: false` and the in-memory-only token policy stay untouched. On success the screen
+   **signs out that session** and redirects to `/login` with a confirmation, leaving no recovered session
+   behind.
+4. **`companyId` is required, and bounded by the caller's own company.** An account without a company is a
+   defect, not a valid state. The API rejects a missing `companyId` with `400` and one that is not the
+   authenticated administrator's with **`403`**, for every role: `user.manage` administers accounts, not
+   tenancy.
+5. **One operation, compensated and retry-safe.** Identity first (it produces the subject), platform rows
+   second in one transaction. If the second step fails the identity is deleted; if that compensation also
+   fails, the subject is logged under a stable code and reconciliation is manual. An existing identity for
+   the same email is reused when it has no platform account; when it is already provisioned the answer is
+   `409`, and a pending invitation answers "already sent" rather than issuing a second one. Re-sending is a
+   later increment.
+6. **The privileged key stays server-side.** The Auth client is a typed `HttpClient` with a fixed base
+   address, so the `service_role` never reaches the browser, a log line or an error body.
+7. **The invitation email is configured in the provider, in Spanish.** The template and the URL allow-list are
+   a deployment step recorded in the runbook, not application code.
+
+**Why not the alternatives:** creating the user with a temporary password makes the application handle a
+credential and forces the UI to display it once; keeping the two manual steps is the friction this ADR
+removes and leaves the `companyId` defect in place; letting `user.manage` cross companies would turn an
+account-administering capability into a tenancy one, which the capability split exists to prevent; sending
+our own mail would add an SMTP integration for a volume the built-in Supabase SMTP already covers.
+
+**Consequences:** the API gains an outbound dependency on GoTrue on the request path of user creation, so a
+GoTrue outage now fails the invitation (`502`) instead of a dashboard click. The email leaves before the
+platform row exists; if the operation is compensated, the issued link leads to `no_profile` — fail-closed,
+and accepted. Password reset becomes reachable, which the client trial needs in order to be supportable.
+`Documents:SupabaseUrl/SecretKey` is renamed `Supabase:Url/Key` with a compatibility read, because the key
+stops being about documents. Deleting a user still leaves the identity in Auth: that remains a separate
+decision.
+
 ## 5. Rejected alternatives
 
 | Alternative | Why rejected |
@@ -646,3 +698,4 @@ yet, so operating a budget is a SQL runbook step. The open decisions are listed 
 | 0.6 | T13: **ADR-027** makes the bootstrap one locking database function with no credential in any endpoint, adds user/role/audit administration with the anti-lockout 409s, and moves `AuditEntry` to the shared kernel so the audit query can filter on columns. |
 | 0.7 | T14: **ADR-028** records the interface rules — capability-gated controls with the API as the guard, a comparison screen that claims adjacency and never alignment, a read-only published agreement behind a confirmed unpublish, and a portal that reads through a tokenless client. |
 | 0.8 | P1-005: **ADR-029** records per-invocation metering and the shadow-by-default, opt-in-enforced budget model; the limit and overspend policy stay with the Product Owner. |
+| 0.9 | T13 follow-up: **ADR-030** moves identity creation into the API by invitation — no credential in any endpoint, one `/auth/set-password` screen for invite and reset with the temporary session closed on success, `companyId` required and bounded to the caller's company (`403`), and the invitation email configured in the provider. |
