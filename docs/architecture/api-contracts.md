@@ -1,7 +1,7 @@
 # API contracts — Convenciones
 
 **Status: proposed for approval.** The choices needing sign-off are marked **[A-nn]** and listed in
-[decisions.md](decisions.md#decisions-requiring-approval).
+[decisions.md](decisions.md#2-decisions-requiring-approval).
 
 Domain reference: [domain-model.md](domain-model.md). Authorization: [security-model.md](security-model.md).
 
@@ -312,6 +312,14 @@ read drafts. It is reported in **`unpublishedRequested`** rather than silently i
 page; at most 50 distinct `agreementIds`, and missing/invalid ids are **400 `validation_failed`**. The
 caller chooses one heading and a bounded set of columns, so a company with hundreds of clauses cannot
 make one request return the corpus.
+
+**Heading parameter.** `headingId` is validated the same way on `/comparison` and
+`/comparison/candidates`, through one shared check: absent, not a GUID, unknown or inactive is
+**400 `validation_failed`**, the rule the clause endpoints already apply ("a missing, unknown or
+inactive heading is 400 `validation_failed`"). Tenancy keeps **404 `not_found`**, so an inaccessible
+company or agreement stays indistinguishable from a missing one. A caller must never send a heading
+*group* id here: `/comparison/headings` answers with groups that nest their headings, and the web client
+flattens them before it stores or sends an id (issue #135).
 
 **Stable order.** Candidates and agreement columns by `validFrom` descending then id; clauses by
 numeric number ascending; heading groups by `sortOrder` then name.

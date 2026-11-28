@@ -314,9 +314,26 @@ public sealed class ComparisonTests(AgreementFixture fixture) : IDisposable
         clamped.ShouldNotBeNull();
         clamped!.PageSize.ShouldBe(5, "the comparison page size is bounded");
 
-        var unknownHeading = await client.GetAsync(
-            new Uri($"/comparison/candidates?headingId={Guid.NewGuid()}", UriKind.Relative));
-        unknownHeading.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        // #135: a heading that is missing, malformed or unknown is a request-validation failure, the rule
+        // the clause endpoints already follow and docs/architecture/api-contracts.md documents. Tenancy
+        // keeps answering 404 so an inaccessible resource stays indistinguishable from a missing one.
+        foreach (var raw in new[] { "not-a-guid", Guid.NewGuid().ToString() })
+        {
+            var candidates = await client.GetAsync(
+                new Uri($"/comparison/candidates?headingId={raw}", UriKind.Relative));
+            candidates.StatusCode.ShouldBe(HttpStatusCode.BadRequest, raw);
+            (await ReadCodeAsync(candidates)).ShouldBe("validation_failed", raw);
+
+            var comparison = await client.GetAsync(
+                new Uri($"/comparison?headingId={raw}&agreementIds={published.Agreement.Id}", UriKind.Relative));
+            comparison.StatusCode.ShouldBe(HttpStatusCode.BadRequest, raw);
+            (await ReadCodeAsync(comparison)).ShouldBe("validation_failed", raw);
+        }
+
+        var withoutHeading = await client.GetAsync(
+            new Uri("/comparison/candidates?page=1&pageSize=10", UriKind.Relative));
+        withoutHeading.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await ReadCodeAsync(withoutHeading)).ShouldBe("validation_failed");
     }
 
     [Fact]

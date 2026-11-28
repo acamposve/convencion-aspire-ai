@@ -124,6 +124,33 @@ answered `42501 permission denied to set role "app_api"`.
    Auth user created the same way (dashboard → Add user → provision with its UID). Sign-ups stay
    disabled.
 
+### 4.1 Onboarding a user with the Supabase invitation flow
+
+The application never handles passwords: no invitation, no reset, no password column (T13). The
+credential belongs to Supabase Auth, and the platform row only mirrors the subject.
+
+1. **Invite, do not create with a password.** Supabase → Authentication → Users → **Invite** with the
+   person's email. Supabase creates the user **with its UID already assigned** and sends a link to set
+   their own password. No temporary password travels through chat or email in clear.
+2. **Check the Auth URLs before sending anything.** Authentication → **URL Configuration**:
+   `Site URL` must be `https://138-197-15-40.sslip.io`, and the **Redirect URLs** list must contain the
+   application's own origin (and any callback path the project uses). If the redirect is not allow-listed
+   the invitation link is rejected when the person opens it.
+3. **Copy the UID** from the user list.
+4. **Provision the platform row**, signed in as an administrator: `/admin/users` → Nuevo usuario, or
+   `POST /api/users` with `user.manage`:
+   `{ subject: <UID>, email, displayName, phone, companyId, roleKeys: ["administrator"], isBlocked: false, expiresOn: null }`.
+   That writes `platform.user_account`, `platform.user_profile`, `platform.user_role` and the audit row.
+5. **Order matters.** If the person opens the invitation and signs in *before* step 4, the session
+   middleware answers `no_profile`: the account exists in Auth but not in the platform. It fixes itself as
+   soon as the row is created, but it is a poor first impression — provision first, then tell them to check
+   their inbox.
+6. **Verify** with them: `/api/me` returns the profile and capabilities, the first screen loads, and — for
+   a company administrator — no other company's data is visible.
+
+Email delivery uses the Supabase built-in SMTP, which is rate limited to a few messages per hour: fine for
+onboarding one or two people, not for a bulk import.
+
 ## 5. Verification (what "deployed" means)
 
 | Check | How |

@@ -94,4 +94,74 @@ describe('HttpApiClient', () => {
     const call = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(call[0]).toBe('http://api.test/documents?page=2&pageSize=5');
   });
+
+  // #135: /comparison/headings answers with groups that nest their headings. Sending a group id where a
+  // heading id is expected is what broke the comparison, the clause editor and the statute page, so the
+  // flattening is asserted here, at the boundary, and not only through a screen.
+  it('flattens heading groups into a deterministic heading list', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, [
+        {
+          id: 'g1',
+          name: 'GENERALES',
+          description: null,
+          requiresEconomicComparison: false,
+          headings: [
+            {
+              id: 'h-vac',
+              groupId: 'g1',
+              name: 'Vacaciones anuales',
+              description: null,
+              isExcluded: false,
+              sortOrder: 20,
+            },
+            {
+              id: 'h-nc',
+              groupId: 'g1',
+              name: 'No Compara',
+              description: null,
+              isExcluded: true,
+              sortOrder: 0,
+            },
+          ],
+        },
+        {
+          id: 'g2',
+          name: 'ECONOMICO',
+          description: null,
+          requiresEconomicComparison: true,
+          headings: [
+            {
+              id: 'h-sal',
+              groupId: 'g2',
+              name: 'Estructura salarial',
+              description: null,
+              isExcluded: false,
+              sortOrder: 10,
+            },
+          ],
+        },
+        // A group without headings must be skipped, not throw.
+        { id: 'g3', name: 'SIN MATERIAS', description: null, requiresEconomicComparison: false },
+      ]),
+    );
+
+    const api = new HttpApiClient('http://api.test', authWith('token-123'));
+    const headings = await api.listHeadings();
+
+    expect(headings.map((heading) => heading.id)).toEqual(['h-nc', 'h-vac', 'h-sal']);
+    expect(headings[0]).toMatchObject({
+      groupId: 'g1',
+      groupName: 'GENERALES',
+      isExcluded: true,
+      requiresEconomicComparison: false,
+    });
+    expect(headings[2]).toMatchObject({
+      groupName: 'ECONOMICO',
+      requiresEconomicComparison: true,
+    });
+
+    const call = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(call[0]).toBe('http://api.test/comparison/headings?includeExcluded=true');
+  });
 });

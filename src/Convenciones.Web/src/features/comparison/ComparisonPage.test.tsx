@@ -2,6 +2,8 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { renderApp } from '../../test/renderApp';
 import { FakeApi, makeHeading } from '../../test/fakes';
+import type { ComparisonCandidate, HeadingView, Page } from '../../lib/api';
+import { ApiError } from '../../lib/errors';
 
 const heading = makeHeading({ name: 'Salarios', groupName: 'GENERALES' });
 
@@ -93,4 +95,66 @@ describe('ComparisonPage', () => {
 
     expect(await screen.findByText(/no están publicados/i)).toBeInTheDocument();
   });
+
+  it('never offers an excluded heading as a comparable matter', async () => {
+    const api = new FakeApi();
+    api.headings = [
+      makeHeading({ name: 'No Compara', isExcluded: true }),
+      makeHeading({ name: 'Vacaciones anuales' }),
+    ];
+
+    renderApp({ api, route: '/comparison' });
+
+    expect(await screen.findByText(/GENERALES · Vacaciones anuales/)).toBeInTheDocument();
+    expect(screen.queryByText(/No Compara/)).toBeNull();
+  });
+
+  it('recovers to the first usable heading when the selected one disappeared', async () => {
+    const replacement = makeHeading({ name: 'Permisos y licencias' });
+    const api = new StaleHeadingApi(replacement);
+    api.headings = [makeHeading({ name: 'Vacaciones anuales' })];
+
+    renderApp({ api, route: '/comparison' });
+
+    expect(await screen.findByText(/ya no está disponible/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Permisos y licencias/)).toBeInTheDocument();
+  });
+
+  it('shows the validation problem and keeps the screen usable when the API rejects the heading', async () => {
+    const api = new RejectingHeadingApi();
+    api.headings = [makeHeading({ name: 'Vacaciones anuales' })];
+
+    renderApp({ api, route: '/comparison' });
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/GUID/);
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
+  });
 });
+
+/** A heading that vanishes after the first candidates request: the stale-selection case of #135. */
+class StaleHeadingApi extends FakeApi {
+  private candidateCalls = 0;
+
+  constructor(private readonly replacement: HeadingView) {
+    super();
+  }
+
+  override async listCandidates(): Promise<Page<ComparisonCandidate>> {
+    this.candidateCalls += 1;
+
+    if (this.candidateCalls === 1) {
+      this.headings = [this.replacement];
+      throw new ApiError(400, 'validation_failed', "No active heading with id 'gone' exists.");
+    }
+
+    return { items: [], page: 1, pageSize: 50, total: 0 };
+  }
+}
+
+/** The API rejects every candidates request with the documented validation problem. */
+class RejectingHeadingApi extends FakeApi {
+  override async listCandidates(): Promise<Page<ComparisonCandidate>> {
+    throw new ApiError(400, 'validation_failed', 'headingId must be a GUID.');
+  }
+}

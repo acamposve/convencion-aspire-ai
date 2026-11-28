@@ -88,7 +88,7 @@ public static class ComparisonEndpoints
         ConvencionesDbContext db,
         ISessionAccessor accessor,
         CancellationToken cancellationToken,
-        Guid headingId,
+        string? headingId,
         Guid? companyId = null,
         int page = 1,
         int pageSize = DefaultCandidatePageSize)
@@ -99,18 +99,15 @@ public static class ComparisonEndpoints
             return Forbidden();
         }
 
-        if (headingId == Guid.Empty)
-        {
-            return Validation("A headingId is required.");
-        }
-
         page = page < 1 ? 1 : page;
         pageSize = pageSize is < 1 or > MaxCandidatePageSize ? DefaultCandidatePageSize : pageSize;
 
-        var heading = await LoadHeadingAsync(db, headingId, cancellationToken).ConfigureAwait(false);
+        var (heading, headingProblem) = await ResolveHeadingAsync(db, headingId, cancellationToken)
+            .ConfigureAwait(false);
         if (heading is null)
         {
-            return NotFoundHeading(headingId);
+            // The resolver always returns a problem when it cannot return a heading.
+            return headingProblem!;
         }
 
         var targetCompany = companyId ?? session.CompanyId;
@@ -131,7 +128,7 @@ public static class ComparisonEndpoints
             db.Agreements.AsNoTracking(),
             db.Companies.AsNoTracking(),
             company,
-            headingId);
+            heading.Id);
 
         var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
 
@@ -160,7 +157,7 @@ public static class ComparisonEndpoints
         GetStatuteArticlesForHeadingHandler statuteArticlesHandler,
         ISessionAccessor accessor,
         CancellationToken cancellationToken,
-        Guid headingId,
+        string? headingId,
         string? agreementIds = null,
         int page = 1,
         int pageSize = DefaultComparisonPageSize)
@@ -171,9 +168,12 @@ public static class ComparisonEndpoints
             return Forbidden();
         }
 
-        if (headingId == Guid.Empty)
+        var (heading, headingProblem) = await ResolveHeadingAsync(db, headingId, cancellationToken)
+            .ConfigureAwait(false);
+        if (heading is null)
         {
-            return Validation("A headingId is required.");
+            // The resolver always returns a problem when it cannot return a heading.
+            return headingProblem!;
         }
 
         if (!TryParseAgreementIds(agreementIds, out var requestedIds, out var idError))
@@ -186,12 +186,6 @@ public static class ComparisonEndpoints
             ? DefaultComparisonPageSize
             : pageSize;
 
-        var heading = await LoadHeadingAsync(db, headingId, cancellationToken).ConfigureAwait(false);
-        if (heading is null)
-        {
-            return NotFoundHeading(headingId);
-        }
-
         // The legal side of the workspace: every statute article classified under this heading.
         // Statutes are company-independent reference data, so this query carries no company filter —
         // that is the deliberate difference from the agreements beside it. An excluded heading yields
@@ -203,7 +197,7 @@ public static class ComparisonEndpoints
                 .HandleAsync(
                     db.StatuteArticles,
                     db.Statutes,
-                    new GetStatuteArticlesForHeadingQuery(headingId),
+                    new GetStatuteArticlesForHeadingQuery(heading.Id),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -271,7 +265,7 @@ public static class ComparisonEndpoints
                 agreement.ValidFrom,
                 agreement.ValidTo,
                 agreement.Clauses
-                    .Where(clause => clause.HeadingId == headingId)
+                    .Where(clause => clause.HeadingId == heading.Id)
                     .OrderBy(clause => clause.Number)
                     .Select(clause => new ComparisonClauseView(
                         clause.Id,
@@ -303,6 +297,43 @@ public static class ComparisonEndpoints
             page,
             pageSize,
             total));
+    }
+
+    /// <summary>
+    /// Resolves the heading a comparison request names, with one validation path for both endpoints.
+    /// </summary>
+    /// <remarks>
+    /// A heading that is missing, malformed, unknown or inactive is a request-validation failure
+    /// (400 <c>validation_failed</c>), the same rule the clause endpoints apply and
+    /// <c>docs/architecture/api-contracts.md</c> documents. Tenancy keeps answering 404
+    /// <c>not_found</c> so an inaccessible company or agreement stays indistinguishable from a missing
+    /// one.
+    /// </remarks>
+    /// <returns>
+    /// The heading and <see langword="null"/>, or <see langword="null"/> and the problem to return. Both
+    /// comparison endpoints call this one method: duplicating the parse in each of them is how their
+    /// answers drifted apart in the first place (#135).
+    /// </returns>
+    private static async Task<(ComparisonHeadingView? Heading, IResult? Problem)> ResolveHeadingAsync(
+        ConvencionesDbContext db,
+        string? rawHeadingId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(rawHeadingId))
+        {
+            return (null, Validation("A headingId is required."));
+        }
+
+        if (!Guid.TryParse(rawHeadingId, out var headingId))
+        {
+            return (null, Validation("headingId must be a GUID."));
+        }
+
+        var heading = await LoadHeadingAsync(db, headingId, cancellationToken).ConfigureAwait(false);
+
+        return heading is null
+            ? (null, Validation($"No active heading with id '{headingId}' exists."))
+            : (heading, null);
     }
 
     private static async Task<ComparisonHeadingView?> LoadHeadingAsync(
@@ -379,13 +410,6 @@ public static class ComparisonEndpoints
             title: "Validation failed",
             detail: detail,
             extensions: new Dictionary<string, object?> { ["code"] = ErrorCodes.ValidationFailed });
-
-    private static IResult NotFoundHeading(Guid id) =>
-        Results.Problem(
-            statusCode: StatusCodes.Status404NotFound,
-            title: "Not found",
-            detail: $"No active heading with id '{id}' exists.",
-            extensions: new Dictionary<string, object?> { ["code"] = ErrorCodes.NotFound });
 
     private static IResult NotFoundCompany(Guid id) =>
         Results.Problem(
