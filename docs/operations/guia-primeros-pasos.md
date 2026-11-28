@@ -50,10 +50,19 @@ a una ley existente, pero todavía no tiene un botón «Nueva ley».
 1. En la tarjeta del documento pulsa **«Procesar»**: extrae el texto del PDF (queda en `Procesado`).
 2. Pulsa **«Procesar cláusulas»**: la IA lee el contrato, separa las cláusulas y las clasifica por
    Materia.
-3. **Importante:** en staging el worker está **apagado**. El procesamiento queda **`Pendiente`/`Queued`**
-   y no avanza solo: verás el documento encolado y sin cláusulas. Es lo esperado y protege el gasto en IA.
-   Si necesitas una demostración completa, se activa en una ventana controlada y se vuelve a apagar.
-4. **«Ver texto»** muestra el texto extraído del contrato.
+3. **Importante:** en staging el worker está **apagado**. Dentro del diálogo verás el estado **`Queued`**
+   (el servidor lo devuelve así, sin traducir), una barra de progreso y el aviso «El procesamiento
+   continúa en segundo plano; puede cerrar y volver más tarde». **En staging ese aviso no se cumple**: no
+   hay ningún proceso detrás que vaya a avanzar el trabajo, así que el documento se queda en `Queued` y
+   sin cláusulas indefinidamente. Es lo esperado y protege el gasto en IA. En la lista, la tarjeta del
+   documento sigue mostrando **`Completed`**, porque el texto sí se extrajo: el `Queued` solo se ve dentro
+   del diálogo.
+4. **No vuelvas a pulsar «Procesar cláusulas» para «ver si arranca».** No es peligroso —la aplicación no
+   crea un segundo trabajo ni gasta tokens— pero deja un trabajo encolado vivo, y mientras ese trabajo
+   esté encolado la aplicación **no acepta procesar cláusulas de ningún otro documento** de tu empresa:
+   responde con un error de límite de ejecuciones simultáneas (409 `concurrency_limit`) hasta que se
+   reactive el worker. Un solo documento encolado bloquea el resto.
+5. **«Ver texto»** muestra el texto extraído del contrato.
 
 ## Paso 4 — Comparar
 
