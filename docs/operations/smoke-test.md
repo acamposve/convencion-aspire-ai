@@ -32,6 +32,7 @@ synthetic tenant, and then removes what it created.
 | 7 | Publish | `POST /agreements/{id}/publish` for both compared agreements | `200` ×2 |
 | 8 | Compare | `GET /comparison/?headingId=…&agreementIds=<a>,<b>` | `200` with **both** authored clause bodies (the comparison renders published agreements only) |
 | 9 | Public portal (anonymous) | `GET /public/agreements` · `/public/agreements/{published}` · `/public/agreements/{draft}` | `200` · `200` · **`404`** |
+| 10 | Heading contract guard | `GET /comparison` and `/comparison/candidates` with `headingId=not-a-guid` and with an unknown GUID | **`400` `validation_failed`** in both cases (#135) |
 
 `process` stops at the queue boundary on purpose: the gate asserts the run reaches `Queued` **and** that
 `platform.worker_heartbeat.enabled` is false **and** that no `Classify` row appeared in
@@ -131,7 +132,7 @@ Paste the workflow run URL and this table, filled from the run's step summary:
 |---|---|
 | Commit deployed | `<sha>` |
 | Run URL | `<actions run>` |
-| Flows 1–9 | pass / fail (the summary table has the observed and expected codes) |
+| Flows 1–10 | pass / fail (the summary table has the observed and expected codes) |
 | Worker during the run | `enabled=false` (asserted) |
 | Classification calls | `0` (asserted) |
 | Extraction calls | `1` (observed) |

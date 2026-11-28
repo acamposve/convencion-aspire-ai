@@ -307,6 +307,20 @@ run_flows() {
   code="$(api GET "/public/agreements/$AGREEMENT_DRAFT_ONLY" '')"
   expect "public portal hides the draft" "$code" 404
 
+  # The heading contract (#135): both comparison endpoints reject an unusable headingId with 400
+  # validation_failed, and tenancy keeps answering 404. This is the only place the contract is
+  # exercised against the deployed environment with a real session, so it runs on every dispatch.
+  for endpoint in "comparison" "comparison/candidates"; do
+    for invalid in "not-a-guid" "00000000-0000-0000-0000-000000000000"; do
+      code="$(curl -sS -o "$BODY" -w '%{http_code}' \
+        -H "Authorization: Bearer $token" \
+        "$STAGING_API_URL/$endpoint?headingId=$invalid&agreementIds=$AGREEMENT_DRAFT")"
+      expect "invalid headingId on /$endpoint ($invalid) is refused" "$code" 400
+      grep -q '"code":"validation_failed"' "$BODY" \
+        || fail "/$endpoint answered 400 for '$invalid' without the validation_failed code"
+    done
+  done
+
   status="$(psql_scalar "select enabled from platform.worker_heartbeat where id = 1;")"
   row "worker enabled" "$status" "f"
   [ "$status" = "f" ] || fail "the staging worker is enabled; the gate must run with it disabled"
