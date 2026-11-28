@@ -291,6 +291,18 @@ public sealed class AgreementFixture : IAsyncLifetime
         return (Guid)id!;
     }
 
+    /// <summary>Retires a sector so a test can prove the catalogs endpoint omits inactive options.</summary>
+    public async Task DeactivateSectorAsync(Guid sectorId)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        await using var command = new NpgsqlCommand(
+            "update app.company_sector set is_active = false where id = @id", connection);
+        command.Parameters.AddWithValue("id", sectorId);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
     private async Task SeedAsync()
     {
         const string sql = """

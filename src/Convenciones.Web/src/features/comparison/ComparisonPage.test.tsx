@@ -13,6 +13,11 @@ const heading = makeHeading({
 
 function seed(api: FakeApi) {
   api.headings = [heading];
+  api.catalogs = {
+    sectors: [{ id: 's1', name: 'Sector Industria' }],
+    types: [{ id: 't1', name: 'Tipo Privado' }],
+    states: [{ id: 'st1', name: 'Estado Miranda' }],
+  };
   api.candidates = [
     {
       agreementId: 'a1',
@@ -22,6 +27,12 @@ function seed(api: FakeApi) {
       validFrom: '2026-01-01',
       validTo: null,
       clauseCount: 2,
+      sectorId: 's1',
+      sectorName: 'Sector Industria',
+      typeId: 't1',
+      typeName: 'Tipo Privado',
+      stateId: 'st1',
+      stateName: 'Estado Miranda',
     },
   ];
   api.comparison = {
@@ -117,6 +128,93 @@ describe('ComparisonPage', () => {
     expect(await screen.findByTestId('heading-definition')).toHaveTextContent(
       'Se agrupan cláusulas que establecen condiciones y definiciones entre las partes.',
     );
+  });
+
+  it('offers the sector, type and state filters from the catalogs', async () => {
+    const api = new FakeApi();
+    seed(api);
+    renderApp({ api, route: '/comparison' });
+
+    expect(await screen.findByTestId('comparison-filters')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sector')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tipo de empresa')).toBeInTheDocument();
+    expect(screen.getByLabelText('Estado')).toBeInTheDocument();
+    expect(screen.getByText(/solo aparecen cuando Sector está en «Todos»/i)).toBeInTheDocument();
+  });
+
+  it('hides a filter whose catalog is empty', async () => {
+    const api = new FakeApi();
+    seed(api);
+    api.catalogs = { sectors: [], types: [], states: [] };
+    renderApp({ api, route: '/comparison' });
+
+    await screen.findByRole('checkbox');
+
+    expect(screen.queryByTestId('comparison-filters')).toBeNull();
+    expect(screen.queryByLabelText('Sector')).toBeNull();
+    expect(screen.queryByLabelText('Tipo de empresa')).toBeNull();
+    expect(screen.queryByLabelText('Estado')).toBeNull();
+  });
+
+  it('sends the chosen filter to the server and clears the selection', async () => {
+    const api = new FakeApi();
+    seed(api);
+    const { user } = renderApp({ api, route: '/comparison' });
+
+    const checkbox = await screen.findByRole('checkbox');
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+
+    await user.click(screen.getByLabelText('Sector'));
+    await user.click(await screen.findByRole('option', { name: 'Sector Industria' }));
+
+    // The filter travels in the request: the server narrows the list before paging.
+    await waitFor(() => expect(api.candidateQueries.at(-1)?.sectorId).toBe('s1'));
+
+    // The previous selection was made against a different list, so it is dropped.
+    const reloaded = await screen.findByRole('checkbox');
+    expect(reloaded).not.toBeChecked();
+
+    // The materia is kept: only the candidate list changed.
+    expect(api.candidateQueries.at(-1)?.headingId).toBe(heading.id);
+  });
+
+  it('clears the filters and reloads without them', async () => {
+    const api = new FakeApi();
+    seed(api);
+    const { user } = renderApp({ api, route: '/comparison' });
+
+    await screen.findByRole('checkbox');
+
+    await user.click(screen.getByLabelText('Sector'));
+    await user.click(await screen.findByRole('option', { name: 'Sector Industria' }));
+    await waitFor(() => expect(api.candidateQueries.at(-1)?.sectorId).toBe('s1'));
+
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+
+    await waitFor(() => expect(api.candidateQueries.at(-1)?.sectorId).toBeNull());
+    expect(api.candidateQueries.at(-1)?.typeId).toBeNull();
+    expect(api.candidateQueries.at(-1)?.stateId).toBeNull();
+  });
+
+  it('explains that no candidate matches the filters without raising an error', async () => {
+    const api = new FakeApi();
+    seed(api);
+    api.candidates = [];
+    const { user } = renderApp({ api, route: '/comparison' });
+
+    await screen.findByTestId('comparison-filters');
+
+    await user.click(screen.getByLabelText('Sector'));
+    await user.click(await screen.findByRole('option', { name: 'Sector Industria' }));
+
+    const empty = await screen.findByTestId('no-filter-matches');
+    expect(empty).toHaveTextContent(/Ninguna convención publicada coincide con los filtros aplicados/i);
+    expect(empty).toHaveTextContent(/Sector: Sector Industria/i);
+
+    // It is an explanation, not a failure: no alert role anywhere on the screen.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Limpiar filtros' }).length).toBeGreaterThan(0);
   });
 
   it('shows the clause summary and expands the full text on demand', async () => {

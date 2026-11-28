@@ -16,6 +16,7 @@ import { SECTIONS } from '../../lib/navigation';
 import { formatValidity } from '../../lib/format';
 import { useServices } from '../../services';
 import type {
+  CompanyCatalogs,
   ComparisonCandidate,
   ComparisonClauseView,
   ComparisonView,
@@ -43,6 +44,12 @@ export function ComparisonPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [catalogs, setCatalogs] = useState<CompanyCatalogs>({ sectors: [], types: [], states: [] });
+  const [sectorId, setSectorId] = useState('');
+  const [typeId, setTypeId] = useState('');
+  const [stateId, setStateId] = useState('');
+
+  const filtersActive = sectorId !== '' || typeId !== '' || stateId !== '';
 
   /**
    * Only comparable headings are offered here: an excluded heading ("No Compara") is a valid
@@ -70,15 +77,40 @@ export function ComparisonPage() {
     })();
   }, [loadHeadings]);
 
+  /**
+   * The filters' options (#138b). A failure here is not fatal: the screen keeps working unfiltered,
+   * because a comparison with no filters is still a valid comparison.
+   */
+  useEffect(() => {
+    void (async () => {
+      try {
+        setCatalogs(await api.getCompanyCatalogs());
+      } catch {
+        // The three selectors simply do not render; the candidate list is unaffected.
+      }
+    })();
+  }, [api]);
+
   useEffect(() => {
     if (headingId === '') {
       setCandidates([]);
       return;
     }
 
+    // A new heading or a new filter means a different candidate list, so a selection made against the
+    // previous one is no longer meaningful.
+    setSelected([]);
+
     void (async () => {
       try {
-        const response = await api.listCandidates({ headingId, page: 1, pageSize: 50 });
+        const response = await api.listCandidates({
+          headingId,
+          sectorId: sectorId === '' ? null : sectorId,
+          typeId: typeId === '' ? null : typeId,
+          stateId: stateId === '' ? null : stateId,
+          page: 1,
+          pageSize: 50,
+        });
         setCandidates(response.items);
         setError(null);
       } catch (failure) {
@@ -109,7 +141,26 @@ export function ComparisonPage() {
         }
       }
     })();
-  }, [api, headingId, loadHeadings]);
+  }, [api, headingId, loadHeadings, sectorId, stateId, typeId]);
+
+  const clearFilters = () => {
+    setSectorId('');
+    setTypeId('');
+    setStateId('');
+  };
+
+  /** The active filters, by name, so the empty state says which ones produced nothing. */
+  const filterLabels = [
+    sectorId === ''
+      ? null
+      : `Sector: ${catalogs.sectors.find((option) => option.id === sectorId)?.name ?? sectorId}`,
+    typeId === ''
+      ? null
+      : `Tipo de empresa: ${catalogs.types.find((option) => option.id === typeId)?.name ?? typeId}`,
+    stateId === ''
+      ? null
+      : `Estado: ${catalogs.states.find((option) => option.id === stateId)?.name ?? stateId}`,
+  ].filter((label): label is string => label !== null);
 
   const compare = useCallback(
     async (nextPage: number) => {
@@ -198,14 +249,97 @@ export function ComparisonPage() {
             </Box>
           ) : null}
 
+          {catalogs.sectors.length > 0 || catalogs.types.length > 0 || catalogs.states.length > 0 ? (
+            <Box data-testid="comparison-filters">
+              <Typography variant="subtitle2" component="p" sx={{ mb: 1 }}>
+                Filtrar convenciones candidatas
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} useFlexGap flexWrap="wrap" alignItems="center">
+                {catalogs.sectors.length > 0 ? (
+                  <TextField
+                    select
+                    size="small"
+                    label="Sector"
+                    value={sectorId}
+                    onChange={(event) => setSectorId(event.target.value)}
+                    sx={{ minWidth: 200 }}
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {catalogs.sectors.map((option) => (
+                      <MenuItem key={option.id} value={option.id}>
+                        {option.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                ) : null}
+
+                {catalogs.types.length > 0 ? (
+                  <TextField
+                    select
+                    size="small"
+                    label="Tipo de empresa"
+                    value={typeId}
+                    onChange={(event) => setTypeId(event.target.value)}
+                    sx={{ minWidth: 200 }}
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {catalogs.types.map((option) => (
+                      <MenuItem key={option.id} value={option.id}>
+                        {option.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                ) : null}
+
+                {catalogs.states.length > 0 ? (
+                  <TextField
+                    select
+                    size="small"
+                    label="Estado"
+                    value={stateId}
+                    onChange={(event) => setStateId(event.target.value)}
+                    sx={{ minWidth: 200 }}
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {catalogs.states.map((option) => (
+                      <MenuItem key={option.id} value={option.id}>
+                        {option.name}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                ) : null}
+
+                <Button size="small" onClick={clearFilters} disabled={!filtersActive}>
+                  Limpiar filtros
+                </Button>
+              </Stack>
+              <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
+                Los tres filtros se combinan entre sí. Las convenciones cuya empresa no tiene sector registrado
+                solo aparecen cuando Sector está en «Todos».
+              </Typography>
+            </Box>
+          ) : null}
+
           <Box>
             <Typography variant="subtitle2" component="p" sx={{ mb: 1 }}>
               Convenciones publicadas ({candidates.length})
             </Typography>
             {candidates.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                No hay convenciones publicadas para comparar todavía.
-              </Typography>
+              filtersActive ? (
+                <Box data-testid="no-filter-matches">
+                  <Typography variant="body2" color="text.secondary">
+                    Ninguna convención publicada coincide con los filtros aplicados
+                    {filterLabels.length > 0 ? ` (${filterLabels.join(' · ')})` : ''}.
+                  </Typography>
+                  <Button size="small" onClick={clearFilters} sx={{ mt: 1 }}>
+                    Limpiar filtros
+                  </Button>
+                </Box>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  No hay convenciones publicadas para comparar todavía.
+                </Typography>
+              )
             ) : (
               <Stack direction="row" flexWrap="wrap" gap={1}>
                 {candidates.map((candidate) => (

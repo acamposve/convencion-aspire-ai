@@ -318,6 +318,26 @@ export interface ComparisonCandidate {
   validFrom: string;
   validTo: string | null;
   clauseCount: number;
+  /** The company's classification, null when it has not been classified (#138b). */
+  sectorId: string | null;
+  sectorName: string | null;
+  typeId: string | null;
+  typeName: string | null;
+  stateId: string | null;
+  stateName: string | null;
+}
+
+/** One option of a company catalog (#138b). */
+export interface CatalogOption {
+  id: string;
+  name: string;
+}
+
+/** `GET /companies/catalogs`: the three option lists the comparison filters draw. */
+export interface CompanyCatalogs {
+  sectors: CatalogOption[];
+  types: CatalogOption[];
+  states: CatalogOption[];
 }
 
 // ---- Legal library (T10) ------------------------------------------------------------------------
@@ -583,6 +603,8 @@ export interface PublicNewsDetail extends PublicNewsSummary {
 export interface ApiClient {
   getMe(): Promise<Me>;
   getCompany(id: string): Promise<Company>;
+  /** The sector, type and state catalogs (#138b). */
+  getCompanyCatalogs(): Promise<CompanyCatalogs>;
 
   listDocuments(page: number, pageSize: number): Promise<DocumentListResponse>;
   uploadDocument(file: File, onProgress: (percent: number) => void): Promise<UploadedDocument>;
@@ -636,6 +658,9 @@ export interface ApiClient {
   listCandidates(query: {
     headingId?: string | null;
     q?: string | null;
+    sectorId?: string | null;
+    typeId?: string | null;
+    stateId?: string | null;
     page: number;
     pageSize: number;
   }): Promise<Page<ComparisonCandidate>>;
@@ -1047,10 +1072,23 @@ export class HttpApiClient implements ApiClient {
   async listCandidates(query: {
     headingId?: string | null;
     q?: string | null;
+    sectorId?: string | null;
+    typeId?: string | null;
+    stateId?: string | null;
     page: number;
     pageSize: number;
   }): Promise<Page<ComparisonCandidate>> {
     return this.request<Page<ComparisonCandidate>>(`/comparison/candidates${queryString(query)}`);
+  }
+
+  /**
+   * The sector, type and state catalogs (#138b).
+   *
+   * One request for the three lists: the comparison screen needs all of them to draw its filters, and
+   * the API returns only active sectors and types.
+   */
+  async getCompanyCatalogs(): Promise<CompanyCatalogs> {
+    return this.request<CompanyCatalogs>('/companies/catalogs');
   }
 
   async compare(query: {

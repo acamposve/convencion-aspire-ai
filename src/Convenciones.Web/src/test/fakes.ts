@@ -10,6 +10,7 @@ import type {
   ClausePageResponse,
   ClauseReviewStatus,
   ClauseView,
+  CompanyCatalogs,
   ComparisonCandidate,
   ComparisonView,
   DocumentListResponse,
@@ -403,6 +404,8 @@ export class FakeApi implements ApiClient {
   headings: HeadingView[] = [];
   comparison: ComparisonView | null = null;
   candidates: ComparisonCandidate[] = [];
+  catalogs: CompanyCatalogs = { sectors: [], types: [], states: [] };
+  candidateQueries: Array<{ headingId?: string | null; sectorId?: string | null; typeId?: string | null; stateId?: string | null; page: number; pageSize: number }> = [];
   statutes: StatuteDetail[] = [];
   cases: NegotiationCaseDetail[] = [];
   news: NewsDetail[] = [];
@@ -782,13 +785,22 @@ export class FakeApi implements ApiClient {
     return this.headings;
   }
 
+  async getCompanyCatalogs(): Promise<CompanyCatalogs> {
+    this.guard('getCompanyCatalogs');
+    return this.catalogs;
+  }
+
   async listCandidates(_query: {
     headingId?: string | null;
     q?: string | null;
+    sectorId?: string | null;
+    typeId?: string | null;
+    stateId?: string | null;
     page: number;
     pageSize: number;
   }): Promise<Page<ComparisonCandidate>> {
     this.guard('listCandidates');
+    this.candidateQueries.push(_query);
     return pageOf(this.candidates, _query.page, _query.pageSize);
   }
 

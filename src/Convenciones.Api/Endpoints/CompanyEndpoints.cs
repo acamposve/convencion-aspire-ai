@@ -28,6 +28,12 @@ public static class CompanyEndpoints
             .RequiresCapability("company.read")
             .WithName("ListCompanies");
 
+        // The comparison filters need the options as data, not as bare ids (#138b). Registered before
+        // the by-id route for readability; the `:guid` constraint would not match "catalogs" anyway.
+        group.MapGet("/catalogs", ListCatalogsAsync)
+            .RequiresCapability("company.read")
+            .WithName("ListCompanyCatalogs");
+
         group.MapGet("/{id:guid}", GetAsync)
             .RequiresCapability("company.read")
             .WithName("GetCompany");
@@ -53,6 +59,53 @@ public static class CompanyEndpoints
     /// company and then rely on the mapping to hide the rest — the same shape of bug as trusting a
     /// client-supplied identifier.
     /// </remarks>
+    /// <summary>
+    /// The sector, type and state catalogs a company can be classified with (#138b).
+    /// </summary>
+    /// <remarks>
+    /// One request instead of three: the comparison screen needs all of them at once to draw its
+    /// filters, and a third round trip would only add latency. Only active sectors and types are
+    /// returned — a retired option must not be offered — and the screen hides a selector whose list
+    /// comes back empty. States carry no active flag: they are geographic reference rows.
+    /// </remarks>
+    private static async Task<IResult> ListCatalogsAsync(
+        ConvencionesDbContext db,
+        ISessionAccessor accessor,
+        CancellationToken cancellationToken)
+    {
+        if (accessor.Session is null)
+        {
+            return Forbidden("No session was resolved for this request.");
+        }
+
+        var sectors = await db.CompanySectors
+            .AsNoTracking()
+            .Where(sector => sector.IsActive)
+            .OrderBy(sector => sector.SortOrder)
+            .ThenBy(sector => sector.Name)
+            .Select(sector => new CatalogOption(sector.Id, sector.Name))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var types = await db.CompanyTypes
+            .AsNoTracking()
+            .Where(type => type.IsActive)
+            .OrderBy(type => type.SortOrder)
+            .ThenBy(type => type.Name)
+            .Select(type => new CatalogOption(type.Id, type.Name))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var states = await db.RegionStates
+            .AsNoTracking()
+            .OrderBy(state => state.Name)
+            .Select(state => new CatalogOption(state.Id, state.Name))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new CompanyCatalogsResponse(sectors, types, states));
+    }
+
     private static async Task<IResult> ListAsync(
         ConvencionesDbContext db,
         ISessionAccessor accessor,
