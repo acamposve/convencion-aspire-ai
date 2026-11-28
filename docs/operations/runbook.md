@@ -290,6 +290,26 @@ Rules that apply to every row:
 - Health endpoints disclose whether the schema is present (audit M4). They are reachable at the edge
   today; do not extend them with tenant data ([P1-009 §8](p1-009-observability.md#8-security-and-roles)).
 
+### 8.1 What may be uploaded to staging
+
+**Staging is not production and must not hold real client data.** It exists to demonstrate and test the
+product with material that can be deleted at any time.
+
+| Allowed | Prohibited |
+|---|---|
+| Contract **synthetic** documents and the repository fixtures | Signed collective agreements, annexes or pay tables from a real company |
+| **Public** legislation: gacetas, laws, regulations, resolutions | Anything confidential, personal or commercially sensitive |
+| Anonymised demonstration material reviewed by the Product Owner | Client contracts pending redaction or anonymisation |
+
+Why: the AI provider terms are not signed and the synthetic-only policy stands until they are
+([P1-006 sign-off](owner-signoffs.md), issue #47), the environment has no production controls, and any
+document there may be deleted without notice. The T19 release gate creates and removes its own synthetic
+tenant on every run ([smoke-test.md](smoke-test.md)); the document inventory, and purging anything that
+does not belong, is tracked in issue #140.
+
+When in doubt, the answer is no: ask the Product Owner before uploading, and never upload a document to
+"see if it works".
+
 ## 9. Open items this runbook depends on
 
 | Item | Why it blocks | Owner |
