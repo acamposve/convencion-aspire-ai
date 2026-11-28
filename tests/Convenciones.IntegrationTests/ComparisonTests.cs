@@ -240,7 +240,7 @@ public sealed class ComparisonTests(AgreementFixture fixture) : IDisposable
     }
 
     [Fact]
-    public async Task Another_companys_agreement_is_404_and_mixed_requests_return_nothing()
+    public async Task Published_agreement_of_another_company_is_comparable_but_a_foreign_draft_is_not()
     {
         using var editorA = ClientFor(AgreementFixture.EditorA);
         using var editorB = ClientFor(AgreementFixture.EditorB);
@@ -249,19 +249,37 @@ public sealed class ComparisonTests(AgreementFixture fixture) : IDisposable
         var own = await CreatePublishedAsync(editorA, new DateOnly(2027, 5, 1), heading);
         var foreign = await CreatePublishedAsync(editorB, new DateOnly(2027, 5, 2), heading);
 
-        var foreignOnly = await editorA.GetAsync(
+        // #138b: a published agreement of another company is part of the comparison directory.
+        var foreignOnly = await editorA.GetFromJsonAsync<ComparisonView>(
             new Uri(
                 $"/comparison?headingId={heading}&agreementIds={foreign.Agreement.Id}",
                 UriKind.Relative));
-        foreignOnly.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await ReadCodeAsync(foreignOnly)).ShouldBe("not_found");
+        foreignOnly.ShouldNotBeNull();
+        foreignOnly!.Agreements.Select(agreement => agreement.AgreementId)
+            .ShouldContain(foreign.Agreement.Id);
+        foreignOnly.UnpublishedRequested.ShouldBeEmpty();
 
-        var mixed = await editorA.GetAsync(
+        // Mixed: mine plus a published one from another company.
+        var mixed = await editorA.GetFromJsonAsync<ComparisonView>(
             new Uri(
                 $"/comparison?headingId={heading}&agreementIds={own.Agreement.Id},{foreign.Agreement.Id}",
                 UriKind.Relative));
-        mixed.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-        (await mixed.Content.ReadAsStringAsync()).ShouldNotContain(own.Clause.Title);
+        mixed.ShouldNotBeNull();
+        mixed!.Agreements.Select(agreement => agreement.AgreementId)
+            .ShouldContain(own.Agreement.Id);
+        mixed.Agreements.Select(agreement => agreement.AgreementId)
+            .ShouldContain(foreign.Agreement.Id);
+
+        // A draft of another company stays indistinguishable from a missing one: the row-level policy
+        // hides it, so the request fails before anything is rendered.
+        var foreignDraft = await CreateDraftAsync(editorB, new DateOnly(2027, 5, 3), heading);
+        var draftOnly = await editorA.GetAsync(
+            new Uri(
+                $"/comparison?headingId={heading}&agreementIds={foreignDraft.Agreement.Id}",
+                UriKind.Relative));
+        draftOnly.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await ReadCodeAsync(draftOnly)).ShouldBe("not_found");
+        (await draftOnly.Content.ReadAsStringAsync()).ShouldNotContain(foreignDraft.Clause.Title);
 
         var missing = await editorA.GetAsync(
             new Uri(
@@ -274,6 +292,89 @@ public sealed class ComparisonTests(AgreementFixture fixture) : IDisposable
                 $"/comparison?headingId={heading}&agreementIds={foreign.Agreement.Id}",
                 UriKind.Relative));
         asB.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Candidates_include_published_agreements_from_other_companies_and_never_foreign_drafts()
+    {
+        using var editorA = ClientFor(AgreementFixture.EditorA);
+        using var editorB = ClientFor(AgreementFixture.EditorB);
+        var heading = await fixture.HeadingIdAsync("Salarios");
+
+        var published = await CreatePublishedAsync(editorB, new DateOnly(2027, 7, 1), heading);
+        var draft = await CreateDraftAsync(editorB, new DateOnly(2027, 7, 2), heading);
+
+        var page = await editorA.GetFromJsonAsync<ComparisonCandidatePage>(
+            new Uri(
+                $"/comparison/candidates?headingId={heading}&page=1&pageSize=50",
+                UriKind.Relative));
+
+        page.ShouldNotBeNull();
+        var ids = page!.Items.Select(item => item.AgreementId).ToArray();
+        ids.ShouldContain(published.Agreement.Id);
+        ids.ShouldNotContain(draft.Agreement.Id);
+    }
+
+    [Fact]
+    public async Task Candidates_are_filtered_by_sector_type_and_state_on_the_server()
+    {
+        using var editorA = ClientFor(AgreementFixture.EditorA);
+        using var editorB = ClientFor(AgreementFixture.EditorB);
+        var heading = await fixture.HeadingIdAsync("Salarios");
+
+        var classificationA = await fixture.ClassifyCompanyAsync(AgreementFixture.CompanyA, "A");
+        var classificationB = await fixture.ClassifyCompanyAsync(AgreementFixture.CompanyB, "B");
+
+        var publishedA = await CreatePublishedAsync(editorA, new DateOnly(2027, 8, 1), heading);
+        var publishedB = await CreatePublishedAsync(editorB, new DateOnly(2027, 8, 2), heading);
+
+        // Without filters the directory returns both companies.
+        var all = await editorA.GetFromJsonAsync<ComparisonCandidatePage>(
+            new Uri(
+                $"/comparison/candidates?headingId={heading}&page=1&pageSize=50",
+                UriKind.Relative));
+        all.ShouldNotBeNull();
+        all!.Items.Select(item => item.AgreementId).ShouldContain(publishedA.Agreement.Id);
+        all.Items.Select(item => item.AgreementId).ShouldContain(publishedB.Agreement.Id);
+
+        // The row carries the classification, so the screen can show why a company is in the list.
+        var rowA = all.Items.Single(item => item.AgreementId == publishedA.Agreement.Id);
+        rowA.SectorId.ShouldBe(classificationA.SectorId);
+        rowA.SectorName.ShouldBe("Sector A");
+        rowA.TypeId.ShouldBe(classificationA.TypeId);
+        rowA.TypeName.ShouldBe("Tipo A");
+        rowA.StateId.ShouldBe(classificationA.StateId);
+        rowA.StateName.ShouldBe("Estado A");
+
+        // One filter narrows the directory to the company that has it.
+        var bySector = await editorA.GetFromJsonAsync<ComparisonCandidatePage>(
+            new Uri(
+                $"/comparison/candidates?headingId={heading}&sectorId={classificationA.SectorId}&page=1&pageSize=50",
+                UriKind.Relative));
+        bySector.ShouldNotBeNull();
+        bySector!.Items.Select(item => item.AgreementId).ShouldContain(publishedA.Agreement.Id);
+        bySector.Items.Select(item => item.AgreementId).ShouldNotContain(publishedB.Agreement.Id);
+        bySector.Items.ShouldAllBe(item => item.CompanyId == AgreementFixture.CompanyA);
+
+        // A combination with no match is a valid empty page, not an error.
+        var impossible = await editorA.GetAsync(
+            new Uri(
+                $"/comparison/candidates?headingId={heading}&sectorId={classificationA.SectorId}&typeId={classificationB.TypeId}",
+                UriKind.Relative));
+        impossible.StatusCode.ShouldBe(HttpStatusCode.OK);
+        var empty = await impossible.Content.ReadFromJsonAsync<ComparisonCandidatePage>();
+        empty.ShouldNotBeNull();
+        empty!.Total.ShouldBe(0);
+        empty.Items.ShouldBeEmpty();
+
+        // An unknown id filters everything out and is still a 200.
+        var unknown = await editorA.GetFromJsonAsync<ComparisonCandidatePage>(
+            new Uri(
+                $"/comparison/candidates?headingId={heading}&sectorId={Guid.NewGuid()}",
+                UriKind.Relative));
+        unknown.ShouldNotBeNull();
+        unknown!.Total.ShouldBe(0);
+        unknown.Items.ShouldBeEmpty();
     }
 
     [Fact]
@@ -438,6 +539,17 @@ public sealed class ComparisonTests(AgreementFixture fixture) : IDisposable
         DateOnly validFrom,
         Guid headingId)
     {
+        var created = await CreateDraftAsync(client, validFrom, headingId);
+        await PublishAsync(client, created.Agreement.Id);
+        return created;
+    }
+
+    /// <summary>An agreement with one clause, left in <c>Draft</c> on purpose.</summary>
+    private static async Task<(AgreementDetail Agreement, ClauseResponse Clause)> CreateDraftAsync(
+        HttpClient client,
+        DateOnly validFrom,
+        Guid headingId)
+    {
         var agreement = await CreateAgreementAsync(client, validFrom);
         var clause = await AddClauseAsync(
             client,
@@ -445,7 +557,6 @@ public sealed class ComparisonTests(AgreementFixture fixture) : IDisposable
             1,
             headingId,
             $"Cláusula {validFrom:yyyy-MM-dd}");
-        await PublishAsync(client, agreement.Id);
         return (agreement, clause);
     }
 

@@ -226,6 +226,71 @@ public sealed class AgreementFixture : IAsyncLifetime
         return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
     }
 
+    /// <summary>
+    /// Gives a company a sector, a type and a state, creating the reference rows when they are missing.
+    /// </summary>
+    /// <remarks>
+    /// The seed only writes the country, so the comparison filters (#138b) have nothing to filter by
+    /// until a test classifies its companies. The ids are returned so the test can query with them.
+    /// </remarks>
+    public async Task<CompanyClassification> ClassifyCompanyAsync(Guid companyId, string suffix)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        var sectorId = await InsertNamedAsync(
+            connection,
+            """
+            insert into app.company_sector (name) values (@name) returning id
+            """,
+            $"Sector {suffix}").ConfigureAwait(false);
+
+        var typeId = await InsertNamedAsync(
+            connection,
+            """
+            insert into app.company_type (name) values (@name) returning id
+            """,
+            $"Tipo {suffix}").ConfigureAwait(false);
+
+        var stateId = await InsertNamedAsync(
+            connection,
+            """
+            insert into app.state (country_id, name)
+            select id, @name from app.country where code = 'VE'
+            returning id
+            """,
+            $"Estado {suffix}").ConfigureAwait(false);
+
+        await using (var update = new NpgsqlCommand(
+            """
+            update app.company
+               set sector_id = @sector, type_id = @type, state_id = @state
+             where id = @company
+            """, connection))
+        {
+            update.Parameters.AddWithValue("sector", sectorId);
+            update.Parameters.AddWithValue("type", typeId);
+            update.Parameters.AddWithValue("state", stateId);
+            update.Parameters.AddWithValue("company", companyId);
+
+            await update.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
+
+        return new CompanyClassification(sectorId, typeId, stateId);
+    }
+
+    private static async Task<Guid> InsertNamedAsync(
+        NpgsqlConnection connection,
+        string sql,
+        string name)
+    {
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("name", name);
+
+        var id = await command.ExecuteScalarAsync().ConfigureAwait(false);
+        return (Guid)id!;
+    }
+
     private async Task SeedAsync()
     {
         const string sql = """
@@ -306,3 +371,6 @@ public sealed record StoredAgreement(
     string Scope,
     DateOnly ValidFrom,
     DateOnly? ValidTo);
+
+/// <summary>The reference rows a company was classified with, so a test can filter by them.</summary>
+public sealed record CompanyClassification(Guid SectorId, Guid TypeId, Guid StateId);

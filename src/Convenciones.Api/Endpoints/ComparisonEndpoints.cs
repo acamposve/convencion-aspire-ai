@@ -90,6 +90,9 @@ public static class ComparisonEndpoints
         CancellationToken cancellationToken,
         string? headingId,
         Guid? companyId = null,
+        Guid? sectorId = null,
+        Guid? typeId = null,
+        Guid? stateId = null,
         int page = 1,
         int pageSize = DefaultCandidatePageSize)
     {
@@ -110,10 +113,12 @@ public static class ComparisonEndpoints
             return headingProblem!;
         }
 
-        var targetCompany = companyId ?? session.CompanyId;
-        if (targetCompany is not { } company || !TenantScope.CanAccess(session, company))
+        // #138b: the directory is every published agreement, so a company is not required. Naming one
+        // still has to be a company the caller may administer: the parameter is a convenience for "my
+        // company", not a way to probe which company ids exist.
+        if (companyId is { } requestedCompany && !TenantScope.CanAccess(session, requestedCompany))
         {
-            return NotFoundCompany(companyId ?? Guid.Empty);
+            return NotFoundCompany(requestedCompany);
         }
 
         // An excluded heading is not offered in the workspace. Returning an empty page is explicit:
@@ -127,7 +132,13 @@ public static class ComparisonEndpoints
         var query = ComparisonQueries.Candidates(
             db.Agreements.AsNoTracking(),
             db.Companies.AsNoTracking(),
-            company,
+            db.CompanySectors.AsNoTracking(),
+            db.CompanyTypes.AsNoTracking(),
+            db.RegionStates.AsNoTracking(),
+            companyId,
+            sectorId,
+            typeId,
+            stateId,
             heading.Id);
 
         var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
@@ -146,7 +157,13 @@ public static class ComparisonEndpoints
                 AgreementTitles.Compose(row.CompanyName, row.ValidFrom, row.ValidTo),
                 row.ValidFrom,
                 row.ValidTo,
-                row.ClauseCount))
+                row.ClauseCount,
+                row.SectorId,
+                row.SectorName,
+                row.TypeId,
+                row.TypeName,
+                row.StateId,
+                row.StateName))
             .ToArray();
 
         return Results.Ok(new ComparisonCandidatePage(items, page, pageSize, total));
@@ -210,12 +227,17 @@ public static class ComparisonEndpoints
 
         if (agreements.Count != requestedIds.Length)
         {
-            // Include inaccessible ids in the count check: another company's agreement is
-            // indistinguishable from a missing one, and a 404 does not confirm existence.
+            // A draft of another company is unreadable through the row-level policies, so it fails
+            // here exactly like a missing id: the 404 never confirms that it exists.
             return NotFoundAgreements();
         }
 
-        if (agreements.Any(agreement => !TenantScope.CanAccess(session, agreement.CompanyId)))
+        // #138b: a published agreement of another company is part of the comparison directory and can
+        // be compared. Anything that is neither accessible nor published stays indistinguishable from
+        // missing, so a 404 never confirms the existence of a foreign draft.
+        if (agreements.Any(agreement =>
+                !TenantScope.CanAccess(session, agreement.CompanyId)
+                && agreement.State is not PublicationState.Published))
         {
             return NotFoundAgreements();
         }

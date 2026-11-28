@@ -1,13 +1,25 @@
 namespace Convenciones.Comparison;
 
 /// <summary>One agreement that has at least one clause under the chosen heading.</summary>
+/// <remarks>
+/// Since #138b the candidate list is a directory of **published** agreements, so it carries the
+/// company's sector, type and state: they are what the client filters by. All three are nullable
+/// because a company may not be classified yet, and a null must not hide an agreement from the
+/// unfiltered list.
+/// </remarks>
 public sealed record ComparisonCandidateRow(
     Guid AgreementId,
     Guid CompanyId,
     string CompanyName,
     DateOnly ValidFrom,
     DateOnly? ValidTo,
-    int ClauseCount);
+    int ClauseCount,
+    Guid? SectorId,
+    string? SectorName,
+    Guid? TypeId,
+    string? TypeName,
+    Guid? StateId,
+    string? StateName);
 
 /// <summary>The response row: the stored fields plus the Q-1 title composed on read.</summary>
 public sealed record ComparisonCandidate(
@@ -17,7 +29,13 @@ public sealed record ComparisonCandidate(
     string Title,
     DateOnly ValidFrom,
     DateOnly? ValidTo,
-    int ClauseCount);
+    int ClauseCount,
+    Guid? SectorId,
+    string? SectorName,
+    Guid? TypeId,
+    string? TypeName,
+    Guid? StateId,
+    string? StateName);
 
 public sealed record ComparisonCandidatePage(
     IReadOnlyList<ComparisonCandidate> Items,

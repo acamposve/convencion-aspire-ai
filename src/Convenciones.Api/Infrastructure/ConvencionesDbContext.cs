@@ -26,6 +26,13 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 {
     public DbSet<Company> Companies => Set<Company>();
 
+    /// <summary>Read-only catalogs a company points at (#138b).</summary>
+    public DbSet<CompanySector> CompanySectors => Set<CompanySector>();
+
+    public DbSet<CompanyType> CompanyTypes => Set<CompanyType>();
+
+    public DbSet<RegionState> RegionStates => Set<RegionState>();
+
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     public DbSet<Document> Documents => Set<Document>();
@@ -90,6 +97,9 @@ public sealed class ConvencionesDbContext(DbContextOptions<ConvencionesDbContext
 
         // Catalog owns app.company. Later modules register their own configurations the same way.
         modelBuilder.ApplyConfiguration(new CompanyConfiguration());
+        modelBuilder.ApplyConfiguration(new CompanySectorConfiguration());
+        modelBuilder.ApplyConfiguration(new CompanyTypeConfiguration());
+        modelBuilder.ApplyConfiguration(new RegionStateConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEntryConfiguration());
         modelBuilder.ApplyConfiguration(new DocumentConfiguration());
         modelBuilder.ApplyConfiguration(new DocumentTextConfiguration());
