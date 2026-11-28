@@ -38,7 +38,7 @@ describe('NegotiationPage', () => {
 
     renderApp({ api, route: '/negotiation/case-1' });
 
-    expect(await screen.findByRole('button', { name: 'Promover a acuerdo' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Promover a convención' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reabrir' })).toBeInTheDocument();
   });
 
@@ -50,7 +50,7 @@ describe('NegotiationPage', () => {
     renderApp({ api, route: '/negotiation/case-1' });
 
     await screen.findByText(/Caso iniciado/);
-    expect(screen.queryByRole('button', { name: 'Promover a acuerdo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Promover a convención' })).not.toBeInTheDocument();
   });
 });
 

@@ -18,6 +18,7 @@ import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { PageHeader, EmptyState } from '../../components/PageHeader';
+import { SECTIONS } from '../../lib/navigation';
 import { useCapabilities } from '../auth/useCapabilities';
 import { useServices } from '../../services';
 import type { AgreementSummary, PublicationState } from '../../lib/api';
@@ -68,12 +69,12 @@ export function AgreementsPage() {
   return (
     <Box>
       <PageHeader
-        title="Acuerdos"
-        subtitle="Acuerdos colectivos por empresa y vigencia. El título se compone de la empresa y los años; no se almacena."
+        title={SECTIONS.agreements.label}
+        subtitle={SECTIONS.agreements.help}
         actions={
           has('agreement.write') ? (
             <Button variant="contained" onClick={() => setCreating(true)}>
-              Nuevo acuerdo
+              Nueva convención
             </Button>
           ) : null
         }
@@ -101,12 +102,12 @@ export function AgreementsPage() {
 
       {loading ? (
         <Typography variant="body2" color="text.secondary">
-          Cargando acuerdos…
+          Cargando convenciones…
         </Typography>
       ) : items.length === 0 ? (
-        <EmptyState message="No hay acuerdos que coincidan con el filtro." />
+        <EmptyState message="No hay convenciones que coincidan con el filtro." />
       ) : (
-        <Table size="small" aria-label="Acuerdos">
+        <Table size="small" aria-label="Convenciones">
           <TableHead>
             <TableRow>
               <TableCell>Título</TableCell>
@@ -152,7 +153,7 @@ export function AgreementsPage() {
           count={Math.max(1, Math.ceil(total / PAGE_SIZE))}
           page={page}
           onChange={(_, value) => setPage(value)}
-          aria-label="Paginación de acuerdos"
+          aria-label="Paginación de convenciones"
         />
       </Box>
 
@@ -188,7 +189,7 @@ function CreateAgreementDialog({
     const validation = firstError([
       isoDate(validFrom),
       dateOrder(validFrom, validTo),
-      requiredText(scope, 'Indique el ámbito del acuerdo.'),
+      requiredText(scope, 'Indique el ámbito de la convención.'),
     ]);
 
     if (validation) {
@@ -210,7 +211,7 @@ function CreateAgreementDialog({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="create-agreement">
-      <DialogTitle id="create-agreement">Nuevo acuerdo</DialogTitle>
+      <DialogTitle id="create-agreement">Nueva convención</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           {error ? <Alert severity="error">{error}</Alert> : null}
@@ -228,7 +229,7 @@ function CreateAgreementDialog({
             value={validTo}
             onChange={(event) => setValidTo(event.target.value)}
             InputLabelProps={{ shrink: true }}
-            helperText="Opcional. Puede dejarla vacía para un acuerdo sin fecha final."
+            helperText="Opcional. Puede dejarla vacía para una convención sin fecha final."
           />
           <TextField
             label="Ámbito"
@@ -242,7 +243,7 @@ function CreateAgreementDialog({
       <DialogActions>
         <Button onClick={onClose}>Cancelar</Button>
         <Button variant="contained" onClick={() => void submit()} disabled={submitting}>
-          Crear acuerdo
+          Crear convención
         </Button>
       </DialogActions>
     </Dialog>

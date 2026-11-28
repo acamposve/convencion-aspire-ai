@@ -11,6 +11,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useCallback, useEffect, useState } from 'react';
 import { PageHeader, EmptyState } from '../../components/PageHeader';
+import { SECTIONS } from '../../lib/navigation';
 import { useServices } from '../../services';
 import type { ComparisonCandidate, ComparisonView, HeadingView } from '../../lib/api';
 import { ApiError, describeError, type UiError } from '../../lib/errors';
@@ -106,7 +107,7 @@ export function ComparisonPage() {
   const compare = useCallback(
     async (nextPage: number) => {
       if (headingId === '' || selected.length === 0) {
-        setError({ code: 'validation_failed', detail: 'Seleccione una materia y al menos un acuerdo publicado.' });
+        setError({ code: 'validation_failed', detail: 'Seleccione una materia y al menos una convención publicada.' });
         return;
       }
 
@@ -136,8 +137,8 @@ export function ComparisonPage() {
   return (
     <Box>
       <PageHeader
-        title="Comparación por materia"
-        subtitle="Cláusulas de acuerdos publicados, agrupadas por materia. La pantalla no afirma equivalencia: muestra vecindad."
+        title={SECTIONS.comparison.label}
+        subtitle={SECTIONS.comparison.help}
       />
 
       {error ? (
@@ -180,11 +181,11 @@ export function ComparisonPage() {
 
           <Box>
             <Typography variant="subtitle2" component="p" sx={{ mb: 1 }}>
-              Acuerdos publicados ({candidates.length})
+              Convenciones publicadas ({candidates.length})
             </Typography>
             {candidates.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
-                No hay acuerdos publicados para comparar todavía.
+                No hay convenciones publicadas para comparar todavía.
               </Typography>
             ) : (
               <Stack direction="row" flexWrap="wrap" gap={1}>
@@ -235,7 +236,7 @@ export function ComparisonPage() {
 
           {result.unpublishedRequested.length > 0 ? (
             <Alert severity="warning" sx={{ mb: 2 }}>
-              Algunos acuerdos solicitados no están publicados y no se muestran: {result.unpublishedRequested.join(', ')}.
+              Algunas convenciones solicitadas no están publicadas y no se muestran: {result.unpublishedRequested.join(', ')}.
             </Alert>
           ) : null}
 
@@ -311,7 +312,7 @@ export function ComparisonPage() {
           </Box>
         </Box>
       ) : heading ? (
-        <EmptyState message="Seleccione acuerdos publicados y pulse Comparar." />
+        <EmptyState message="Seleccione convenciones publicadas y pulse Comparar." />
       ) : null}
     </Box>
   );

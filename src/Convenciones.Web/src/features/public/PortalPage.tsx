@@ -96,7 +96,7 @@ export function PortalPage() {
         </Typography>
         <PageHeader
           title="Convenciones colectivas publicadas"
-          subtitle="Contenido público: acuerdos publicados y noticias. No requiere sesión y no muestra datos internos."
+          subtitle="Contenido público: convenciones publicadas y noticias. No requiere sesión y no muestra datos internos."
         />
 
         {error ? (
@@ -116,7 +116,7 @@ export function PortalPage() {
           aria-label="Contenido público"
           sx={{ mb: 2 }}
         >
-          <Tab value="agreements" label="Acuerdos" />
+          <Tab value="agreements" label="Convenciones" />
           <Tab value="news" label="Noticias" />
         </Tabs>
 
@@ -188,9 +188,9 @@ export function PortalPage() {
         ) : tab === 'agreements' ? (
           <Stack spacing={1.5}>
             {loading ? (
-              <Typography variant="body2">Cargando acuerdos publicados…</Typography>
+              <Typography variant="body2">Cargando convenciones publicadas…</Typography>
             ) : agreements.length === 0 ? (
-              <EmptyState message="Todavía no hay acuerdos publicados." />
+              <EmptyState message="Todavía no hay convenciones publicadas." />
             ) : (
               agreements.map((agreement) => (
                 <Paper key={agreement.id} sx={{ p: 2 }}>
@@ -216,7 +216,7 @@ export function PortalPage() {
               page={page}
               onChange={(_, value) => setPage(value)}
               sx={{ alignSelf: 'center', mt: 2 }}
-              aria-label="Paginación de acuerdos publicados"
+              aria-label="Paginación de convenciones publicadas"
             />
           </Stack>
         ) : (

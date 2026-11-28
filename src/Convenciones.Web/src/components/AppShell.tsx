@@ -13,32 +13,14 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import BusinessIcon from '@mui/icons-material/Business';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { useSession } from '../features/auth/SessionProvider';
 import { useCapabilities } from '../features/auth/useCapabilities';
 import { useServices } from '../services';
 import { shortId } from '../lib/format';
+import { NAV_GROUPS } from '../lib/navigation';
 import { LoadingScreen } from './LoadingScreen';
-
-interface NavItem {
-  to: string;
-  label: string;
-  capability: string;
-}
-
-/** Every destination, with the capability that makes it useful. Hiding it is a courtesy (AC 1). */
-const NAV: NavItem[] = [
-  { to: '/documents', label: 'Documentos', capability: 'document.read' },
-  { to: '/agreements', label: 'Acuerdos', capability: 'agreement.read' },
-  { to: '/comparison', label: 'Comparación', capability: 'comparison.read' },
-  { to: '/legal', label: 'Biblioteca legal', capability: 'statute.read' },
-  { to: '/negotiation', label: 'Negociación', capability: 'negotiation.read' },
-  { to: '/news', label: 'Noticias', capability: 'news.read' },
-  { to: '/admin/users', label: 'Usuarios', capability: 'user.manage' },
-  { to: '/admin/roles', label: 'Roles', capability: 'role.manage' },
-  { to: '/audit', label: 'Auditoría', capability: 'audit.read' },
-];
 
 /**
  * The application shell shared by every authenticated screen.
@@ -90,7 +72,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const displayName = me.displayName ?? me.email;
   const companyLabel = companyId === null ? 'Sin empresa' : (companyName ?? `Empresa ${shortId(companyId)}`);
-  const visible = NAV.filter((item) => has(item.capability));
+  const visible = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => has(item.capability)),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <Box
@@ -115,20 +100,46 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Typography>
           </Button>
 
-          <Box component="nav" aria-label="Secciones" sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {visible.map((item) => (
-              <Button
-                key={item.to}
-                component={RouterLink}
-                to={item.to}
-                color="inherit"
-                size="small"
-                aria-current={location.pathname.startsWith(item.to) ? 'page' : undefined}
-                sx={{ textTransform: 'none', opacity: location.pathname.startsWith(item.to) ? 1 : 0.8 }}
-              >
-                {item.label}
-              </Button>
+          <Box
+            component="nav"
+            aria-label="Secciones"
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}
+          >
+            {visible.map((group, index) => (
+              <Fragment key={group.key}>
+                {index > 0 ? (
+                  <Divider
+                    orientation="vertical"
+                    flexItem
+                    sx={{ borderColor: 'rgba(255,255,255,0.25)', mx: 0.5, my: 1 }}
+                  />
+                ) : null}
+                <Box
+                  role="group"
+                  aria-label={group.label ?? undefined}
+                  sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}
+                >
+                  {group.items.map((item) => (
+                    <Button
+                      key={item.to}
+                      component={RouterLink}
+                      to={item.to}
+                      color="inherit"
+                      size="small"
+                      aria-current={location.pathname.startsWith(item.to) ? 'page' : undefined}
+                      sx={{ textTransform: 'none', opacity: location.pathname.startsWith(item.to) ? 1 : 0.8 }}
+                    >
+                      {item.label}
+                    </Button>
+                  ))}
+                </Box>
+              </Fragment>
             ))}
+            <Divider
+              orientation="vertical"
+              flexItem
+              sx={{ borderColor: 'rgba(255,255,255,0.25)', mx: 0.5, my: 1 }}
+            />
             <Button
               component={RouterLink}
               to="/portal"

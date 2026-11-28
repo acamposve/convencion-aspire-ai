@@ -29,7 +29,7 @@ describe('AgreementsPage', () => {
     expect(await screen.findByText('Empresa Demo · 2026')).toBeInTheDocument();
     expect(screen.getByText('Empresa Demo · 2024')).toBeInTheDocument();
     expect(screen.getByText(/Publicado/)).toBeInTheDocument();
-    expect(screen.getByRole('table', { name: 'Acuerdos' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Convenciones' })).toBeInTheDocument();
   });
 
   it('hides the create control when the caller cannot write agreements', async () => {
@@ -38,21 +38,21 @@ describe('AgreementsPage', () => {
 
     renderApp({ api, route: '/agreements' });
 
-    await screen.findByText('No hay acuerdos que coincidan con el filtro.');
-    expect(screen.queryByRole('button', { name: 'Nuevo acuerdo' })).not.toBeInTheDocument();
+    await screen.findByText('No hay convenciones que coincidan con el filtro.');
+    expect(screen.queryByRole('button', { name: 'Nueva convención' })).not.toBeInTheDocument();
   });
 
   it('validates the create form before calling the API', async () => {
     const api = new FakeApi();
     const { user } = renderApp({ api, route: '/agreements' });
 
-    await user.click(await screen.findByRole('button', { name: 'Nuevo acuerdo' }));
+    await user.click(await screen.findByRole('button', { name: 'Nueva convención' }));
 
     const scope = screen.getByLabelText(/Ámbito/);
     await user.clear(scope);
-    await user.click(screen.getByRole('button', { name: 'Crear acuerdo' }));
+    await user.click(screen.getByRole('button', { name: 'Crear convención' }));
 
-    expect(await screen.findByText('Indique el ámbito del acuerdo.')).toBeInTheDocument();
+    expect(await screen.findByText('Indique el ámbito de la convención.')).toBeInTheDocument();
     expect(api.calls).not.toContain('createAgreement');
   });
 
