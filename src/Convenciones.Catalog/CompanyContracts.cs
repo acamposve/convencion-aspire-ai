@@ -58,3 +58,19 @@ public sealed record UpdateCompanyRequest(
     string? TaxId,
     string? ContactEmail,
     string? City);
+
+/// <summary>One option of a company catalog, as the comparison filters consume it (#138b).</summary>
+public sealed record CatalogOption(Guid Id, string Name);
+
+/// <summary>
+/// The three catalogs a company can be classified with, in one response.
+/// </summary>
+/// <remarks>
+/// Only active sectors and types are returned: a retired option must not be offered as a filter, and
+/// the screen hides a selector whose list is empty. States have no active flag — they are geographic
+/// reference rows, not a managed lookup.
+/// </remarks>
+public sealed record CompanyCatalogsResponse(
+    IReadOnlyList<CatalogOption> Sectors,
+    IReadOnlyList<CatalogOption> Types,
+    IReadOnlyList<CatalogOption> States);

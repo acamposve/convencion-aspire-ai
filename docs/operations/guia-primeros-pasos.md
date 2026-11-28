@@ -73,17 +73,23 @@ La comparación trabaja sobre **convenciones publicadas**, no directamente sobre
 3. Pulsa **«Publicar»** y confirma. Una convención en borrador **no** aparece en la comparación.
 4. Ve a **Comparación** (`/comparison`):
    - elige la **Materia** en el desplegable;
-   - marca las convenciones publicadas que quieras comparar;
-   - pulsa **«Comparar»**.
-5. Verás las cláusulas de esa materia, una junto a otra, sin afirmar que sean equivalentes. Al elegir la
+   - si la lista es larga, acótala con **Sector**, **Tipo de empresa** y **Estado**: los tres se combinan
+     entre sí y se aplican al servidor, así que la lista y el contador que ves ya están filtrados;
+   - marca las convenciones publicadas que quieras comparar y pulsa **«Comparar»**.
+5. Los filtros se pueden vaciar con **«Limpiar filtros»**. Si con ellos no queda ninguna convención, la
+   pantalla lo dice indicando qué filtros aplicaste; no es un error. Ojo: una convención cuya **empresa no
+   tiene sector registrado** solo aparece cuando Sector está en «Todos».
+6. Al cambiar de materia o de filtro, la selección de casillas se vacía: la lista de la que elegiste ya no
+   es la misma.
+7. Verás las cláusulas de esa materia, una junto a otra, sin afirmar que sean equivalentes. Al elegir la
    materia se muestra también **su definición** —el criterio con el que se agrupan esas cláusulas—.
-6. Cada cláusula aparece **en resumen**. Si quieres el texto completo, pulsa **«Ver cláusula completa»**
+8. Cada cláusula aparece **en resumen**. Si quieres el texto completo, pulsa **«Ver cláusula completa»**
    (y «Ocultar cláusula completa» para volver). El botón solo aparece cuando hay más texto que el resumen.
-7. Bajo el nombre de cada convención verás su **vigencia** (desde – hasta), con la duración calculada, o
+9. Bajo el nombre de cada convención verás su **vigencia** (desde – hasta), con la duración calculada, o
    «sin fecha fin» si no tiene fecha de cierre.
-8. Arriba, el bloque **«Biblioteca legal de esta materia»** lista los artículos de la ley clasificados en
-   esa materia. Son artículos **de la materia**, no de cada cláusula: no hay emparejamiento uno a uno entre
-   artículo y cláusula.
+10. Arriba, el bloque **«Biblioteca legal de esta materia»** lista los artículos de la ley clasificados en
+    esa materia. Son artículos **de la materia**, no de cada cláusula: no hay emparejamiento uno a uno entre
+    artículo y cláusula.
 
 ---
 

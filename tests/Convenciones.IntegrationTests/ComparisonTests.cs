@@ -7,6 +7,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Convenciones.Api.Endpoints;
+using Convenciones.Catalog;
 using Convenciones.Comparison;
 using Shouldly;
 using Xunit;
@@ -313,6 +314,25 @@ public sealed class ComparisonTests(AgreementFixture fixture) : IDisposable
         var ids = page!.Items.Select(item => item.AgreementId).ToArray();
         ids.ShouldContain(published.Agreement.Id);
         ids.ShouldNotContain(draft.Agreement.Id);
+    }
+
+    [Fact]
+    public async Task Catalogs_expose_active_options_and_omit_retired_ones()
+    {
+        using var client = ClientFor(AgreementFixture.EditorA);
+
+        var classification = await fixture.ClassifyCompanyAsync(AgreementFixture.CompanyA, "CAT");
+        await fixture.DeactivateSectorAsync(classification.SectorId);
+
+        var catalogs = await client.GetFromJsonAsync<CompanyCatalogsResponse>(
+            new Uri("/companies/catalogs", UriKind.Relative));
+
+        catalogs.ShouldNotBeNull();
+        // A retired sector must not be offered as a filter.
+        catalogs!.Sectors.ShouldNotContain(option => option.Id == classification.SectorId);
+        catalogs.Types.ShouldContain(option => option.Id == classification.TypeId);
+        catalogs.States.ShouldContain(option => option.Id == classification.StateId);
+        catalogs.Sectors.ShouldAllBe(option => !string.IsNullOrWhiteSpace(option.Name));
     }
 
     [Fact]
