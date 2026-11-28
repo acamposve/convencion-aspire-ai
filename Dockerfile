@@ -3,7 +3,7 @@
 # One image carries both the API and the migrator: they share every dependency, and shipping one
 # image means a deployment cannot run the schema of one build against the binary of another.
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 
 # Restore inputs first so a source change does not invalidate the package layer.
