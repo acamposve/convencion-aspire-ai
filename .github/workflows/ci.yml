@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: Restore
         run: dotnet restore Convenciones.slnx
@@ -75,7 +75,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       # Applies every supabase/migrations/*.sql in order, then supabase/seed.sql, exactly as the
       # deployed migrator will. No manual schema recreation.
